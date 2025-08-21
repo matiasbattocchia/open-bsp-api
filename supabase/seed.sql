@@ -1,3 +1,18 @@
+-- Set vault secrets for edge functions
+
+select vault.create_secret(
+  'http://supabase_kong_api:8000/functions/v1',
+  'edge_functions_url',
+  'Edge Functions base URL'
+);
+
+-- For some reason the service role key is the same for every local project.
+select vault.create_secret(
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU',
+  'edge_functions_token',
+  'Service role key'
+);
+
 -- Creates a default organization and user
 -- user: admin
 -- pass: admin

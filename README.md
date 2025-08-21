@@ -5,33 +5,17 @@ An application built with [Deno ðŸ¦•](https://deno.land), powered by Postgres ðŸ
 ## Deployment
 
 Connect the Supabase CLI to your Supabase account by logging in with your personal access token.
+
 https://supabase.com/dashboard/account/tokens
 
 ## Local development
 
-```
-npm install -g supabase
-```
+Requires Node and Docker.
 
 ### Database
 
 ```
 npx supabase start
-```
-
-Run the following query from the SQL Editor.
-
-```
-select vault.create_secret(
-  'http://supabase_kong_api:8000/functions/v1',
-  'edge_functions_url',
-  'Public URL'
-);
-
-select vault.create_secret(
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU', 'edge_functions_token',
-  'Service role key'
-);
 ```
 
 ### Edge Functions

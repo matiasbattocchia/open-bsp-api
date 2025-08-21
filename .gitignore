@@ -5,3 +5,8 @@
 supabase/.branches
 supabase/.temp
 supabase/functions/.env
+
+# Node
+node_modules
+package.json
+package-lock.json
