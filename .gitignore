@@ -2,5 +2,6 @@
 .vscode
 
 # Supabase
-.branches
-.temp
+supabase/.branches
+supabase/.temp
+supabase/functions/.env

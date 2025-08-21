@@ -1,0 +1,24 @@
+# For detailed configuration reference documentation, visit:
+# https://supabase.com/docs/guides/local-development/cli/config
+
+project_id = "open-bsp-api"
+
+[functions.whatsapp-webhook]
+verify_jwt = false
+import_map = "./functions/deno.json"
+entrypoint = "./functions/whatsapp-webhook/index.ts"
+
+[functions.whatsapp-management]
+verify_jwt = false
+import_map = "./functions/deno.json"
+entrypoint = "./functions/whatsapp-management/index.ts"
+
+[functions.agent-client]
+verify_jwt = true
+import_map = "./functions/deno.json"
+entrypoint = "./functions/agent-client/index.ts"
+
+[functions.whatsapp-dispatcher]
+verify_jwt = true
+import_map = "./functions/deno.json"
+entrypoint = "./functions/whatsapp-dispatcher/index.ts"
