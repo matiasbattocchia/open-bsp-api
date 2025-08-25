@@ -259,6 +259,7 @@ export type LocationMessage = {
 // https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/components
 export type WebhookMessage = {
   from: string;
+  to: string;
   id: string;
   timestamp: number;
 } & IncomingContextInfo &
@@ -1077,7 +1078,7 @@ export type Database = MergeDeep<
               }
             | {
                 type: "outgoing" | "draft";
-                message: OutgoingMessage;
+                message: OutgoingMessage | IncomingMessage;
                 status?: OutgoingStatus;
               }
             | {
