@@ -28,7 +28,7 @@ create trigger "handle_incoming_message_to_agent" after insert on "public"."mess
 
 create trigger "handle_mark_as_read_to_dispatcher" after update on "public"."messages" for each row when ((("new"."direction" = 'incoming'::"public"."direction") and ("new"."service" <> 'local'::"public"."service") and (((("old"."status" ->> 'read'::"text") is null) and (("new"."status" ->> 'read'::"text") is not null)) or (("old"."status" ->> 'typing'::"text") <> ("new"."status" ->> 'typing'::"text"))))) execute function "public"."dispatcher_edge_function"();
 
-create trigger "handle_outgoing_message_to_dispatcher" after insert on "public"."messages" for each row when ((("new"."direction" = 'outgoing'::"public"."direction") and ("new"."service" <> 'local'::"public"."service") and ("new"."timestamp" <= "now"()))) execute function "public"."dispatcher_edge_function"();
+create trigger "handle_outgoing_message_to_dispatcher" after insert on "public"."messages" for each row when ((("new"."direction" = 'outgoing'::"public"."direction") and ("new"."service" <> 'local'::"public"."service") and ("new"."timestamp" <= "now"()) and (("new"."status" ->> 'sent'::"text") is null))) execute function "public"."dispatcher_edge_function"();
 
 create trigger "mark_outgoing_local_message_as_sent" before insert on "public"."messages" for each row when ((("new"."direction" = 'outgoing'::"public"."direction") and ("new"."service" = 'local'::"public"."service") and ("new"."timestamp" <= "now"()))) execute function "public"."mark_outgoing_local_message_as_sent"();
 
