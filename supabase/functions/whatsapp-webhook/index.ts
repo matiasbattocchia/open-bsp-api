@@ -181,13 +181,25 @@ async function processMessage(request: Request): Promise<Response> {
   for (const entry of payload.entry) {
     const _waba_id = entry.id; // WhatsApp business account ID (WABA ID)
 
-    for (const { value } of entry.changes) {
+    for (const { value, field } of entry.changes) {
       log.info("WhatsApp payload", value);
       const organization_address = value.metadata.phone_number_id; // WhatsApp business account phone number id
 
-      if (value.messages) {
-        for (const message of value.messages as WebhookMessage[]) {
-          const contact_address = message.from; // WhatsApp ID (WA ID) - The sender's phone number... *most of the times*
+      let messages = [];
+
+      if (field === "messages") {
+        messages = value.messages;
+      } else if (field === "smb_message_echoes") {
+        messages = value.message_echoes;
+      }
+
+      if (messages) {
+        for (const message of messages as WebhookMessage[]) {
+          let contact_address = message.from; // Phone number
+
+          if (field === "smb_message_echoes") {
+            contact_address = message.to;
+          }
 
           switch (message.type) {
             case "system": {
@@ -226,8 +238,9 @@ async function processMessage(request: Request): Promise<Response> {
               break;
             }
             default: {
-              const { id, from, timestamp, ...andMore } = message;
+              const { id, from, to, timestamp, ...andMore } = message;
 
+              // Message echo is a outgoing message with incoming message payload
               const inMessage = andMore as IncomingMessage;
 
               if (message.context?.id) {
@@ -332,9 +345,17 @@ async function processMessage(request: Request): Promise<Response> {
                 service: "whatsapp",
                 organization_address,
                 contact_address,
-                type: "incoming",
-                direction: "incoming",
+                type: field === "smb_message_echoes" ? "outgoing" : "incoming",
+                direction:
+                  field === "smb_message_echoes" ? "outgoing" : "incoming",
                 message: inMessage,
+                ...(field === "smb_message_echoes"
+                  ? {
+                      status: {
+                        sent: new Date(timestamp * 1000).toISOString(),
+                      },
+                    }
+                  : {}),
                 timestamp: new Date(timestamp * 1000).toISOString(),
               };
 
@@ -355,8 +376,9 @@ async function processMessage(request: Request): Promise<Response> {
       }
 
       if (value.contacts) {
-        for (const contact of value.contacts)
+        for (const contact of value.contacts) {
           contacts.set(contact.wa_id, contact.profile.name);
+        }
       }
 
       if (value.errors) {
