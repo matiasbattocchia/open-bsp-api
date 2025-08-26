@@ -1,6 +1,6 @@
-create function "public"."notify_webhook"() returns "trigger"
-    language "plpgsql"
-    as $$
+create function public.notify_webhook() returns trigger
+language plpgsql
+as $$
 declare
   webhook_record record;
   headers jsonb;

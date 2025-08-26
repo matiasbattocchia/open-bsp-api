@@ -1,6 +1,7 @@
-create function "public"."bulk_update_messages_status"("records" "jsonb") returns "void"
-    language "plpgsql"
-    as $$
+create function public.bulk_update_messages_status(records jsonb) returns void
+language plpgsql
+set search_path to ''
+as $$
 begin
   update messages o
   set status = r.status
@@ -11,9 +12,9 @@ begin
 end;
 $$;
 
-create function "public"."create_conversation"() returns "trigger"
-    language "plpgsql"
-    as $_$
+create function public.create_conversation() returns trigger
+language plpgsql
+as $_$
 declare
   service_id text := new.service || '_id';
 begin
@@ -40,9 +41,9 @@ begin
 end;
 $_$;
 
-create function "public"."create_organization"() returns "trigger"
-    language "plpgsql"
-    as $$
+create function public.create_organization() returns trigger
+language plpgsql
+as $$
 declare
   org_id uuid := new.id;
   org_address text := org_id::text;
@@ -54,9 +55,9 @@ begin
 end;
 $$;
 
-create function "public"."mark_outgoing_local_message_as_sent"() returns "trigger"
-    language "plpgsql"
-    as $$
+create function public.mark_outgoing_local_message_as_sent() returns trigger
+language plpgsql
+as $$
 begin
   new.status := merge_update_jsonb(new.status, '{}', jsonb_build_object('delivered', now()));
   new.updated_at := now() + interval '10 second';

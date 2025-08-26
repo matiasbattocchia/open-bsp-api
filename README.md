@@ -4,9 +4,17 @@ An application built with [Deno ðŸ¦•](https://deno.land), powered by Postgres ðŸ
 
 ## Deployment
 
-Connect the Supabase CLI to your Supabase account by logging in with your personal access token.
+1. Create a Supabase project.
+2. Configure the following secrets and variables for GitHub Actions in your repository settings.
 
-https://supabase.com/dashboard/account/tokens
+#### Secrets
+
+- `SUPABASE_ACCESS_TOKEN`: a [personal access token](https://supabase.com/dashboard/account/tokens).
+- `SUPABASE_DB_PASSWORD`
+
+#### Variables
+
+- `SUPABASE_PROJECT_ID`
 
 ## Local development
 

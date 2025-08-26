@@ -4,7 +4,7 @@
 select
   cron.schedule (
     'dispatch-outgoing-pending-messages',
-    '30 seconds',
+    '* * * * *',
     $$
     select
       net.http_post(
@@ -49,6 +49,22 @@ select
 -- Storage
 insert into storage.buckets (id, name, public) values ('media', 'media', false);
 
+-- Allow org members to download media
+create policy "org members can download their orgs media"
+on storage.objects for select to authenticated
+using (
+  bucket_id = 'media' and
+  (storage.foldername(name))[1] in ( select get_authorized_orgs()::text )
+);
+
+-- Allow org members to upload media
+create policy "org members can upload media for their orgs"
+on storage.objects for insert to authenticated
+with check (
+  bucket_id = 'media' and
+  (storage.foldername(name))[1] in ( select get_authorized_orgs()::text )
+);
+
 -- Realtime
-alter publication "supabase_realtime" add table only "public"."conversations";
-alter publication "supabase_realtime" add table only "public"."messages";
+alter publication supabase_realtime add table only public.conversations;
+alter publication supabase_realtime add table only public.messages;

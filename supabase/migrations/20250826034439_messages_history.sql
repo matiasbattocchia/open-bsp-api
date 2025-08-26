@@ -1,53 +1,16 @@
-create function public.dispatcher_edge_function() returns trigger
-language plpgsql
-security definer
-as $$
-declare
-  service text := new.service::text;
-  path text := concat('/', service, '-dispatcher');
-  request_id bigint;
-  payload jsonb;
-  base_url text;
-  auth_token text;
-  headers jsonb;
-begin
-  select decrypted_secret into base_url from vault.decrypted_secrets where name = 'edge_functions_url';
-  select decrypted_secret into auth_token from vault.decrypted_secrets where name = 'edge_functions_token';
-  
-  headers = jsonb_build_object(
-    'content-type', 'application/json',
-    'authorization', 'Bearer ' || auth_token
-  );
-  
-  payload = jsonb_build_object(
-    'old_record', old,
-    'record', new,
-    'type', tg_op,
-    'table', tg_table_name,
-    'schema', tg_table_schema
-  );
+drop trigger if exists "handle_incoming_message_to_agent" on "public"."messages";
 
-  select http_post into request_id from net.http_post(
-    base_url || path,
-    payload,
-    '{}'::jsonb,
-    headers,
-    1000
-  );
+drop trigger if exists "handle_mark_as_read_to_dispatcher" on "public"."messages";
 
-  insert into supabase_functions.hooks
-    (hook_table_id, hook_name, request_id)
-  values
-    (tg_relid, tg_name, request_id);
+drop trigger if exists "handle_outgoing_message_to_dispatcher" on "public"."messages";
 
-  return new;
-end;
-$$;
+set check_function_bodies = off;
 
-create function public.edge_function() returns trigger
-language plpgsql
-security definer
-as $$
+CREATE OR REPLACE FUNCTION public.edge_function()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
 declare
   request_id bigint;
   payload jsonb;
@@ -127,4 +90,26 @@ begin
 
   return new;
 end
-$$; 
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.get_authorized_orgs(role text)
+ RETURNS SETOF uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+begin
+  return query select organization_id from public.agents where user_id = auth.uid()
+  and role in (select jsonb_array_elements_text(extra->'roles'));
+end;
+$function$
+;
+
+CREATE TRIGGER handle_incoming_message_to_agent AFTER INSERT ON public.messages FOR EACH ROW WHEN (((new.direction = 'incoming'::direction) AND ((new.status ->> 'pending'::text) IS NOT NULL))) EXECUTE FUNCTION edge_function('/agent-client', 'post');
+
+CREATE TRIGGER handle_mark_as_read_to_dispatcher AFTER UPDATE ON public.messages FOR EACH ROW WHEN (((new.direction = 'incoming'::direction) AND (new.service <> 'local'::service) AND (((old.status ->> 'read'::text) <> (new.status ->> 'read'::text)) OR ((old.status ->> 'typing'::text) <> (new.status ->> 'typing'::text))))) EXECUTE FUNCTION dispatcher_edge_function();
+
+CREATE TRIGGER handle_outgoing_message_to_dispatcher AFTER INSERT ON public.messages FOR EACH ROW WHEN (((new.direction = 'outgoing'::direction) AND (new.service <> 'local'::service) AND (new."timestamp" <= now()) AND ((new.status ->> 'pending'::text) IS NOT NULL))) EXECUTE FUNCTION dispatcher_edge_function();
+
+
