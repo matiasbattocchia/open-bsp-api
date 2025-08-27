@@ -258,11 +258,16 @@ export type LocationMessage = {
 
 // Message format received from the WhatsApp webhook
 // https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/components
+export type HistoryContext = {
+  status: WebhookStatus["status"];
+};
+
 export type WebhookMessage = {
   from: string;
   to: string;
   id: string;
   timestamp: number;
+  history_context?: HistoryContext;
 } & IncomingContextInfo &
   (
     | AudioMessage

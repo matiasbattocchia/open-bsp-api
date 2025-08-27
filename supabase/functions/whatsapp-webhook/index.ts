@@ -353,6 +353,21 @@ async function processMessage(request: Request): Promise<Response> {
                   break;
               }
 
+              // Determine message status based on field type
+              let messageStatus = {};
+              if (field === "smb_message_echoes") {
+                messageStatus = {
+                  sent: new Date(timestamp * 1000).toISOString(),
+                };
+              } else if (
+                field === "history" &&
+                message.history_context?.status
+              ) {
+                messageStatus = {
+                  [message.history_context.status.toLowerCase()]: undefined,
+                };
+              }
+
               const inMessageRecord: MessageInsert = {
                 // id is the internal (aka surrogate) identifier given by the DB, while
                 // external_id is the one given by the service, such as the WhatsApp message id (WAMID)
@@ -371,13 +386,8 @@ async function processMessage(request: Request): Promise<Response> {
                     ? "outgoing"
                     : "incoming",
                 message: inMessage,
-                ...(field === "smb_message_echoes" ||
-                (field === "history" && message.to)
-                  ? {
-                      status: {
-                        sent: new Date(timestamp * 1000).toISOString(),
-                      },
-                    }
+                ...(messageStatus && Object.keys(messageStatus).length > 0
+                  ? { status: messageStatus }
                   : {}),
                 timestamp: new Date(timestamp * 1000).toISOString(),
               };
