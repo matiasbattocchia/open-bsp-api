@@ -191,13 +191,21 @@ async function processMessage(request: Request): Promise<Response> {
         messages = value.messages;
       } else if (field === "smb_message_echoes") {
         messages = value.message_echoes;
+      } else if (field === "history") {
+        // Extract messages from history threads
+        messages = value.history.threads
+          .map((thread: any) => thread.messages)
+          .flat();
       }
 
       if (messages) {
         for (const message of messages as WebhookMessage[]) {
           let contact_address = message.from; // Phone number
 
-          if (field === "smb_message_echoes") {
+          if (
+            field === "smb_message_echoes" ||
+            (field === "history" && message.to)
+          ) {
             contact_address = message.to;
           }
 
@@ -345,11 +353,19 @@ async function processMessage(request: Request): Promise<Response> {
                 service: "whatsapp",
                 organization_address,
                 contact_address,
-                type: field === "smb_message_echoes" ? "outgoing" : "incoming",
+                type:
+                  field === "smb_message_echoes" ||
+                  (field === "history" && message.to)
+                    ? "outgoing"
+                    : "incoming",
                 direction:
-                  field === "smb_message_echoes" ? "outgoing" : "incoming",
+                  field === "smb_message_echoes" ||
+                  (field === "history" && message.to)
+                    ? "outgoing"
+                    : "incoming",
                 message: inMessage,
-                ...(field === "smb_message_echoes"
+                ...(field === "smb_message_echoes" ||
+                (field === "history" && message.to)
                   ? {
                       status: {
                         sent: new Date(timestamp * 1000).toISOString(),
