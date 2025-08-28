@@ -191,13 +191,21 @@ async function processMessage(request: Request): Promise<Response> {
         messages = value.messages;
       } else if (field === "smb_message_echoes") {
         messages = value.message_echoes;
+      } else if (field === "history") {
+        // Extract messages from history threads
+        messages = value.history.threads
+          .map((thread: any) => thread.messages)
+          .flat();
       }
 
       if (messages) {
         for (const message of messages as WebhookMessage[]) {
           let contact_address = message.from; // Phone number
 
-          if (field === "smb_message_echoes") {
+          if (
+            field === "smb_message_echoes" ||
+            (field === "history" && message.to)
+          ) {
             contact_address = message.to;
           }
 
@@ -338,6 +346,21 @@ async function processMessage(request: Request): Promise<Response> {
                   break;
               }
 
+              // Determine message status based on field type
+              let messageStatus = {};
+              if (field === "smb_message_echoes") {
+                messageStatus = {
+                  sent: new Date(timestamp * 1000).toISOString(),
+                };
+              } else if (
+                field === "history" &&
+                message.history_context?.status
+              ) {
+                messageStatus = {
+                  [message.history_context.status.toLowerCase()]: undefined,
+                };
+              }
+
               const inMessageRecord: MessageInsert = {
                 // id is the internal (aka surrogate) identifier given by the DB, while
                 // external_id is the one given by the service, such as the WhatsApp message id (WAMID)
@@ -345,16 +368,19 @@ async function processMessage(request: Request): Promise<Response> {
                 service: "whatsapp",
                 organization_address,
                 contact_address,
-                type: field === "smb_message_echoes" ? "outgoing" : "incoming",
+                type:
+                  field === "smb_message_echoes" ||
+                  (field === "history" && message.to)
+                    ? "outgoing"
+                    : "incoming",
                 direction:
-                  field === "smb_message_echoes" ? "outgoing" : "incoming",
+                  field === "smb_message_echoes" ||
+                  (field === "history" && message.to)
+                    ? "outgoing"
+                    : "incoming",
                 message: inMessage,
-                ...(field === "smb_message_echoes"
-                  ? {
-                      status: {
-                        sent: new Date(timestamp * 1000).toISOString(),
-                      },
-                    }
+                ...(messageStatus && Object.keys(messageStatus).length > 0
+                  ? { status: messageStatus }
                   : {}),
                 timestamp: new Date(timestamp * 1000).toISOString(),
               };
