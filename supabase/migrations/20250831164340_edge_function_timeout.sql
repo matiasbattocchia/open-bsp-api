@@ -1,7 +1,10 @@
-create function public.dispatcher_edge_function() returns trigger
-language plpgsql
-security definer
-as $$
+set check_function_bodies = off;
+
+CREATE OR REPLACE FUNCTION public.dispatcher_edge_function()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
 declare
   service text := new.service::text;
   path text := concat('/', service, '-dispatcher');
@@ -43,12 +46,14 @@ begin
 
   return new;
 end;
-$$;
+$function$
+;
 
-create function public.edge_function() returns trigger
-language plpgsql
-security definer
-as $$
+CREATE OR REPLACE FUNCTION public.edge_function()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
 declare
   request_id bigint;
   payload jsonb;
@@ -122,4 +127,7 @@ begin
 
   return new;
 end
-$$; 
+$function$
+;
+
+

@@ -1,7 +1,7 @@
 -- Set vault secrets for edge functions
 
 select vault.create_secret(
-  'http://supabase_kong_api:8000/functions/v1',
+  'http://supabase_kong_open-bsp-api:8000/functions/v1',
   'edge_functions_url',
   'Edge Functions base URL'
 );

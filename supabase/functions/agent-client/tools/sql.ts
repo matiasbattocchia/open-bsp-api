@@ -41,7 +41,7 @@
 import * as z from "zod";
 import postgres from "postgres";
 import mysql from "mysql2";
-import libsql from "@libsql/client";
+import * as libsql from "@libsql/client";
 import type { RequestContext } from "../protocols/base.ts";
 import type { LocalSQLToolConfig } from "../../_shared/supabase.ts";
 import type { ToolDefinition } from "./base.ts";
