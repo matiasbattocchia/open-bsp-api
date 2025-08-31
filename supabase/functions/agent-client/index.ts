@@ -161,6 +161,18 @@ Deno.serve(async (req) => {
 
   // CHECK IF THERE IS A NEWER MESSAGE
 
+  /** TODO: timestamp vs created_at
+   *
+   *  - timestamp is given by the service (i.e. WhatsApp) servers.
+   *  - created_at is the timestamp of the message insertion into the database.
+   *
+   *  created_at let us react to the latest message.
+   *
+   *  When a batch of disordered messages (timestamp) is close in time, it works well.
+   *  But when messages are far in time, the result is not as desired,
+   *  because the agent will respond to an outdated message.
+   */
+
   function isNewerMessage(incoming: MessageRow, messages: MessageRow[]) {
     const incomingCreatedAt = new Date(incoming.created_at);
 

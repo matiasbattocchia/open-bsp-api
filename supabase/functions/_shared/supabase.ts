@@ -6,6 +6,7 @@ import {
 } from "../_shared/db_types.ts";
 import { MergeDeep } from "https://esm.sh/type-fest@^4.11.1";
 import type { TaskState } from "./a2a_types.ts";
+import type { SQLToolConfig } from "../agent-client/tools/sql.ts";
 export type { Tables };
 
 // This is what Supabase webhooks send to functions
@@ -975,14 +976,7 @@ export type LocalSQLToolConfig = {
   provider: "local";
   type: "sql";
   label: string; // database label
-  config: {
-    driver: "postgres" | "mysql";
-    host: string;
-    port?: number;
-    user?: string;
-    password?: string;
-    database?: string;
-  };
+  config: SQLToolConfig;
 };
 
 export type LocalHTTPToolConfig = {
