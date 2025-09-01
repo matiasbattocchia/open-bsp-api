@@ -22,6 +22,7 @@ import { z } from "zod";
 import Ajv2020 from "https://esm.sh/ajv@^8.17.1/dist/2020";
 import type { Json } from "../_shared/db_types.ts";
 import type { AgentRowWithExtra, ResponseContext } from "./protocols/base.ts";
+import { TransferToHumanAgentTool } from "./tools/handoff.ts";
 
 export type AgentTool = {
   provider: "local";
@@ -662,6 +663,10 @@ Deno.serve(async (req) => {
                 data: result,
               },
             ];
+
+            if (toolInfo.name === TransferToHumanAgentTool.name) {
+              shouldContinue = false;
+            }
 
             break;
           }
