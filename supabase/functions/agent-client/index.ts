@@ -414,7 +414,7 @@ Deno.serve(async (req) => {
   // The typing indicator will be dismissed once you respond,
   // or after 25 seconds. Hence, keep it alive. Some extra delay
   // is added to avoid race conditions with the response.
-  setInterval(indicateTyping, 30000);
+  const typingInterval = setInterval(indicateTyping, 30000);
 
   // CONTEXT
 
@@ -747,6 +747,8 @@ Deno.serve(async (req) => {
         },
       ];
     }
+
+    clearInterval(typingInterval);
 
     // STORE MESSAGES
 

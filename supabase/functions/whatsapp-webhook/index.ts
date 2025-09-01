@@ -157,7 +157,7 @@ async function downloadMedia(
  */
 async function processMessage(request: Request): Promise<Response> {
   // Validate that the request comes from Meta
-  const isValidSignature = true; //await validateWebhookSignature(request);
+  const isValidSignature = await validateWebhookSignature(request);
 
   if (!isValidSignature) {
     log.warn("Invalid webhook signature, rejecting request");
@@ -561,6 +561,15 @@ async function processMessage(request: Request): Promise<Response> {
  * @returns Promise<boolean> true if signature is valid, false otherwise
  */
 async function validateWebhookSignature(request: Request): Promise<boolean> {
+  const appSecret = Deno.env.get("META_APP_SECRET");
+
+  if (!appSecret) {
+    log.warn(
+      "META_APP_SECRET environment variable not set, skipping signature validation"
+    );
+    return true;
+  }
+
   const signature = request.headers.get("X-Hub-Signature-256");
 
   if (!signature) {
@@ -569,13 +578,6 @@ async function validateWebhookSignature(request: Request): Promise<boolean> {
   }
 
   const signatureValue = signature.replace("sha256=", "");
-
-  const appSecret = Deno.env.get("META_APP_SECRET");
-
-  if (!appSecret) {
-    log.error("META_APP_SECRET environment variable not set");
-    return false;
-  }
 
   try {
     // Clone the request to read the body without consuming it
