@@ -50,6 +50,7 @@ import type { ToolDefinition } from "./base.ts";
 type Driver = "postgres" | "mysql" | "libsql";
 
 type DBSchema = {
+  sql_dialect: "postgres" | "mysql" | "sqlite";
   enums?: EnumDef[]; // PostgreSQL only
   tables: TableDef[];
 };
@@ -875,6 +876,7 @@ async function getDbSchema(client: BaseClient): Promise<DBSchema> {
   // -----------------------------------------------------------------------
 
   const result: DBSchema = {
+    sql_dialect: client.driver === "libsql" ? "sqlite" : client.driver,
     tables: Array.from(tableMap.values()),
   };
 

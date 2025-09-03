@@ -109,7 +109,7 @@ This event-driven flow ensures that each component is decoupled and scalable.
 
 ```ts
 export type OrganizationExtra = {
-  response_delay_seconds?: number;
+  response_delay_seconds?: number; // default: 3
   welcome_message?: string;
   respond_to_allowed_contacts_only?: boolean;
   default_agent_id_by_contact_group?: { undefined?: string } & {
@@ -131,11 +131,11 @@ export type OrganizationExtra = {
 export type AgentExtra = {
   mode?: "active" | "draft" | "inactive";
   description?: string;
-  api_url?: string;
-  api_key?: string;
-  model?: string;
+  api_url?: "openai" | "anthropic" | "google" | "groq" | string; // default: openai
+  api_key?: string; // default: provider env var, i.e. OPENAI_API_KEY
+  model?: string; // default: gpt-5-mini
   // TODO: Add responses (openai), messages (anthropic), generate-content (google).
-  protocol?: "a2a" | "chat_completions";
+  protocol?: "chat_completions" | "a2a"; // default: chat_completions
   assistant_id?: string;
   max_messages?: number;
   temperature?: number;

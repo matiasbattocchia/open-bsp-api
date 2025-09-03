@@ -387,18 +387,43 @@ export class ChatCompletionsHandler
   ): Promise<ChatCompletionsResponse> {
     const { agent } = this.context;
 
+    let baseURL = agent.extra.api_url;
+    let apiKey = agent.extra.api_key;
+    let model = agent.extra.model;
+
+    switch (baseURL) {
+      case "groq":
+        baseURL = "https://api.groq.com/openai/v1";
+        apiKey ||= Deno.env.get("GROQ_API_KEY");
+        model ||= "openai/gpt-oss-20b";
+        break;
+      case "anthropic":
+        baseURL = "https://api.anthropic.com/v1";
+        apiKey ||= Deno.env.get("ANTHROPIC_API_KEY");
+        model ||= "claude-sonnet-4-20250514";
+        break;
+      case "google":
+        baseURL = "https://generativelanguage.googleapis.com/v1beta/openai";
+        apiKey ||= Deno.env.get("GOOGLE_API_KEY");
+        model ||= "gemini-2.5-flash";
+        break;
+      default:
+        // undefined makes OpenAI use the default base URL
+        // and api key from the OPENAI_API_KEY environment variable.
+        baseURL ||= undefined;
+        apiKey ||= undefined;
+        model ||= "gpt-5-mini";
+    }
+
     const openai = new OpenAI({
-      // https://api.groq.com/openai/v1
-      // https://api.anthropic.com/v1
-      // https://generativelanguage.googleapis.com/v1beta/openai
-      baseURL: agent.extra.api_url,
-      apiKey: agent.extra.api_key,
+      baseURL,
+      apiKey,
       timeout: 30000, // 30 seconds
       maxRetries: 2,
     });
 
     const response = await openai.chat.completions.create({
-      model: agent.extra.model || "gpt-5-mini",
+      model,
       temperature: agent.extra.temperature ?? undefined,
       max_completion_tokens: agent.extra.max_tokens ?? undefined,
       messages: request.messages,
