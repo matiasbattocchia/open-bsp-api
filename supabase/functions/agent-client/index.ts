@@ -604,6 +604,9 @@ Deno.serve(async (req) => {
          * Here, the adopted policy is to adhere to the WhatsApp API, this is one message per part.
          * A tool use/result is considered a part.
          */
+
+        let parts: (Part & ToolInfo)[] = [];
+
         const toolInfo = row.message.tool;
 
         const agentTool = tools.find(
@@ -614,18 +617,18 @@ Deno.serve(async (req) => {
             t.name === toolInfo.name
         );
 
-        if (!agentTool) {
-          log.warn("Tool not found", toolInfo);
-          continue;
-        }
+        try {
+          if (!agentTool) {
+            throw new Error(
+              `Tool ${toolInfo.name} not found between available tools.`
+            );
+          }
 
-        let input: string | Json = row.message.text;
+          let input: string | Json = row.message.text;
 
-        if (agentTool.inputSchema) {
           const ajv = new Ajv2020();
           const schema = agentTool.inputSchema;
 
-          // TODO: This might fail.
           input = JSON.parse(input);
 
           // When JSON parsing is done, the message is converted to a data part.
@@ -641,68 +644,81 @@ Deno.serve(async (req) => {
           const valid = ajv.validate(schema, input);
 
           if (!valid) {
-            log.warn("Invalid tool data", ajv.errors);
+            throw new Error(`Tool input validation failed: ${ajv.errors}`);
           }
-        }
 
-        let parts: (Part & ToolInfo)[] = [];
+          switch (toolInfo.type) {
+            case "custom":
+            case "function": {
+              const result = await agentTool.implementation(input);
 
-        switch (toolInfo.type) {
-          case "custom":
-          case "function": {
-            const result = await agentTool.implementation(input);
-
-            parts = [
-              {
-                tool: {
-                  ...toolInfo,
-                  event: "result" as const,
+              parts = [
+                {
+                  tool: {
+                    ...toolInfo,
+                    event: "result" as const,
+                  },
+                  type: "data",
+                  kind: "data",
+                  data: result,
                 },
-                type: "data",
-                kind: "data",
-                data: result,
-              },
-            ];
+              ];
 
-            if (toolInfo.name === TransferToHumanAgentTool.name) {
-              shouldContinue = false;
+              if (toolInfo.name === TransferToHumanAgentTool.name) {
+                shouldContinue = false;
+              }
+
+              break;
             }
+            case "mcp": {
+              const mcp = mcpServers.get(agentTool.label!);
 
-            break;
-          }
-          case "mcp": {
-            const mcp = mcpServers.get(agentTool.label!);
+              if (!mcp) {
+                throw new Error(`MCP server ${agentTool.label} not found.`);
+              }
 
-            if (!mcp) {
-              continue;
+              parts = await callTool(mcp, row.message, client, conv);
+
+              break;
             }
+            case "http":
+            case "sql": {
+              const result = await agentTool.implementation(
+                input,
+                agentTool.config,
+                context
+              );
 
-            parts = await callTool(mcp, row.message, client, conv);
-
-            break;
-          }
-          case "http":
-          case "sql": {
-            const result = await agentTool.implementation(
-              input,
-              agentTool.config,
-              context
-            );
-
-            parts = [
-              {
-                tool: {
-                  ...toolInfo,
-                  event: "result" as const,
+              parts = [
+                {
+                  tool: {
+                    ...toolInfo,
+                    event: "result" as const,
+                  },
+                  type: "data",
+                  kind: "data",
+                  data: result,
                 },
-                type: "data",
-                kind: "data",
-                data: result,
-              },
-            ];
+              ];
 
-            break;
+              break;
+            }
           }
+        } catch (error) {
+          log.warn("Tool error", { toolInfo, error });
+
+          parts = [
+            {
+              tool: {
+                ...toolInfo,
+                is_error: true,
+                event: "result" as const,
+              },
+              type: "text",
+              kind: "text",
+              text: (error as Error).toString(),
+            },
+          ];
         }
 
         // TODO: Mutating the response object is not the most recommended way to do this
@@ -827,8 +843,6 @@ Deno.serve(async (req) => {
 });
 
 /** TODO
- * - Supabase schema
- *   - deployment
  * - README
  * - Mejores errores
  *   https://modelcontextprotocol.io/specification/2025-03-26/server/tools#error-handling

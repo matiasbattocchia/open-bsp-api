@@ -10,10 +10,21 @@ The architecture is based on webhooks for receiving messages and conversations, 
 
 Optionally, the platform can include the `agent-client` module, which allows you to create lightweight agents or connect to external, more advanced agents (such as OpenAI, Anthropic, Google) using different protocols like `a2a` and `chat-completions`. Lightweight agents can use built-in tools such as:
 
-- MCP (Multi-Call Protocol)
-- SQL (database queries)
-- HTTP (external API calls)
+- MCP client
+- SQL client
+- HTTP client
 - Calculator
+- Transfer to human agent
+
+Additionally, `agent-client` includes an "annotator" module that can interpret and extract information from media and document files, including:
+
+- Audio
+- Images
+- Video
+- PDF
+- Other text-based documents (CSV, HTML, TXT, etc.)
+
+## Roadmap
 
 The roadmap includes support for new protocols:
 
@@ -21,13 +32,16 @@ The roadmap includes support for new protocols:
 - `messages` (Anthropic)
 - `generation` (Google)
 
-Additionally, `agent-client` includes an "annotator" that can interpret and extract information from media and document files, including:
+Two more tools:
 
-- Audio
-- Images
-- Video
-- PDF
-- Other text-based documents (CSV, HTML, TXT, etc.)
+- Calendar (date calculator)
+- Code execution (E2B)
+
+An improved annotator (more/different providers por document type)
+and more types:
+
+- DOC
+- XLS
 
 ## Deployment
 
@@ -94,14 +108,15 @@ This event-driven flow ensures that each component is decoupled and scalable.
 
 ### Database models
 
+- **users**: Registered user in the application.
 - **organizations**: Tenant entity; holds organization metadata.
-- **organizations_addresses**: Organization's addresses per `service`; belongs to `organizations`.
-- **contacts**: People associated with an organization; belongs to `organizations`.
-- **conversations**: Conversation between an `organization_address` and a `contact_address` for a `service`; belongs to `organizations`, optionally to a `contact`.
-- **messages**: Messages within a conversation context; carries `organization_address` and `contact_address`, with direction, type, payload, status, and timestamps.
-- **agents**: Human or AI agents for an organization; optionally linked to an auth user.
-- **api_keys**: API access keys scoped to an organization.
-- **webhooks**: Outbound webhook subscriptions per organization.
+- **organizations_addresses**: Organization's addresses per service; belongs to an `organization`.
+- **contacts**: People associated with an `organization` (address book).
+- **conversations**: Conversation between an organization_address and a contact_address for a service; belongs to an `organization`, optionally to a `contact`.
+- **messages**: Messages within a `conversation` context; carries direction, type, payload, status, and timestamps.
+- **agents**: Human or AI agents for an `organization`; optionally linked to an auth `user`.
+- **api_keys**: API access keys scoped to an `organization`.
+- **webhooks**: Outbound webhook subscriptions per `organization`.
 
 ## Configuration
 
