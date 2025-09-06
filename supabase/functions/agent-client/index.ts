@@ -560,7 +560,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      const handler = ProtocolFactory.getHandler(context, client, tools);
+      const handler = ProtocolFactory.getHandler(tools, context, client);
 
       const agentRequest = await handler.prepareRequest();
 
@@ -677,7 +677,7 @@ Deno.serve(async (req) => {
                 throw new Error(`MCP server ${agentTool.label} not found.`);
               }
 
-              parts = await callTool(mcp, row.message, client, conv);
+              parts = await callTool(mcp, row.message, context, client);
 
               break;
             }
@@ -686,7 +686,8 @@ Deno.serve(async (req) => {
               const result = await agentTool.implementation(
                 input,
                 agentTool.config,
-                context
+                context,
+                client
               );
 
               parts = [
@@ -701,11 +702,31 @@ Deno.serve(async (req) => {
                 },
               ];
 
+              if (result.file_uri) {
+                parts.push({
+                  tool: {
+                    ...toolInfo,
+                    event: "result" as const,
+                  },
+                  type: "file",
+                  kind: "document",
+                  file: {
+                    uri: result.file_uri,
+                    mime_type: result.file_mime_type,
+                    name: result.file_name,
+                    size: result.file_size,
+                  },
+                });
+              }
+
               break;
             }
           }
         } catch (error) {
-          log.warn("Tool error", { toolInfo, error });
+          const errorMessage =
+            error instanceof Error ? error.message : "Unknown error";
+
+          log.warn("Tool error", { tool: toolInfo, error: errorMessage });
 
           parts = [
             {
@@ -716,7 +737,7 @@ Deno.serve(async (req) => {
               },
               type: "text",
               kind: "text",
-              text: (error as Error).toString(),
+              text: errorMessage,
             },
           ];
         }
@@ -726,12 +747,13 @@ Deno.serve(async (req) => {
         const taskId = row.message.task?.id || crypto.randomUUID();
 
         response.messages.push(
+          // @ts-expect-error TODO: file messages are outgoing
           ...parts.map((part) => ({
             service: conv.service,
             organization_address: conv.organization_address,
             contact_address: conv.contact_address,
-            direction: "internal" as const,
-            type: "function_response" as const,
+            direction: part.type === "file" ? "outgoing" : "internal",
+            type: part.type === "file" ? "outgoing" : "function_response",
             agent_id: agent.id,
             message: {
               version: "1" as const,

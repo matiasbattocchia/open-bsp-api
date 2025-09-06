@@ -39,19 +39,19 @@ export class ChatCompletionsHandler
   implements
     AgentProtocolHandler<ChatCompletionsRequest, ChatCompletionsResponse>
 {
+  private tools: AgentTool[];
   private context: RequestContext;
   private client: SupabaseClient;
-  private tools: AgentTool[];
   private FUNCTION_NAME_SEPARATOR = "__";
 
   constructor(
+    tools: AgentTool[],
     context: RequestContext,
-    client: SupabaseClient,
-    tools: AgentTool[]
+    client: SupabaseClient
   ) {
+    this.tools = tools;
     this.context = context;
     this.client = client;
-    this.tools = tools;
   }
 
   /**
@@ -290,6 +290,8 @@ export class ChatCompletionsHandler
         };
       case "file": {
         const content = [`<${part.kind}>`];
+
+        content.push(`<uri>`, part.file.uri, `</uri>`);
 
         if (part.file.name) {
           content.push(`<filename>`, part.file.name, `</filename>`);

@@ -8,43 +8,87 @@ import {
 export function toV1(row: MessageRow): MessageRowV1 | undefined {
   // FunctionCallMessageDeprecated
   if (row.type === "function_call") {
-    return {
-      ...row,
-      message: {
-        version: "1",
-        task: row.message.task,
-        tool: row.message.tool || {
-          use_id: row.message.id,
-          provider: "local",
-          event: "use",
-          type: "function",
-          name: row.message.function.name,
+    if (row.message.v1_type === "data") {
+      return {
+        ...row,
+        message: {
+          version: "1",
+          task: row.message.task,
+          tool: row.message.tool || {
+            use_id: row.message.id,
+            provider: "local",
+            event: "use",
+            type: "function",
+            name: row.message.function.name,
+          },
+          type: "data",
+          kind: "data",
+          data: JSON.parse(row.message.function.arguments),
         },
-        type: "data",
-        kind: "data",
-        data: JSON.parse(row.message.function.arguments),
-      },
-    };
+      };
+    }
+
+    if (row.message.v1_type === "text") {
+      return {
+        ...row,
+        message: {
+          version: "1",
+          task: row.message.task,
+          tool: row.message.tool || {
+            use_id: row.message.id,
+            provider: "local",
+            event: "use",
+            type: "function",
+            name: row.message.function.name,
+          },
+          type: "text",
+          kind: "text",
+          text: row.message.function.arguments,
+        },
+      };
+    }
   }
   // FunctionResponseMessageDeprecated
   else if (row.type === "function_response") {
-    return {
-      ...row,
-      message: {
-        version: "1",
-        task: row.message.task,
-        tool: row.message.tool || {
-          use_id: row.message.tool_call_id,
-          provider: "local",
-          event: "result",
-          type: "function",
-          name: row.message.tool_name!,
+    if (row.message.v1_type === "data") {
+      return {
+        ...row,
+        message: {
+          version: "1",
+          task: row.message.task,
+          tool: row.message.tool || {
+            use_id: row.message.tool_call_id,
+            provider: "local",
+            event: "result",
+            type: "function",
+            name: row.message.tool_name!,
+          },
+          type: "data",
+          kind: "data",
+          data: JSON.parse(row.message.content),
         },
-        type: "data",
-        kind: "data",
-        data: JSON.parse(row.message.content),
-      },
-    };
+      };
+    }
+
+    if (row.message.v1_type === "text") {
+      return {
+        ...row,
+        message: {
+          version: "1",
+          task: row.message.task,
+          tool: row.message.tool || {
+            use_id: row.message.tool_call_id,
+            provider: "local",
+            event: "result",
+            type: "function",
+            name: row.message.tool_name!,
+          },
+          type: "text",
+          kind: "text",
+          text: row.message.content,
+        },
+      };
+    }
   }
   // Media types
   else if ("media" in row.message && row.message.media) {
@@ -108,42 +152,84 @@ export function fromV1(row: MessageInsertV1): MessageInsert | undefined {
     row.direction === "internal" &&
     row.message.tool?.event === "use" &&
     row.message.tool?.provider === "local" &&
-    row.message.type === "data"
+    row.message.type !== "file"
   ) {
-    return {
-      ...row,
-      type: "function_call",
-      message: {
-        version: "0",
-        task: row.message.task,
-        type: "function",
-        id: row.message.tool.use_id,
-        function: {
-          name: row.message.tool.name,
-          arguments: JSON.stringify(row.message.data),
+    if (row.message.type === "data") {
+      return {
+        ...row,
+        type: "function_call",
+        message: {
+          version: "0",
+          task: row.message.task,
+          type: "function",
+          v1_type: "data",
+          id: row.message.tool.use_id,
+          function: {
+            name: row.message.tool.name,
+            arguments: JSON.stringify(row.message.data),
+          },
+          tool: row.message.tool,
         },
-        tool: row.message.tool,
-      },
-    };
+      };
+    }
+
+    if (row.message.type === "text") {
+      return {
+        ...row,
+        type: "function_call",
+        message: {
+          version: "0",
+          task: row.message.task,
+          type: "function",
+          v1_type: "text",
+          id: row.message.tool.use_id,
+          function: {
+            name: row.message.tool.name,
+            arguments: row.message.text,
+          },
+          tool: row.message.tool,
+        },
+      };
+    }
   } else if (
     row.direction === "internal" &&
     row.message.tool?.event === "result" &&
     row.message.tool?.provider === "local" &&
-    row.message.type === "data"
+    row.message.type !== "file"
   ) {
-    return {
-      ...row,
-      type: "function_response",
-      message: {
-        version: "0",
-        task: row.message.task,
-        type: "text",
-        tool_call_id: row.message.tool.use_id,
-        tool_name: row.message.tool.name,
-        content: JSON.stringify(row.message.data),
-        tool: row.message.tool,
-      },
-    };
+    if (row.message.type === "data") {
+      return {
+        ...row,
+        type: "function_response",
+        message: {
+          version: "0",
+          task: row.message.task,
+          v1_type: "data",
+          type: "text",
+          tool_call_id: row.message.tool.use_id,
+          tool_name: row.message.tool.name,
+          content: JSON.stringify(row.message.data),
+          tool: row.message.tool,
+        },
+      };
+    }
+
+    if (row.message.type === "text") {
+      return {
+        ...row,
+        type: "function_response",
+        message: {
+          version: "0",
+          task: row.message.task,
+          v1_type: "text",
+          type: "text",
+          tool_call_id: row.message.tool.use_id,
+          tool_name: row.message.tool.name,
+          content: row.message.text,
+          tool: row.message.tool,
+        },
+      };
+    }
   } else if (row.message.type === "text") {
     return {
       ...row,

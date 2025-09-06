@@ -45,6 +45,8 @@ import * as libsql from "@libsql/client";
 import type { RequestContext } from "../protocols/base.ts";
 import type { LocalSQLToolConfig } from "../../_shared/supabase.ts";
 import type { ToolDefinition } from "./base.ts";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { downloadFromStorage, uploadToStorage } from "../media.ts";
 
 // Type definitions
 type Driver = "postgres" | "mysql" | "libsql";
@@ -184,12 +186,6 @@ export const GetDbSchemaOutputSchema = z.object({
     })
   ),
 });
-
-export const ExecuteSqlInputSchema = z.object({
-  query: z.string().describe("The SQL query to execute"),
-});
-
-export const ExecuteSqlOutputSchema = z.array(z.record(z.string(), z.any()));
 
 // Query builders
 
@@ -466,7 +462,10 @@ class BaseClient {
     this.setSchemas();
   }
 
-  async execute<T = unknown>(query: string): Promise<T[]> {
+  async execute<T = Record<string, unknown>>(
+    query: string,
+    args?: unknown[]
+  ): Promise<T[]> {
     throw new Error("Not implemented");
   }
 
@@ -499,6 +498,20 @@ class BaseClient {
   async enums(): Promise<EnumRow[]> {
     throw new Error("Not implemented");
   }
+
+  quoteIdentifier(identifier: string): string {
+    return '"' + identifier + '"';
+  }
+
+  sanitizeIdentifier(identifier: string): string {
+    return (
+      identifier
+        .trim()
+        .toLowerCase()
+        // allow letters (including accents), digits, and underscore
+        .replace(/[^\p{L}\p{N}_]+/gu, "_") // \p{L} = any kind of letter, \p{N} = any kind of digit
+    );
+  }
 }
 
 // Postgres client implementation
@@ -519,8 +532,14 @@ class PostgresClient extends BaseClient {
     this.conn = postgres(connectionConfig);
   }
 
-  override async execute<T = unknown>(query: string): Promise<T[]> {
-    return await this.conn.unsafe(query);
+  override async execute<T = Record<string, unknown>>(
+    query: string,
+    args?: unknown[]
+  ): Promise<T[]> {
+    return await this.conn.unsafe(
+      query,
+      args as postgres.ParameterOrJSON<never>[]
+    );
   }
 
   override async close() {
@@ -569,9 +588,12 @@ class MySQLClient extends BaseClient {
     });
   }
 
-  override async execute<T = unknown>(query: string): Promise<T[]> {
+  override async execute<T = Record<string, unknown>>(
+    query: string,
+    args?: unknown[]
+  ): Promise<T[]> {
     // @ts-ignore Connection does have a query method
-    const [results, _fields] = await (await this.conn).query(query);
+    const [results, _fields] = await (await this.conn).query(query, args);
     return results as T[];
   }
 
@@ -600,6 +622,10 @@ class MySQLClient extends BaseClient {
   override async enums(): Promise<EnumRow[]> {
     return [];
   }
+
+  override quoteIdentifier(identifier: string): string {
+    return "`" + identifier + "`";
+  }
 }
 
 // LibSQL client implementation
@@ -616,8 +642,11 @@ class LibSQLClient extends BaseClient {
     });
   }
 
-  override async execute<T = unknown>(query: string): Promise<T[]> {
-    const result = await this.conn.execute(query);
+  override async execute<T = Record<string, unknown>>(
+    query: string,
+    args?: unknown[]
+  ): Promise<T[]> {
+    const result = await this.conn.execute(query, args as libsql.InArgs);
     return result.rows as T[];
   }
 
@@ -903,20 +932,15 @@ export async function getDbSchemaImplementation(
   }
 }
 
-export const GetDbSchemaTool: ToolDefinition<
-  typeof GetDbSchemaInputSchema,
-  typeof GetDbSchemaOutputSchema,
-  SQLToolConfig
-> = {
-  provider: "local",
-  type: "sql",
-  name: "getDbSchema",
-  description:
-    "Get database schema information including tables, columns, constraints, and enums.",
-  inputSchema: z.toJSONSchema(GetDbSchemaInputSchema),
-  outputSchema: z.toJSONSchema(GetDbSchemaOutputSchema),
-  implementation: getDbSchemaImplementation,
-};
+// -----------------------------------------------------------------------
+//  Execute SQL
+// -----------------------------------------------------------------------
+
+export const ExecuteSqlInputSchema = z.object({
+  query: z.string().describe("The SQL query to execute."),
+});
+
+export const ExecuteSqlOutputSchema = z.array(z.record(z.string(), z.any()));
 
 export async function executeSqlImplementation(
   input: z.infer<typeof ExecuteSqlInputSchema>,
@@ -932,6 +956,240 @@ export async function executeSqlImplementation(
   }
 }
 
+// -----------------------------------------------------------------------
+//  Bulk insert
+// -----------------------------------------------------------------------
+
+import { parse } from "jsr:@std/csv/parse";
+
+const BulkInsertInputSchema = z.object({
+  schema: z.string().optional().describe("The schema to insert into."),
+  table: z
+    .string()
+    .describe(
+      "The table to insert into. It will be created if it does not exist. Use the 'temp_' prefix if the table should be deleted later."
+    ),
+  columns: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Subset (and order) of columns to insert. If not provided, all columns are inserted."
+    ),
+  renames: z
+    .array(z.object({ from: z.string(), to: z.string() }))
+    .optional()
+    .describe(
+      "Renames columns using a mapper. Columns not in the mapper are left as-is."
+    ),
+  file_uri: z.string(),
+});
+
+const BulkInsertOutputSchema = z.object({
+  columns: z.array(z.string()),
+  types: z.array(z.string()),
+  rows_inserted: z.number(),
+});
+
+export async function bulkInsertImplementation(
+  input: z.infer<typeof BulkInsertInputSchema>,
+  config: SQLToolConfig,
+  context: RequestContext,
+  supabaseClient: SupabaseClient
+): Promise<z.infer<typeof BulkInsertOutputSchema>> {
+  const client = createDBClient(config);
+
+  const blob = await downloadFromStorage(supabaseClient, input.file_uri);
+
+  const text = await blob.text();
+
+  const csv = parse(text, { skipFirstRow: true });
+
+  if (!csv.length) {
+    return {
+      columns: [],
+      types: [],
+      rows_inserted: 0,
+    };
+  }
+
+  const csvColumns = Object.keys(csv[0]);
+
+  const source: string[] = [];
+
+  for (const col of input.columns || []) {
+    if (!csvColumns.includes(col)) {
+      throw new Error(`Column ${col} declared in 'columns' not found in CSV`);
+    }
+
+    source.push(col);
+  }
+
+  if (!source.length) {
+    source.push(...csvColumns);
+  }
+
+  const target: string[] = [];
+
+  for (const col of input.renames?.map((r) => r.from) || []) {
+    if (!csvColumns.includes(col)) {
+      throw new Error(
+        `From column ${col} declared in 'renames' not found in CSV`
+      );
+    }
+  }
+
+  for (const col of source) {
+    // If the target column name comes from input.renames, use the renamed name as-is.
+    // If it is taken from the CSV, sanitize the name.
+    const targetCol =
+      input.renames?.find((r) => r.from === col)?.to ||
+      client.sanitizeIdentifier(col);
+
+    // Deno's parse CSV implementation uses "" for empty column names.
+    // It also does not distiguish between repeated column names.
+    target.push(targetCol || "unnamed");
+  }
+
+  const types: ("TEXT" | "INTEGER" | "REAL")[] = [];
+
+  for (const col of source) {
+    let dataType: "TEXT" | "INTEGER" | "REAL" = "TEXT";
+
+    for (const row of csv) {
+      const value = row[col];
+
+      if (value === "") {
+        continue;
+      }
+
+      // TODO: infer data type from value(s)
+      // TODO: handle decimal point/comma
+
+      break;
+    }
+
+    types.push(dataType);
+  }
+
+  const table = [input.schema, input.table]
+    .filter(Boolean)
+    .map((s) => client.quoteIdentifier(s!))
+    .join(".");
+
+  const createQuery = `
+    CREATE TABLE IF NOT EXISTS ${table} (
+      ${target
+        .map((col, i) => `${client.quoteIdentifier(col)} ${types[i]}`)
+        .join(",\n      ")}
+    );
+  `;
+
+  const values = csv.map((row) => source.map((col) => row[col] || null));
+
+  const insertQuery = `
+    INSERT INTO ${table} (${target.map(client.quoteIdentifier).join(", ")})
+    VALUES
+      ${csv
+        .map((_row) => "(" + source.map((_col) => "?").join(", ") + ")")
+        .join(",\n      ")}
+    ;
+  `;
+
+  try {
+    await client.execute(createQuery);
+    await client.execute(insertQuery, values.flat());
+
+    return {
+      columns: target,
+      types,
+      rows_inserted: csv.length,
+    };
+  } finally {
+    await client.close();
+  }
+}
+
+// -----------------------------------------------------------------------
+//  Select as CSV
+// -----------------------------------------------------------------------
+
+import { stringify } from "jsr:@std/csv/stringify";
+
+const SelectAsCsvInputSchema = z.object({
+  query: z.string().describe("The SQL query to execute."),
+  file_name: z.string().describe("The filename to use for the CSV file."),
+});
+
+const SelectAsCsvOutputSchema = z.object({
+  file_uri: z.string().nullable(),
+  file_size: z.number().nullable(),
+  file_mime_type: z.string().nullable(),
+  file_name: z.string().nullable(),
+  rows_selected: z.number(),
+});
+
+export async function selectAsCsvImplementation(
+  input: z.infer<typeof SelectAsCsvInputSchema>,
+  config: SQLToolConfig,
+  context: RequestContext,
+  supabaseClient: SupabaseClient
+): Promise<z.infer<typeof SelectAsCsvOutputSchema>> {
+  const client = createDBClient(config);
+
+  try {
+    const result = await client.execute(input.query);
+
+    if (!result.length) {
+      return {
+        file_uri: null,
+        file_size: null,
+        file_mime_type: null,
+        file_name: null,
+        rows_selected: 0,
+      };
+    }
+
+    const columns = Object.keys(result[0] as Record<string, string>);
+
+    const text = stringify(result, { columns });
+
+    const file = new File([text], input.file_name, { type: "text/csv" });
+
+    return {
+      file_uri: await uploadToStorage(
+        supabaseClient,
+        context.conversation,
+        file
+      ),
+      file_size: file.size,
+      file_mime_type: "text/csv",
+      file_name: input.file_name,
+      rows_selected: result.length,
+    };
+  } finally {
+    await client.close();
+  }
+}
+
+// -----------------------------------------------------------------------
+//  Tools definitions
+// -----------------------------------------------------------------------
+
+export const GetDbSchemaTool: ToolDefinition<
+  typeof GetDbSchemaInputSchema,
+  typeof GetDbSchemaOutputSchema,
+  SQLToolConfig
+> = {
+  provider: "local",
+  type: "sql",
+  name: "getDbSchema",
+  description:
+    "Get database schema information including tables, columns, constraints, and enums.",
+  inputSchema: z.toJSONSchema(GetDbSchemaInputSchema),
+  outputSchema: z.toJSONSchema(GetDbSchemaOutputSchema),
+  implementation: getDbSchemaImplementation,
+};
+
 export const ExecuteSqlTool: ToolDefinition<
   typeof ExecuteSqlInputSchema,
   typeof ExecuteSqlOutputSchema,
@@ -946,6 +1204,40 @@ export const ExecuteSqlTool: ToolDefinition<
   implementation: executeSqlImplementation,
 };
 
-export const SQLTools = [GetDbSchemaTool, ExecuteSqlTool];
+export const BulkInsertTool: ToolDefinition<
+  typeof BulkInsertInputSchema,
+  typeof BulkInsertOutputSchema,
+  SQLToolConfig
+> = {
+  provider: "local",
+  type: "sql",
+  name: "bulkInsert",
+  description: "Bulk insert data into a SQL database from a CSV file URI.",
+  inputSchema: z.toJSONSchema(BulkInsertInputSchema),
+  outputSchema: z.toJSONSchema(BulkInsertOutputSchema),
+  implementation: bulkInsertImplementation,
+};
+
+export const SelectAsCsvTool: ToolDefinition<
+  typeof SelectAsCsvInputSchema,
+  typeof SelectAsCsvOutputSchema,
+  SQLToolConfig
+> = {
+  provider: "local",
+  type: "sql",
+  name: "selectAsCsv",
+  description:
+    "Select data from a SQL database and return it as a CSV file URI.",
+  inputSchema: z.toJSONSchema(SelectAsCsvInputSchema),
+  outputSchema: z.toJSONSchema(SelectAsCsvOutputSchema),
+  implementation: selectAsCsvImplementation,
+};
+
+export const SQLTools = [
+  GetDbSchemaTool,
+  ExecuteSqlTool,
+  BulkInsertTool,
+  SelectAsCsvTool,
+];
 
 // TODO: add a tool to sample N rows from each table

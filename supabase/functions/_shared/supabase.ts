@@ -327,6 +327,7 @@ export type IncomingMessage = { version?: "0" } & BaseMessage &
 
 export type FunctionCallMessage = {
   type: "function";
+  v1_type: "text" | "data"; // hack for v0 to v1 compatibility
   id: string;
   function: {
     arguments: string;
@@ -337,6 +338,7 @@ export type FunctionCallMessage = {
 
 export type FunctionResponseMessage = {
   type: "text";
+  v1_type: "text" | "data"; // hack for v0 to v1 compatibility
   content: string;
   tool_call_id: string;
   tool_name?: string;
@@ -593,57 +595,18 @@ export const MediaTypes = [
 export type FilePart = {
   type: "file";
   text?: string; // caption (not present in A2A)
-} & (
-  | {
-      kind: "audio";
-      file: {
-        mime_type: string;
-        uri: string;
-        name?: string;
-        // Not present in A2A
-        size?: number;
-        description?: string;
-        transcription?: string;
-        voice?: boolean; // TODO: remove and use description instead? could signal voice and emotions
-      };
-    }
-  | {
-      kind: "image" | "sticker";
-      file: {
-        mime_type: string;
-        uri: string;
-        name?: string;
-        // Not present in A2A
-        size?: number;
-        description?: string;
-        transcription?: string;
-      };
-    }
-  | {
-      kind: "video";
-      file: {
-        mime_type: string;
-        uri: string;
-        name?: string;
-        // Not present in A2A
-        size?: number;
-        description?: string;
-        transcription?: string;
-      };
-    }
-  | {
-      kind: "document";
-      file: {
-        mime_type: string;
-        uri: string;
-        name?: string;
-        // Not present in A2A
-        size?: number;
-        description?: string;
-        transcription?: string;
-      };
-    }
-);
+} & {
+  kind: (typeof MediaTypes)[number];
+  file: {
+    mime_type: string;
+    uri: string;
+    name?: string;
+    // Not present in A2A
+    size?: number;
+    description?: string;
+    transcription?: string;
+  };
+};
 
 // Data based
 

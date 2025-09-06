@@ -6,15 +6,15 @@ import type { AgentTool } from "../index.ts";
 
 export class ProtocolFactory {
   static getHandler(
+    tools: AgentTool[],
     context: RequestContext,
-    client: SupabaseClient,
-    tools: AgentTool[]
+    client: SupabaseClient
   ): AgentProtocolHandler {
     const protocol = context.agent.extra.protocol || "chat_completions";
 
     switch (protocol) {
       case "chat_completions":
-        return new ChatCompletionsHandler(context, client, tools);
+        return new ChatCompletionsHandler(tools, context, client);
       case "a2a":
         return new A2AHandler(context, client);
       default:

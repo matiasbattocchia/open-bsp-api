@@ -18,6 +18,7 @@ import {
   type Tool,
 } from "../../_shared/mcp_types.ts";
 import type { Json } from "../../_shared/db_types.ts";
+import { RequestContext } from "../protocols/base.ts";
 
 export type MCPServer = {
   label: string;
@@ -52,9 +53,9 @@ export async function initMCP(tool: LocalMCPToolConfig): Promise<MCPServer> {
 }
 
 export async function fromMCP(
-  client: SupabaseClient,
-  conversation: ConversationRow,
-  part: ContentBlock
+  part: ContentBlock,
+  context: RequestContext,
+  client: SupabaseClient
 ): Promise<Part> {
   switch (part.type) {
     case "text":
@@ -67,7 +68,7 @@ export async function fromMCP(
       const file = decodeBase64(part.data);
       const uri = await uploadToStorage(
         client,
-        conversation,
+        context.conversation,
         file,
         part.mimeType
       );
@@ -86,7 +87,7 @@ export async function fromMCP(
       const file = decodeBase64(part.data);
       const uri = await uploadToStorage(
         client,
-        conversation,
+        context.conversation,
         file,
         part.mimeType
       );
@@ -106,7 +107,7 @@ export async function fromMCP(
         const file = new TextEncoder().encode(part.resource.text as string);
         const uri = await uploadToStorage(
           client,
-          conversation,
+          context.conversation,
           file,
           part.resource.mimeType || "text/plain"
         );
@@ -126,7 +127,7 @@ export async function fromMCP(
         const file = decodeBase64(part.resource.blob as string);
         const uri = await uploadToStorage(
           client,
-          conversation,
+          context.conversation,
           file,
           part.resource.mimeType || "application/octet-stream"
         );
@@ -145,7 +146,7 @@ export async function fromMCP(
     }
     case "resource_link": {
       const file = await fetchMedia(part.uri);
-      const uri = await uploadToStorage(client, conversation, file);
+      const uri = await uploadToStorage(client, context.conversation, file);
 
       return {
         type: "file",
@@ -163,8 +164,8 @@ export async function fromMCP(
 export async function callTool(
   mcp: MCPServer,
   part: Part & ToolInfo,
-  client: SupabaseClient,
-  conversation: ConversationRow
+  context: RequestContext,
+  client: SupabaseClient
 ): Promise<(Part & ToolInfo)[]> {
   if (
     !part.tool ||
@@ -189,7 +190,7 @@ export async function callTool(
         },
       ]
     : await Promise.all(
-        result.content.map((part) => fromMCP(client, conversation, part))
+        result.content.map((part) => fromMCP(part, context, client))
       );
 
   return parts.map((outPart) => ({
