@@ -1,6 +1,7 @@
 -- https://supabase.com/docs/guides/migrations/declarative-schemas#limitations
 
 -- Cron jobs
+/* Replaced at supabase/migrations/20250908132910_cron_jobs.sql
 select
   cron.schedule (
     'dispatch-outgoing-pending-messages',
@@ -37,6 +38,7 @@ select
       and status ->> 'failed' is null
     $$
   );
+*/
 
 -- Delete old cron.job_run_details records of the current user every day at noon
 select
