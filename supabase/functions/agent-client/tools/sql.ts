@@ -973,7 +973,13 @@ const BulkInsertInputSchema = z.object({
     .array(z.string())
     .optional()
     .describe(
-      "Subset (and order) of columns to insert. If not provided, all columns are inserted."
+      "Subset of columns to read from the CSV file. If not provided, all columns are used."
+    ),
+  types: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Types of columns, when the table has to be created. If not provided, TEXT is used for all columns."
     ),
   renames: z
     .array(z.object({ from: z.string(), to: z.string() }))
@@ -986,7 +992,6 @@ const BulkInsertInputSchema = z.object({
 
 const BulkInsertOutputSchema = z.object({
   columns: z.array(z.string()),
-  types: z.array(z.string()),
   rows_inserted: z.number(),
 });
 
@@ -1007,7 +1012,6 @@ export async function bulkInsertImplementation(
   if (!csv.length) {
     return {
       columns: [],
-      types: [],
       rows_inserted: 0,
     };
   }
@@ -1026,6 +1030,12 @@ export async function bulkInsertImplementation(
 
   if (!source.length) {
     source.push(...csvColumns);
+  }
+
+  if (input.types && input.types.length !== source.length) {
+    throw new Error(
+      `Number of types in 'types' must match the number of columns in 'columns' or the number of columns in the CSV file`
+    );
   }
 
   const target: string[] = [];
@@ -1050,27 +1060,6 @@ export async function bulkInsertImplementation(
     target.push(targetCol || "unnamed");
   }
 
-  const types: ("TEXT" | "INTEGER" | "REAL")[] = [];
-
-  for (const col of source) {
-    let dataType: "TEXT" | "INTEGER" | "REAL" = "TEXT";
-
-    for (const row of csv) {
-      const value = row[col];
-
-      if (value === "") {
-        continue;
-      }
-
-      // TODO: infer data type from value(s)
-      // TODO: handle decimal point/comma
-
-      break;
-    }
-
-    types.push(dataType);
-  }
-
   const table = [input.schema, input.table]
     .filter(Boolean)
     .map((s) => client.quoteIdentifier(s!))
@@ -1079,7 +1068,10 @@ export async function bulkInsertImplementation(
   const createQuery = `
     CREATE TABLE IF NOT EXISTS ${table} (
       ${target
-        .map((col, i) => `${client.quoteIdentifier(col)} ${types[i]}`)
+        .map(
+          (col, i) =>
+            `${client.quoteIdentifier(col)} ${input.types?.[i] || "TEXT"}`
+        )
         .join(",\n      ")}
     );
   `;
@@ -1101,7 +1093,6 @@ export async function bulkInsertImplementation(
 
     return {
       columns: target,
-      types,
       rows_inserted: csv.length,
     };
   } finally {

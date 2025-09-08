@@ -9,7 +9,7 @@ import {
   type EndpointStatus,
 } from "../_shared/supabase.ts";
 
-const api_version = "v20.0";
+const api_version = "v21.0";
 
 /** Uploads media to WA servers
  *
@@ -21,13 +21,15 @@ const api_version = "v20.0";
  */
 async function uploadMediaItem(
   phone_number_id: string,
-  media_id: string,
+  uri: string,
   mime_type: string,
   access_token: string,
   api_version: string,
   client: SupabaseClient
 ): Promise<string> {
-  const { data, error } = await client.storage.from("media").download(media_id);
+  const key = uri.replace("internal://media/", "");
+
+  const { data, error } = await client.storage.from("media").download(key);
 
   if (error) throw error;
 

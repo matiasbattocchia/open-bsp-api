@@ -12,6 +12,8 @@ import {
   createUnsecureClient,
 } from "../_shared/supabase.ts";
 
+const api_version = "v21.0";
+
 Deno.serve(async (request) => {
   switch (request.method) {
     case "GET":
@@ -53,10 +55,13 @@ async function downloadMediaItem(
   }
 
   // Fetch part 1: Get the download url using the media id
-  let response = await fetch(`https://graph.facebook.com/v17.0/${media_id}`, {
-    method: "GET",
-    headers: { Authorization: `Bearer ${access_token}` },
-  });
+  let response = await fetch(
+    `https://graph.facebook.com/${api_version}/${media_id}`,
+    {
+      method: "GET",
+      headers: { Authorization: `Bearer ${access_token}` },
+    }
+  );
 
   if (!response.ok) {
     log.error(response.headers.get("www-authenticate")!);
@@ -84,21 +89,17 @@ async function downloadMediaItem(
   }
 
   // Store the file
-  (
-    messageRecord.message as BaseMessage
-  ).media!.id = `${organization_id}/${phone_number_id}/${media_id}`; // Overwrite WA media id with the internal media id
+  const key = `${organization_id}/${phone_number_id}/${media_id}`;
+
+  (messageRecord.message as BaseMessage).media!.id = `internal://media/${key}`; // Overwrite WA media id with the internal media id
   (messageRecord.message as BaseMessage).media!.file_size =
     mediaMetadata.file_size;
 
   const { error } = await client.storage
     .from("media")
-    .upload(
-      (messageRecord.message as BaseMessage).media!.id,
-      await response.blob(),
-      {
-        upsert: true,
-      }
-    );
+    .upload(key, await response.blob(), {
+      upsert: true,
+    });
 
   if (error) throw error;
 

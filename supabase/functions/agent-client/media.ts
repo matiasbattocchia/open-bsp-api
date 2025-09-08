@@ -27,9 +27,9 @@ export async function uploadToStorage(
 
   const media_id = crypto.randomUUID();
 
-  const uri = `${conv.organization_address}/${conv.contact_address}/${media_id}`;
+  const key = `${conv.organization_address}/${conv.contact_address}/${media_id}`;
 
-  const { error } = await client.storage.from("media").upload(uri, file, {
+  const { error } = await client.storage.from("media").upload(key, file, {
     upsert: true,
     ...(mime_type && { contentType: mime_type }),
     //metadata: {}
@@ -39,11 +39,15 @@ export async function uploadToStorage(
     throw error;
   }
 
-  return uri;
+  return "internal://media/" + key;
 }
 
 export async function downloadFromStorage(client: SupabaseClient, uri: string) {
-  const { data, error } = await client.storage.from("media").download(uri);
+  // Extract the storage key from the internal uri format
+  // Example: "internal://media/org/contact/file" -> "org/contact/file"
+  const key = uri.replace("internal://media/", "");
+
+  const { data, error } = await client.storage.from("media").download(key);
 
   if (error) {
     throw error;
@@ -53,9 +57,11 @@ export async function downloadFromStorage(client: SupabaseClient, uri: string) {
 }
 
 export async function createSignedUrl(client: SupabaseClient, uri: string) {
+  const key = uri.replace("internal://media/", "");
+
   const { data, error } = await client.storage
     .from("media")
-    .createSignedUrl(uri, SIGNED_URL_EXPIRATION_SECONDS);
+    .createSignedUrl(key, SIGNED_URL_EXPIRATION_SECONDS);
 
   if (error) {
     throw error;

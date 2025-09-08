@@ -599,12 +599,18 @@ export type FilePart = {
   kind: (typeof MediaTypes)[number];
   file: {
     mime_type: string;
-    uri: string;
+    uri: string; // internal://media/{organizationId}/{contactId}/{fileId}
     name?: string;
     // Not present in A2A
     size?: number;
     description?: string;
     transcription?: string;
+    llm?: {
+      mime_type: "text/markdown";
+      uri: string;
+      name: string;
+      size: number;
+    };
   };
 };
 
@@ -867,8 +873,8 @@ export type Memory = {
 };
 
 export type AnnotationConfig = {
-  model?: "gemini-2.5-pro" | "gemini-2.5-flash" | "gemini-2.0-flash-lite";
-  api_key: string;
+  model?: "gemini-2.5-pro" | "gemini-2.5-flash";
+  api_key?: string;
   language?: string;
   extra_prompt?: string;
 };
