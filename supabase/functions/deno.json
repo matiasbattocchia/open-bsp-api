@@ -8,6 +8,7 @@
     "mysql2": "npm:mysql2@^3.14.3/promise",
     "openai": "npm:openai@^5.12.2",
     "postgres": "npm:postgres@^3.4.7",
-    "zod": "npm:zod@^4.0.9"
+    "zod": "npm:zod@^4.0.9",
+    "ajv": "https://esm.sh/ajv@8.17/dist/2020"
   }
 }

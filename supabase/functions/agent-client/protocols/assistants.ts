@@ -6,7 +6,11 @@ import type {
   ResponseContext,
 } from "./base.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createSignedUrl, fetchMedia, uploadToStorage } from "../media.ts";
+import {
+  createSignedUrl,
+  fetchMedia,
+  uploadToStorage,
+} from "../../_shared/media.ts";
 import * as log from "../../_shared/logger.ts";
 
 export interface AssistantsRequest {

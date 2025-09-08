@@ -3,7 +3,7 @@ import {
   type MessageInsert,
   type MessageRowV1,
   type MessageInsertV1,
-} from "../_shared/supabase.ts";
+} from "./supabase.ts";
 
 export function toV1(row: MessageRow): MessageRowV1 | undefined {
   // FunctionCallMessageDeprecated

@@ -17,7 +17,7 @@ import {
   uploadToStorage,
   createSignedUrl,
   downloadFromStorage,
-} from "../media.ts";
+} from "../../_shared/media.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Json } from "../../_shared/db_types.ts";
 

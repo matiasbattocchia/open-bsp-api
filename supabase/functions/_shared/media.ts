@@ -1,5 +1,5 @@
 import ky from "ky";
-import type { ConversationRow } from "../_shared/supabase.ts";
+import type { ConversationRow } from "./supabase.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const SIGNED_URL_EXPIRATION_SECONDS = 3600; // 1 hour

@@ -6,9 +6,9 @@ import type {
 } from "../_shared/supabase.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { GoogleGenAI, Type, type GenerateContentResponse } from "@google/genai";
-import { downloadFromStorage, uploadToStorage } from "./media.ts";
+import { downloadFromStorage, uploadToStorage } from "../_shared/media.ts";
 import { encodeBase64 } from "jsr:@std/encoding/base64";
-import { toV1, fromV1 } from "./messages-v0.ts";
+import { toV1, fromV1 } from "../_shared/messages-v0.ts";
 import * as log from "../_shared/logger.ts";
 
 /**

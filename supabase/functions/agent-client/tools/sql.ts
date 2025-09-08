@@ -46,7 +46,7 @@ import type { RequestContext } from "../protocols/base.ts";
 import type { LocalSQLToolConfig } from "../../_shared/supabase.ts";
 import type { ToolDefinition } from "./base.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { downloadFromStorage, uploadToStorage } from "../media.ts";
+import { downloadFromStorage, uploadToStorage } from "../../_shared/media.ts";
 
 // Type definitions
 type Driver = "postgres" | "mysql" | "libsql";

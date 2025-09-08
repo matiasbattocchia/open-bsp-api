@@ -13,13 +13,12 @@ import {
   type Part,
   type ToolInfo,
 } from "../_shared/supabase.ts";
-import { toV1, fromV1 } from "./messages-v0.ts";
+import { toV1, fromV1 } from "../_shared/messages-v0.ts";
 import { ProtocolFactory } from "./protocols/index.ts";
-import { annotateMessage } from "./annotator.ts";
 import { callTool, initMCP, type MCPServer } from "./tools/mcp.ts";
 import { Toolbox } from "./tools/index.ts";
 import { z } from "zod";
-import Ajv2020 from "https://esm.sh/ajv@^8.17.1/dist/2020";
+import Ajv2020 from "ajv";
 import type { Json } from "../_shared/db_types.ts";
 import type { AgentRowWithExtra, ResponseContext } from "./protocols/base.ts";
 import { TransferToHumanAgentTool } from "./tools/handoff.ts";
@@ -96,7 +95,7 @@ Deno.serve(async (req) => {
     const annotationStart = new Date();
 
     // TODO: Timeout and continue?
-    await annotateMessage(incoming, org.extra.annotations, client);
+    //await annotateMessage(incoming, org.extra.annotations, client);
 
     annotationDuration = +new Date() - +annotationStart;
   }

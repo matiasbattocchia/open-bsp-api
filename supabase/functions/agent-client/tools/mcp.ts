@@ -6,7 +6,7 @@ import type {
   ToolInfo,
 } from "../../_shared/supabase.ts";
 import { decodeBase64 } from "jsr:@std/encoding/base64";
-import { fetchMedia, uploadToStorage } from "../media.ts";
+import { fetchMedia, uploadToStorage } from "../../_shared/media.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 // Import map is bad at resolving entry points, so we need to use the full path.
 import { Client } from "npm:@modelcontextprotocol/sdk/client/index.js";
