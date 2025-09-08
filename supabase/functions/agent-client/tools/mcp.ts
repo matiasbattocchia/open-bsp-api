@@ -4,8 +4,11 @@ import type {
   Part,
   ToolInfo,
 } from "../../_shared/supabase.ts";
-import { decodeBase64 } from "jsr:@std/encoding/base64";
-import { fetchMedia, uploadToStorage } from "../../_shared/media.ts";
+import {
+  fetchMedia,
+  uploadToStorage,
+  base64ToBlob,
+} from "../../_shared/media.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 // Import map is bad at resolving entry points, so we need to use the full path.
 import { Client } from "npm:@modelcontextprotocol/sdk/client/index.js";
@@ -66,70 +69,65 @@ export async function fromMCP(
         text: part.text,
       };
     case "image": {
-      const file = decodeBase64(part.data);
-      const uri = await uploadToStorage(client, org.id, file, part.mimeType);
+      const file = base64ToBlob(part.data, part.mimeType);
+      const uri = await uploadToStorage(client, org.id, file);
 
       return {
         type: "file",
         kind: "image",
         file: {
           uri,
-          mime_type: part.mimeType,
-          size: file.length,
+          mime_type: file.type,
+          size: file.size,
         },
       };
     }
     case "audio": {
-      const file = decodeBase64(part.data);
-      const uri = await uploadToStorage(client, org.id, file, part.mimeType);
+      const file = base64ToBlob(part.data, part.mimeType);
+      const uri = await uploadToStorage(client, org.id, file);
 
       return {
         type: "file",
         kind: "audio",
         file: {
           uri,
-          mime_type: part.mimeType,
-          size: file.length,
+          mime_type: file.type,
+          size: file.size,
         },
       };
     }
     case "resource": {
       if (part.resource.type === "text") {
-        const file = new TextEncoder().encode(part.resource.text as string);
-        const uri = await uploadToStorage(
-          client,
-          org.id,
-          file,
-          part.resource.mimeType || "text/plain"
-        );
+        const file = new Blob([part.resource.text as string], {
+          type: part.resource.mimeType || "text/plain",
+        });
+        const uri = await uploadToStorage(client, org.id, file);
 
         return {
           type: "file",
           kind: "document",
           file: {
             uri,
-            mime_type: part.resource.mimeType || "text/plain",
-            size: file.length,
+            mime_type: file.type,
+            size: file.size,
           },
         };
       }
 
       if (part.resource.type === "blob") {
-        const file = decodeBase64(part.resource.blob as string);
-        const uri = await uploadToStorage(
-          client,
-          org.id,
-          file,
-          part.resource.mimeType || "application/octet-stream"
+        const file = base64ToBlob(
+          part.resource.blob as string,
+          part.resource.mimeType
         );
+        const uri = await uploadToStorage(client, org.id, file);
 
         return {
           type: "file",
           kind: "document",
           file: {
             uri,
-            mime_type: part.resource.mimeType || "application/octet-stream",
-            size: file.length,
+            mime_type: file.type,
+            size: file.size,
           },
         };
       }

@@ -159,17 +159,16 @@ export class AssistantsHandler
         throw new Error("Message content type image_file is not supported.");
       }
       case "image_url": {
-        const blob = await fetchMedia(message.image_url.url);
-        const mime_type = blob.type;
-        const uri = await uploadToStorage(this.client, org.id, blob, mime_type);
+        const file = await fetchMedia(message.image_url.url);
+        const uri = await uploadToStorage(this.client, org.id, file);
 
         return {
           type: "file",
           kind: "image",
           file: {
             uri,
-            mime_type,
-            size: blob.size,
+            mime_type: file.type,
+            size: file.size,
           },
         };
       }

@@ -1,8 +1,10 @@
 import ky from "ky";
-import type { ConversationRow } from "./supabase.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { encodeHex } from "jsr:@std/encoding/hex";
+import { decodeBase64 } from "jsr:@std/encoding/base64";
 
 const SIGNED_URL_EXPIRATION_SECONDS = 3600; // 1 hour
+const BASE_URI = "internal://media";
 
 export async function fetchMedia(url: string, token?: string) {
   return await ky(url, {
@@ -15,23 +17,25 @@ export async function fetchMedia(url: string, token?: string) {
   }).blob();
 }
 
+export function base64ToBlob(base64: string, mime_type?: string) {
+  const buffer = decodeBase64(base64);
+  return new Blob([buffer], { type: mime_type || "application/octet-stream" });
+}
+
 export async function uploadToStorage(
   client: SupabaseClient,
-  conv: ConversationRow,
-  file: Uint8Array | Blob,
-  mime_type?: string // Required for Uint8Array!
+  organization_id: string,
+  file: Blob
 ) {
-  if (!(file instanceof Blob) && !mime_type) {
-    throw new Error("mime_type is required when file is not a Blob");
-  }
+  // Use a hash of the file contents as the file id to help with deduplication
+  const buffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+  const file_hash = encodeHex(hashBuffer);
 
-  const media_id = crypto.randomUUID();
-
-  const key = `${conv.organization_address}/${conv.contact_address}/${media_id}`;
+  const key = `/organizations/${organization_id}/attachments/${file_hash}`;
 
   const { error } = await client.storage.from("media").upload(key, file, {
     upsert: true,
-    ...(mime_type && { contentType: mime_type }),
     //metadata: {}
   });
 
@@ -39,13 +43,13 @@ export async function uploadToStorage(
     throw error;
   }
 
-  return "internal://media/" + key;
+  return BASE_URI + key;
 }
 
 export async function downloadFromStorage(client: SupabaseClient, uri: string) {
   // Extract the storage key from the internal uri format
   // Example: "internal://media/org/contact/file" -> "org/contact/file"
-  const key = uri.replace("internal://media/", "");
+  const key = uri.replace(BASE_URI, "");
 
   const { data, error } = await client.storage.from("media").download(key);
 
@@ -57,7 +61,7 @@ export async function downloadFromStorage(client: SupabaseClient, uri: string) {
 }
 
 export async function createSignedUrl(client: SupabaseClient, uri: string) {
-  const key = uri.replace("internal://media/", "");
+  const key = uri.replace(BASE_URI, "");
 
   const { data, error } = await client.storage
     .from("media")

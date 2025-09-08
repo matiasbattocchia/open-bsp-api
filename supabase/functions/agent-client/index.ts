@@ -701,7 +701,7 @@ Deno.serve(async (req) => {
                 },
               ];
 
-              if (result.file_uri) {
+              if (result.file) {
                 parts.push({
                   tool: {
                     ...toolInfo,
@@ -709,12 +709,7 @@ Deno.serve(async (req) => {
                   },
                   type: "file",
                   kind: "document",
-                  file: {
-                    uri: result.file_uri,
-                    mime_type: result.file_mime_type,
-                    name: result.file_name,
-                    size: result.file_size,
-                  },
+                  file: result.file,
                 });
               }
 

@@ -987,7 +987,7 @@ const BulkInsertInputSchema = z.object({
     .describe(
       "Renames columns using a mapper. Columns not in the mapper are left as-is."
     ),
-  file_uri: z.string(),
+  file_uri: z.string().describe("The URI of the CSV file to insert."),
 });
 
 const BulkInsertOutputSchema = z.object({
@@ -1003,9 +1003,9 @@ export async function bulkInsertImplementation(
 ): Promise<z.infer<typeof BulkInsertOutputSchema>> {
   const client = createDBClient(config);
 
-  const blob = await downloadFromStorage(supabaseClient, input.file_uri);
+  const file = await downloadFromStorage(supabaseClient, input.file_uri);
 
-  const text = await blob.text();
+  const text = await file.text();
 
   const csv = parse(text, { skipFirstRow: true });
 
@@ -1112,10 +1112,14 @@ const SelectAsCsvInputSchema = z.object({
 });
 
 const SelectAsCsvOutputSchema = z.object({
-  file_uri: z.string().nullable(),
-  file_size: z.number().nullable(),
-  file_mime_type: z.string().nullable(),
-  file_name: z.string().nullable(),
+  file: z
+    .object({
+      uri: z.string(),
+      mime_type: z.string(),
+      name: z.string(),
+      size: z.number(),
+    })
+    .nullable(),
   rows_selected: z.number(),
 });
 
@@ -1132,10 +1136,7 @@ export async function selectAsCsvImplementation(
 
     if (!result.length) {
       return {
-        file_uri: null,
-        file_size: null,
-        file_mime_type: null,
-        file_name: null,
+        file: null,
         rows_selected: 0,
       };
     }
@@ -1147,14 +1148,16 @@ export async function selectAsCsvImplementation(
     const file = new File([text], input.file_name, { type: "text/csv" });
 
     return {
-      file_uri: await uploadToStorage(
-        supabaseClient,
-        context.organization.id,
-        file
-      ),
-      file_size: file.size,
-      file_mime_type: "text/csv",
-      file_name: input.file_name,
+      file: {
+        uri: await uploadToStorage(
+          supabaseClient,
+          context.organization.id,
+          file
+        ),
+        size: file.size,
+        mime_type: "text/csv",
+        name: input.file_name,
+      },
       rows_selected: result.length,
     };
   } finally {
