@@ -12,6 +12,12 @@ declare
   headers jsonb;
   timeout_ms integer := 10000;
 begin
+  if service = 'local' then
+    update public.messages set status = jsonb_build_object('delivered', now()) where id = new.id;
+
+    return new;
+  end if;
+
   select decrypted_secret into base_url from vault.decrypted_secrets where name = 'edge_functions_url';
   select decrypted_secret into auth_token from vault.decrypted_secrets where name = 'edge_functions_token';
   

@@ -58,22 +58,10 @@ on public.messages
 for each row
 when (
   new.direction = 'outgoing'::public.direction
-  and new.service <> 'local'::public.service
   and new.timestamp <= now()
   and (new.status ->> 'pending'::text) is not null
 )
 execute function public.dispatcher_edge_function();
-
-create trigger mark_outgoing_local_message_as_sent
-before insert
-on public.messages
-for each row
-when (
-  new.direction = 'outgoing'::public.direction
-  and new.service = 'local'::public.service
-  and new.timestamp <= now()
-)
-execute function public.mark_outgoing_local_message_as_sent();
 
 create trigger notify_webhook_messages
 after insert or update

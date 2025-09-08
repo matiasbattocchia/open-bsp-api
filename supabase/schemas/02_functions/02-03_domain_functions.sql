@@ -54,14 +54,3 @@ begin
   return new;
 end;
 $$;
-
-create function public.mark_outgoing_local_message_as_sent() returns trigger
-language plpgsql
-as $$
-begin
-  new.status := merge_update_jsonb(new.status, '{}', jsonb_build_object('delivered', now()));
-  new.updated_at := now() + interval '10 second';
-
-  return new;
-end;
-$$; 
