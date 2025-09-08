@@ -1,6 +1,5 @@
 import type { ContentBlock } from "../../_shared/mcp_types.ts";
 import type {
-  ConversationRow,
   LocalMCPToolConfig,
   Part,
   ToolInfo,
@@ -57,6 +56,8 @@ export async function fromMCP(
   context: RequestContext,
   client: SupabaseClient
 ): Promise<Part> {
+  const org = context.organization;
+
   switch (part.type) {
     case "text":
       return {
@@ -66,12 +67,7 @@ export async function fromMCP(
       };
     case "image": {
       const file = decodeBase64(part.data);
-      const uri = await uploadToStorage(
-        client,
-        context.conversation,
-        file,
-        part.mimeType
-      );
+      const uri = await uploadToStorage(client, org.id, file, part.mimeType);
 
       return {
         type: "file",
@@ -85,12 +81,7 @@ export async function fromMCP(
     }
     case "audio": {
       const file = decodeBase64(part.data);
-      const uri = await uploadToStorage(
-        client,
-        context.conversation,
-        file,
-        part.mimeType
-      );
+      const uri = await uploadToStorage(client, org.id, file, part.mimeType);
 
       return {
         type: "file",
@@ -107,7 +98,7 @@ export async function fromMCP(
         const file = new TextEncoder().encode(part.resource.text as string);
         const uri = await uploadToStorage(
           client,
-          context.conversation,
+          org.id,
           file,
           part.resource.mimeType || "text/plain"
         );
@@ -127,7 +118,7 @@ export async function fromMCP(
         const file = decodeBase64(part.resource.blob as string);
         const uri = await uploadToStorage(
           client,
-          context.conversation,
+          org.id,
           file,
           part.resource.mimeType || "application/octet-stream"
         );
@@ -146,7 +137,7 @@ export async function fromMCP(
     }
     case "resource_link": {
       const file = await fetchMedia(part.uri);
-      const uri = await uploadToStorage(client, context.conversation, file);
+      const uri = await uploadToStorage(client, org.id, file);
 
       return {
         type: "file",

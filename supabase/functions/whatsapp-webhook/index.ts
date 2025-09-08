@@ -11,6 +11,7 @@ import {
   type BaseMessage,
   createUnsecureClient,
 } from "../_shared/supabase.ts";
+import { fetchMedia, uploadToStorage } from "../_shared/media.ts";
 
 const api_version = "v21.0";
 
@@ -42,7 +43,6 @@ function verifyToken(request: Request): Response {
 
 async function downloadMediaItem(
   organization_id: string,
-  phone_number_id: string,
   media_id: string,
   access_token: string,
   messageRecord: MessageInsert,
@@ -55,7 +55,7 @@ async function downloadMediaItem(
   }
 
   // Fetch part 1: Get the download url using the media id
-  let response = await fetch(
+  const response = await fetch(
     `https://graph.facebook.com/${api_version}/${media_id}`,
     {
       method: "GET",
@@ -78,30 +78,14 @@ async function downloadMediaItem(
   };
 
   // Fetch part 2: Get the file using the download url
-  response = await fetch(mediaMetadata.url, {
-    method: "GET",
-    headers: { Authorization: `Bearer ${access_token}` },
-  });
-
-  if (!response.ok) {
-    log.error(response.headers.get("www-authenticate")!);
-    throw response;
-  }
+  const file = await fetchMedia(mediaMetadata.url, access_token);
 
   // Store the file
-  const key = `${organization_id}/${phone_number_id}/${media_id}`;
+  const uri = await uploadToStorage(client, organization_id, file);
 
-  (messageRecord.message as BaseMessage).media!.id = `internal://media/${key}`; // Overwrite WA media id with the internal media id
+  (messageRecord.message as BaseMessage).media!.id = uri; // Overwrite WA media id with the internal uri
   (messageRecord.message as BaseMessage).media!.file_size =
     mediaMetadata.file_size;
-
-  const { error } = await client.storage
-    .from("media")
-    .upload(key, await response.blob(), {
-      upsert: true,
-    });
-
-  if (error) throw error;
 
   return messageRecord;
 }
@@ -140,7 +124,6 @@ async function downloadMedia(
     mediaMessages.map((m) =>
       downloadMediaItem(
         number_ids_to_org_ids.get(m.organization_address)!,
-        m.organization_address,
         (m.message as BaseMessage).media!.id,
         number_ids_to_access_tokens.get(m.organization_address)!,
         m,

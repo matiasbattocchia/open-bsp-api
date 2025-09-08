@@ -1149,7 +1149,7 @@ export async function selectAsCsvImplementation(
     return {
       file_uri: await uploadToStorage(
         supabaseClient,
-        context.conversation,
+        context.organization.id,
         file
       ),
       file_size: file.size,

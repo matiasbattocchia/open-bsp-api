@@ -263,14 +263,7 @@ export async function annotateMessage(
         type: "text/markdown",
       });
 
-      const uri = await uploadToStorage(
-        client,
-        {
-          organization_address: row.organization_address,
-          contact_address: row.contact_address,
-        } as ConversationRow,
-        file
-      );
+      const uri = await uploadToStorage(client, row.organization_id, file);
 
       llm = { mime_type: "text/markdown", uri, name, size: file.size };
     }

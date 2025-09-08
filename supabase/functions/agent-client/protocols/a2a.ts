@@ -126,7 +126,7 @@ export class A2AHandler
   }
 
   private async fromA2a(part: A2aPart): Promise<Part> {
-    const conv = this.context.conversation;
+    const org = this.context.organization;
 
     switch (part.type) {
       case "text": {
@@ -153,14 +153,14 @@ export class A2AHandler
           fileSize = decodedBytes.byteLength;
           uri = await uploadToStorage(
             this.client,
-            conv,
+            org.id,
             decodedBytes,
             mime_type
           );
         } else if (part.file.uri) {
           const blob = await fetchMedia(part.file.uri);
           fileSize = blob.size;
-          uri = await uploadToStorage(this.client, conv, blob);
+          uri = await uploadToStorage(this.client, org.id, blob);
         }
 
         let kind = "document";

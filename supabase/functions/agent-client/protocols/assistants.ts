@@ -145,7 +145,7 @@ export class AssistantsHandler
   private async fromAssistants(
     message: OpenAI.Beta.Threads.MessageContent
   ): Promise<Part> {
-    const conv = this.context.conversation;
+    const org = this.context.organization;
 
     switch (message.type) {
       case "text": {
@@ -161,7 +161,7 @@ export class AssistantsHandler
       case "image_url": {
         const blob = await fetchMedia(message.image_url.url);
         const mime_type = blob.type;
-        const uri = await uploadToStorage(this.client, conv, blob, mime_type);
+        const uri = await uploadToStorage(this.client, org.id, blob, mime_type);
 
         return {
           type: "file",

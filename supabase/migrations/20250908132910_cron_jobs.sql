@@ -70,3 +70,15 @@ select
       and status ->> 'annotated' is null
     $$
   );
+
+-- Allow org members to upload and download media
+create policy "org members can manage their orgs media"
+on storage.objects
+to authenticated
+using (
+  bucket_id = 'media' and
+  (
+    (storage.foldername(name))[1] in ( select get_authorized_orgs()::text ) -- message v0 - TODO: deprecate
+    or (storage.foldername(name))[2] in ( select get_authorized_orgs()::text ) -- message v1 path is organizations/<org_id>/attachments/<file_id>
+  )
+);
