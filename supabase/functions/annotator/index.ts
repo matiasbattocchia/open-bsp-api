@@ -196,7 +196,7 @@ Deno.serve(async (req) => {
 
   const isSupportedMimeType =
     mimeType.startsWith("text/") ||
-    allowedMimeTypes[mediaType]?.includes(mimeType);
+    allowedMimeTypes[mediaType]?.includes(mimeType.split(";")[0]); // "audio/ogg; codecs=opus" -> "audio/ogg"
 
   if (!isSupportedMimeType) {
     return log_update_and_respond(
