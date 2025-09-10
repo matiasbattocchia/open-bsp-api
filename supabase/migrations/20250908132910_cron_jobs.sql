@@ -24,7 +24,7 @@ select
       public.messages as m
     where
       direction = 'outgoing'
-      and timestamp >= now() - interval '60 minutes'
+      and timestamp >= now() - interval '12 hours'
       and timestamp <= now() - interval '1 minutes'
       and status ->> 'pending' is not null
       and status ->> 'held_for_quality_assessment' is null
@@ -60,12 +60,16 @@ select
     from
       public.messages as m
     where
-      timestamp >= now() - interval '60 minutes'
+      timestamp >= now() - interval '12 hours'
       and timestamp <= now() - interval '1 minutes'
+      and (
+        message ->> 'media' is not null -- message v0 - TODO: deprecate
+        or message ->> 'type' = 'file' -- message v1
+      )
       and status ->> 'pending' is not null
       and (
         status ->> 'annotating' is null
-        or (status ->> 'annotating')::timestamptz < now() - interval '5 minutes'
+        or (status ->> 'annotating')::timestamptz < now() - interval '10 minutes'
       )
       and status ->> 'annotated' is null
     $$

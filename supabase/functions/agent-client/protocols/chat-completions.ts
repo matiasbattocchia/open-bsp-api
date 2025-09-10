@@ -416,6 +416,7 @@ export class ChatCompletionsHandler
         apiKey ||= undefined;
         model ||= "gpt-5-mini";
     }
+    // Note: for Bedrock, the base URL is https://${bedrock-runtime-endpoint}/openai/v1
 
     const openai = new OpenAI({
       baseURL,

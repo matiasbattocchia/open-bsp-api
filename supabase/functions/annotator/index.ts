@@ -1,11 +1,15 @@
-import type {
-  AnnotationConfig,
-  ConversationRow,
-  Database,
-  MessageRow,
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import {
+  createClient,
+  type WebhookPayload,
+  type MessageRow,
 } from "../_shared/supabase.ts";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { GoogleGenAI, Type, type GenerateContentResponse } from "@google/genai";
+import {
+  GoogleGenAI,
+  Type,
+  type GenerateContentResponse,
+  type ApiError,
+} from "@google/genai";
 import { downloadFromStorage, uploadToStorage } from "../_shared/media.ts";
 import { encodeBase64 } from "jsr:@std/encoding/base64";
 import { toV1, fromV1 } from "../_shared/messages-v0.ts";
@@ -43,57 +47,102 @@ import * as log from "../_shared/logger.ts";
  *
  * Notes:
  *
- * - WhatsApp Cloud API file size limits:
+ * - WhatsApp Cloud API file size limits
  *     Audio: 16MB, Image: 5MB, Video: 16MB, Document: 100MB, Sticker: 100KB static/500KB animated
- * - Gemini limits:
+ * - Gemini limits
  *     PDFs up to 1000 pages
+ * - Edge Functions limits
+ *     Maximum Duration (Wall clock limit): Free plan: 150s, Paid plans: 400s
  */
 const MAX_SMALL_DOCUMENT_SIZE = 1 * 1000; // 1 KB
+const INLINE_DATA_SIZE_LIMIT = 19 * 1000 * 1000; // 19MB
 
-export async function annotateMessage(
-  row: MessageRow,
-  config: AnnotationConfig,
-  client: SupabaseClient<Database>
-): Promise<null> {
-  const row_v1 = toV1(row);
+Deno.serve(async (req) => {
+  const client = createClient(req);
+
+  const incoming = ((await req.json()) as WebhookPayload<MessageRow>).record!;
+
+  const log_update_and_respond = async (
+    logLevel: "error" | "warn" | "info",
+    logMessage: string
+  ) => {
+    log[logLevel](logMessage);
+
+    const { error: annotatedError } = await client
+      .from("messages")
+      .update({ status: { annotated: new Date().toISOString() } })
+      .eq("id", incoming.id);
+
+    if (annotatedError) {
+      throw annotatedError;
+    }
+
+    return new Response();
+  };
+
+  const { data: conv, error: convError } = await client
+    .from("conversations")
+    .select(`*, organizations (*)`)
+    .eq("organization_address", incoming.organization_address)
+    .eq("contact_address", incoming.contact_address)
+    .single();
+
+  if (convError) {
+    throw convError;
+  }
+
+  const org = conv.organizations;
+
+  if (!conv.extra) {
+    conv.extra = {};
+  }
+
+  if (!org.extra) {
+    org.extra = {};
+  }
+
+  const config = org.extra.annotations || {};
+
+  if (config.mode !== "active") {
+    return log_update_and_respond(
+      "info",
+      "Annotation mode is not active. Skipping annotation."
+    );
+  }
+
+  const model = config.model || "gemini-2.5-flash";
+
+  const language = config.language || "English";
+
+  const apiKey = config.api_key || Deno.env.get("GOOGLE_API_KEY");
+
+  if (!apiKey) {
+    return log_update_and_respond(
+      "warn",
+      "No GOOGLE API KEY found for annotation. Skipping annotation."
+    );
+  }
+
+  const genai = new GoogleGenAI({
+    apiKey,
+  });
+
+  const row_v1 = toV1(incoming);
 
   if (!row_v1) {
-    return null;
+    return log_update_and_respond(
+      "error",
+      "Failed to convert incoming message row from v0 to v1. Skipping annotation."
+    );
   }
 
   const { message, status } = row_v1;
 
-  if (status.annotating) {
-    return null;
-  }
-
   if (message.type !== "file") {
-    return null;
-  }
-
-  if (message.file.description || message.file.transcription) {
-    return null;
-  }
-
-  const file = await downloadFromStorage(client, message.file.uri);
-  const base64File = encodeBase64(await file.bytes());
-
-  const genai = new GoogleGenAI({
-    apiKey: config.api_key || Deno.env.get("GOOGLE_API_KEY"),
-  });
-
-  const model = config.model || "gemini-2.5-flash";
-
-  // Check if we need to use File API vs inline data. Max payload size is 20MB.
-  // Use 19MB limit to leave space for prompt and other request data.
-  const INLINE_DATA_SIZE_LIMIT = 19 * 1000 * 1000; // 19MB
-  const shouldUseFileAPI = base64File.length > INLINE_DATA_SIZE_LIMIT;
-
-  if (shouldUseFileAPI) {
-    log.error(
-      `Base64 encoded data size exceeds 19MB limit. File should be uploaded but the File API is not implemented yet.`
+    return log_update_and_respond(
+      "error",
+      "Incoming message is not a file. Skipping annotation."
     );
-    return null;
   }
 
   const mimeType = message.file.mime_type;
@@ -136,38 +185,51 @@ export async function annotateMessage(
     document: [
       "application/pdf", // PDF is the only mime type which goes through visual recognition
       // All the other mime types extract text content
-      "text/plain",
-      "text/html",
-      "text/csv",
-      "text/xml",
+      // "text/*"
       "application/json",
-      "text/markdown",
+      "application/xml",
+      "application/javascript",
+      "application/sql",
+      "application/rtf",
     ],
   };
 
-  if (
-    mediaType !== "document" &&
-    allowedMimeTypes[mediaType] &&
-    !allowedMimeTypes[mediaType].includes(mimeType)
-  ) {
-    log.warn(
+  const isSupportedMimeType =
+    mimeType.startsWith("text/") ||
+    allowedMimeTypes[mediaType]?.includes(mimeType);
+
+  if (!isSupportedMimeType) {
+    return log_update_and_respond(
+      "warn",
       `Unsupported mime type ${mimeType} for media type ${mediaType}. Skipping annotation.`
     );
-    //return null;
+  }
+
+  // Check if we need to use File API vs inline data. Max payload size is 20MB.
+  // Use 19MB limit to leave space for prompt and other request data.
+  // We multiply by 1.33 to account for the base64 encoding overhead.
+  const shouldUseFileAPI = message.file.size * 1.33 > INLINE_DATA_SIZE_LIMIT;
+
+  if (shouldUseFileAPI) {
+    return log_update_and_respond(
+      "warn",
+      "Base64 encoded data size exceeds 19MB limit. File should be uploaded using the Gemini File API but it is not implemented yet."
+    );
   }
 
   const { error: annotatingError } = await client
     .from("messages")
     .update({ status: { annotating: new Date().toISOString() } })
-    .eq("id", row.id);
+    .eq("id", incoming.id);
 
   if (annotatingError) {
     throw annotatingError;
   }
 
-  let prompt = "";
+  const file = await downloadFromStorage(client, message.file.uri);
+  const base64File = encodeBase64(await file.arrayBuffer());
 
-  const language = config.language || "English";
+  let prompt = "";
 
   switch (mediaType) {
     case "audio":
@@ -186,10 +248,11 @@ export async function annotateMessage(
       prompt = `Analyze this file and provide a transcription of any text content in its original language and a brief description in ${language} of what it contains.`;
   }
 
-  if (config.extra_prompt) {
+  if (config?.extra_prompt) {
     prompt += `\n\n${config.extra_prompt}`;
   }
 
+  // TODO: Asking for transcription of text based files is a waste of tokens.
   const responseSchema = {
     type: Type.OBJECT,
     properties: {
@@ -237,17 +300,37 @@ export async function annotateMessage(
       },
     });
   } catch (error) {
-    // ApiError: {"error":{"code":400,"message":"Unsupported MIME type: application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    log.error("Error in annotation", error);
-    return null;
+    // https://ai.google.dev/gemini-api/docs/troubleshooting
+    const retryableErrors = [429, 500, 503]; // RESOURCE_EXHAUSTED, INTERNAL, UNAVAILABLE
+
+    if (retryableErrors.includes((error as ApiError).status)) {
+      log.error("Retryable Gemini API error in annotation", error);
+      throw error;
+    }
+
+    return log_update_and_respond(
+      "error",
+      `Gemini API error in annotation. Skipping annotation. ${error}`
+    );
   }
 
   if (!response?.text) {
-    log.error("No response text received from annotation");
-    return null;
+    return log_update_and_respond(
+      "error",
+      "No response text received from the annotation model. Skipping annotation."
+    );
   }
 
-  const result = JSON.parse(response.text);
+  let result: { transcription: string; description: string };
+
+  try {
+    result = JSON.parse(response.text);
+  } catch (error) {
+    return log_update_and_respond(
+      "error",
+      "Failed to parse the response text from the annotation model into a JSON object. Skipping annotation."
+    );
+  }
 
   let llm:
     | { mime_type: "text/markdown"; uri: string; name: string; size: number }
@@ -259,11 +342,11 @@ export async function annotateMessage(
     if (mediaType === "document" && mimeType === "application/pdf") {
       const name = [message.file.name, "llms.txt"].join(".");
 
-      const file = new File([result.transcription], name, {
+      const file = new Blob([result.transcription], {
         type: "text/markdown",
       });
 
-      const uri = await uploadToStorage(client, row.organization_id, file);
+      const uri = await uploadToStorage(client, org.id, file);
 
       llm = { mime_type: "text/markdown", uri, name, size: file.size };
     }
@@ -294,18 +377,21 @@ export async function annotateMessage(
   const annotated_v0 = fromV1(annotated_v1);
 
   if (!annotated_v0) {
-    return null;
+    return log_update_and_respond(
+      "error",
+      "Failed to convert annotated message row from v1 to v0. Skipping annotation."
+    );
   }
 
   const { error: annotatedError } = await client
     .from("messages")
     // @ts-expect-error it fears to update an incoming message as outgoing and viceversa
     .update(annotated_v0)
-    .eq("id", row.id);
+    .eq("id", incoming.id);
 
   if (annotatedError) {
-    log.error("Failed to update message annotation status:", annotatedError);
+    throw annotatedError;
   }
 
-  return null;
-}
+  return new Response();
+});

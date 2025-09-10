@@ -36,10 +36,51 @@ export type AgentTool = {
 };
 
 const PAUSED_CONV_WINDOW = 12 * 60 * 60 * 1000; // 12 hours
-const MESSAGES_TIME_LIMIT = 3 * 24 * 60 * 60 * 1000; // 3 days
+const MESSAGES_TIME_LIMIT = 7 * 24 * 60 * 60 * 1000; // 7 days
 const MESSAGES_QUANTITY_LIMIT = 50;
-const RESPONSE_DELAY = 3 * 1000; // 3 seconds
-const ANNOTATION_TIMEOUT = 10 * 1000; // 10 seconds
+const RESPONSE_DELAY_SECS = 3; // 3 seconds
+const ANNOTATION_TIMEOUT = 30 * 1000; // 30 seconds
+const ANNOTATION_POLLING_INTERVAL = 5 * 1000; // 5 seconds
+
+/**
+ * timestamp vs created_at
+ *
+ *  - timestamp is given by the service (i.e. WhatsApp) servers.
+ *  - created_at is the insertion timestamp in our database.
+ *
+ *  The contact might send several messages very close in time. The goal is to react
+ *  once for the whole batch. Each message will trigger a function. Only one of them
+ *  should go through. The selection criteria is the function corresponding to the
+ *  newest message by created_at.
+ *
+ *  The newest message might not be the one with the latest timestamp. The order of
+ *  arrival is not guaranteed. Anyway, messages are ordered by timestamp, hence the
+ *  agent will get the conversation history in the correct order.
+ */
+
+function isNewestMessage(incoming: MessageRow, messages: MessageRowV1[]) {
+  const incomingCreatedAt = new Date(incoming.created_at);
+
+  const sortedMessages = messages
+    .filter((m) => new Date(m.created_at) >= incomingCreatedAt)
+    .sort((a, b) => {
+      const dateA = +new Date(a.created_at);
+      const dateB = +new Date(b.created_at);
+
+      if (dateA !== dateB) {
+        return dateB - dateA; // descending by created_at
+      }
+
+      // If created_at is the same, order by id descending
+      if (a.id < b.id) return 1;
+      if (a.id > b.id) return -1;
+      return 0;
+    });
+
+  const newestMessage = sortedMessages[0];
+
+  return newestMessage.id === incoming.id;
+}
 
 Deno.serve(async (req) => {
   const client = createClient(req);
@@ -59,15 +100,11 @@ Deno.serve(async (req) => {
     throw convError;
   }
 
-  const { organizations: org, contacts: contact, ...conversation } = conv;
-
   if (!conv.extra) {
     conv.extra = {};
   }
 
-  if (!org) {
-    throw new Error(`Organization for conversation ${conv.name} not found.`);
-  }
+  const { organizations: org, contacts: contact, ...conversation } = conv;
 
   if (!org.extra) {
     org.extra = {};
@@ -77,27 +114,24 @@ Deno.serve(async (req) => {
 
   // CHECK IF CONTACT IS ALLOWED
 
+  /**
+   * Default behavior: Respond to all contacts.
+   *
+   * When org.extra.authorized_contacts_only is true, only respond to allowed contacts.
+   *
+   * An allowed contact has the contact.extra.allowed field set to true.
+   */
+
   if (
-    org.extra.respond_to_allowed_contacts_only &&
-    (!contact || !contact.extra?.allowed)
+    conv.service !== "local" &&
+    org.extra.authorized_contacts_only &&
+    !contact?.extra?.allowed
   ) {
     log.info(
       `Conversation ${conv.name} does not correspond to an authorized contact. Skipping response.`
     );
+
     return new Response("ok", { headers: corsHeaders });
-  }
-
-  // ANNOTATE INCOMING MESSAGE
-
-  let annotationDuration = 0;
-
-  if (org.extra.annotations) {
-    const annotationStart = new Date();
-
-    // TODO: Timeout and continue?
-    //await annotateMessage(incoming, org.extra.annotations, client);
-
-    annotationDuration = +new Date() - +annotationStart;
   }
 
   // CHECK IF CONVERSATION IS PAUSED
@@ -107,29 +141,14 @@ Deno.serve(async (req) => {
     +new Date(conv.extra.paused) > +new Date() - PAUSED_CONV_WINDOW
   ) {
     log.info(`Conversation with ${conv.name} is paused. Skipping response.`);
-    return new Response("ok", { headers: corsHeaders });
-  }
 
-  // CHECK IF THERE ARE ACTIVE AI AGENTS
-
-  const aiAgents = agents.filter(
-    (agent) => agent.ai && agent.extra && agent.extra.mode !== "inactive"
-  );
-
-  if (!aiAgents.length && !org.extra.welcome_message) {
-    log.info(
-      `No active AI agents found for conversation ${conv.name}. Skipping response.`
-    );
     return new Response("ok", { headers: corsHeaders });
   }
 
   // WAIT FOR A NEWER MESSAGE
 
-  const delay = Math.round(
-    (org.extra.response_delay_seconds !== undefined
-      ? org.extra.response_delay_seconds * 1000
-      : RESPONSE_DELAY) - annotationDuration
-  );
+  const delay =
+    (org.extra.response_delay_seconds ?? RESPONSE_DELAY_SECS) * 1000;
 
   if (delay > 0) {
     log.info(`Waiting ${delay}ms before processing the message...`);
@@ -143,12 +162,8 @@ Deno.serve(async (req) => {
     .from("messages")
     .select()
     .eq("organization_address", conv.organization_address)
-    .gt(
-      "timestamp",
-      new Date(
-        +new Date(incoming.timestamp) - MESSAGES_TIME_LIMIT
-      ).toISOString()
-    ) // Time constraint for the conversation.
+    .gt("timestamp", new Date(+new Date() - MESSAGES_TIME_LIMIT).toISOString()) // Time constraint for the conversation.
+    .lte("timestamp", new Date().toISOString()) // Scheduled messages have a future timestamp.
     .eq("contact_address", conv.contact_address)
     .order("timestamp", { ascending: false })
     .limit(MESSAGES_QUANTITY_LIMIT); // Size constraint for the conversation.
@@ -157,139 +172,22 @@ Deno.serve(async (req) => {
     throw messagesError;
   }
 
-  messages_v0.reverse();
+  const messages = messages_v0.map(toV1).filter(Boolean) as MessageRowV1[];
+
+  // Query was done in descending order to apply the limit.
+  // We need the messages in chronological order, though.
+  messages.reverse();
 
   // CHECK IF THERE IS A NEWER MESSAGE
 
-  /** TODO: timestamp vs created_at
-   *
-   *  - timestamp is given by the service (i.e. WhatsApp) servers.
-   *  - created_at is the timestamp of the message insertion into the database.
-   *
-   *  created_at let us react to the latest message.
-   *
-   *  When a batch of disordered messages (timestamp) is close in time, it works well.
-   *  But when messages are far in time, the result is not as desired,
-   *  because the agent will respond to an outdated message.
-   */
-
-  function isNewerMessage(incoming: MessageRow, messages: MessageRow[]) {
-    const incomingCreatedAt = new Date(incoming.created_at);
-
-    const sortedMessages = messages
-      .filter((m) => new Date(m.created_at) >= incomingCreatedAt)
-      .sort((a, b) => {
-        const dateA = +new Date(a.created_at);
-        const dateB = +new Date(b.created_at);
-
-        if (dateA !== dateB) {
-          return dateB - dateA; // descending by created_at
-        }
-
-        // If created_at is the same, order by id descending
-        if (a.id < b.id) return 1;
-        if (a.id > b.id) return -1;
-        return 0;
-      });
-
-    const newestMessage = sortedMessages[0];
-
-    if (newestMessage && newestMessage.id !== incoming.id) {
-      return newestMessage;
-    }
-
-    return null;
-  }
-
-  const newestMessage = isNewerMessage(incoming, messages_v0);
-
-  if (newestMessage) {
+  if (!isNewestMessage(incoming, messages)) {
     // Then the newest message is not the incoming one that triggered this edge function.
     log.info(
-      `Newer message with id ${newestMessage.id} for conversation ${conv.name} found. Skipping response.`
+      `Newer message for conversation ${conv.name} found. Skipping response.`
     );
 
     return new Response("ok", { headers: corsHeaders });
   }
-
-  // CHECK FOR PENDING ANNOTATIONS
-
-  const pendingAnnotations = messages_v0.filter(
-    (m) =>
-      m.status.annotating &&
-      !m.status.annotated &&
-      +new Date(m.status.annotating) > +new Date() - ANNOTATION_TIMEOUT
-  );
-
-  if (pendingAnnotations.length) {
-    // WAIT FOR THE ANNOTATIONS TO COMPLETE
-
-    // Find the most recent annotating timestamp among pending annotations
-    const mostRecentAnnotating = pendingAnnotations.reduce((mostRecent, m) => {
-      return new Date(m.status.annotating!) >
-        new Date(mostRecent.status.annotating!)
-        ? m
-        : mostRecent;
-    }, pendingAnnotations[0]);
-
-    const annotationDuration =
-      +Date.now() - +new Date(mostRecentAnnotating.status.annotating!);
-
-    // TODO: Polling instead of waiting?
-    const delay = Math.round(ANNOTATION_TIMEOUT - annotationDuration);
-
-    if (delay > 0) {
-      log.info(`Waiting ${delay}ms for pending annotations to complete...`);
-
-      await new Promise((resolve) => setTimeout(resolve, delay));
-    }
-
-    // RETRIEVE ANNOTATIONS
-
-    const { data: annotated_messages_v0, error: messagesError } = await client
-      .from("messages")
-      .select()
-      .eq("organization_address", conv.organization_address)
-      .gt(
-        "timestamp",
-        new Date(
-          +new Date(incoming.timestamp) - MESSAGES_TIME_LIMIT
-        ).toISOString()
-      ) // Time constraint for the conversation.
-      .eq("contact_address", conv.contact_address)
-      .order("timestamp")
-      .limit(MESSAGES_QUANTITY_LIMIT); // Size constraint for the conversation.
-
-    if (messagesError) {
-      throw messagesError;
-    }
-
-    const newestMessage = isNewerMessage(incoming, annotated_messages_v0);
-
-    if (newestMessage) {
-      // Then the newest message is not the incoming one that triggered this edge function.
-      log.info(
-        `Newer message with id ${newestMessage.id} for conversation ${conv.name} found. Skipping response.`
-      );
-
-      return new Response("ok", { headers: corsHeaders });
-    }
-
-    const timedoutAnnotations = annotated_messages_v0.filter(
-      (m) => m.status.annotating && !m.status.annotated
-    );
-
-    if (timedoutAnnotations.length) {
-      log.warn(
-        `${timedoutAnnotations.length} timed out annotations found for conversation ${conv.name}. Proceeding with the response.`
-      );
-    }
-
-    messages_v0.length = 0;
-    messages_v0.push(...annotated_messages_v0);
-  }
-
-  const messages = messages_v0.map(toV1).filter(Boolean) as MessageRowV1[];
 
   // SESSION RESTART if /new is found — USEFUL FOR WHATSAPP TESTING
 
@@ -326,6 +224,8 @@ Deno.serve(async (req) => {
   log.info("Contact request", messages.at(-1)?.message);
 
   // WELCOME MESSAGE
+  // Note: The welcome message is affected by allowed contacts. This behavior
+  // differs from WhatsApp, which sends the welcome message to all contacts.
 
   if (
     org.extra.welcome_message &&
@@ -354,7 +254,11 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  // AGENT SELECTION
+  // CHECK IF THERE ARE ACTIVE AI AGENTS
+
+  const aiAgents = agents.filter(
+    (agent) => agent.ai && agent.extra && agent.extra.mode !== "inactive"
+  );
 
   if (!aiAgents.length) {
     log.info(
@@ -363,7 +267,11 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  // AGENT SELECTION
+
   let agent: AgentRow | null | undefined;
+
+  /* Not featuring multiple agents per conversation by the time being.
 
   // 1. Find the agent_id of the last message from an AI agent
 
@@ -381,12 +289,17 @@ Deno.serve(async (req) => {
 
     agent = aiAgents.find((a) => a.id === defaultAgentId);
   }
+  */
 
   // 3. Fallback to any agent
 
   if (!agent) {
     agent = aiAgents[0];
   }
+
+  //---------------------------------------------------------------------------
+  // Up to this point all checks passed. We can proceed with the response.
+  //---------------------------------------------------------------------------
 
   // TYPING INDICATOR
 
@@ -411,7 +324,7 @@ Deno.serve(async (req) => {
 
   indicateTyping(true);
 
-  // The typing indicator will be dismissed once you respond,
+  // The typing indicator will be dismissed once an agent respond,
   // or after 25 seconds. Hence, keep it alive. Some extra delay
   // is added to avoid race conditions with the response.
   const typingInterval = setInterval(indicateTyping, 30000);
@@ -460,7 +373,87 @@ Deno.serve(async (req) => {
         throw new Error("Max LLM iterations reached!");
       }
 
-      // MCP server initialization
+      // CHECK FOR PENDING ANNOTATIONS
+
+      while (org.extra.annotations?.mode === "active") {
+        const pendingAnnotations = messages.filter(
+          (m) =>
+            m.message.type === "file" &&
+            m.status.pending && // Note: not using status.annotating to avoid race conditions with the annotator Edge Function.
+            !m.status.annotated &&
+            +new Date(m.status.pending) > +new Date() - ANNOTATION_TIMEOUT
+        );
+
+        if (!pendingAnnotations.length) {
+          break;
+        }
+
+        // WAIT FOR THE ANNOTATIONS TO COMPLETE
+
+        log.info(
+          `Waiting ${ANNOTATION_POLLING_INTERVAL}ms for pending annotations to complete...`
+        );
+
+        await new Promise((resolve) =>
+          setTimeout(resolve, ANNOTATION_POLLING_INTERVAL)
+        );
+
+        // Note: we could check for newer messages here too, but it would bloat the code.
+
+        // RETRIEVE ANNOTATIONS
+
+        const { data: pending_messages_v0, error: messagesError } = await client
+          .from("messages")
+          .select()
+          .in(
+            "id",
+            pendingAnnotations.map((m) => m.id)
+          );
+
+        if (messagesError) {
+          throw messagesError;
+        }
+
+        const pending_messages = pending_messages_v0
+          .map(toV1)
+          .filter(Boolean) as MessageRowV1[];
+
+        // Update the messages with the pending annotations.
+        for (const pm of pending_messages) {
+          const index = messages.findIndex((m) => m.id === pm.id);
+
+          if (index > -1) {
+            messages[index] = pm;
+          }
+        }
+      }
+
+      // CHECK IF THERE IS A NEWER MESSAGE (posterior to the incoming one)
+
+      const { data: new_messages_v0, error: newMessagesError } = await client
+        .from("messages")
+        .select()
+        .eq("organization_address", conv.organization_address)
+        .gt("created_at", incoming.created_at) // Time constraint for the conversation.
+        .eq("contact_address", conv.contact_address)
+        .lte("timestamp", new Date().toISOString()) // Scheduled messages have a future timestamp.
+        .neq("agent_id", agent.id) // Messages from the same agent are not considered.
+        .limit(1);
+
+      if (newMessagesError) {
+        throw newMessagesError;
+      }
+
+      if (new_messages_v0.length) {
+        log.info(
+          `Newer message for conversation ${conv.name} found while waiting for pending annotations. Skipping response.`
+        );
+
+        return new Response("ok", { headers: corsHeaders });
+      }
+
+      // MCP SERVERS INITIALIZATION
+      // It is here because of multi-agents, which we are not using by the time being.
 
       const mcpServersToInit =
         agent.extra.tools?.filter(
@@ -478,7 +471,7 @@ Deno.serve(async (req) => {
         mcpServers.set(mcp.label, mcp);
       });
 
-      // Iteration tools
+      // CURRENT ITERATION TOOLS
 
       /**
        * Tools to be passed the agent are gruped in two main categories:
@@ -559,6 +552,8 @@ Deno.serve(async (req) => {
         }
       }
 
+      // AGENT CLIENT REQUEST AND RESPONSE
+
       const handler = ProtocolFactory.getHandler(tools, context, client);
 
       const agentRequest = await handler.prepareRequest();
@@ -570,6 +565,8 @@ Deno.serve(async (req) => {
       if (!response.messages?.length) {
         response.messages = [];
       }
+
+      // TOOL USES AND RESULTS
 
       const toolUses =
         response.messages.filter(
@@ -785,9 +782,7 @@ Deno.serve(async (req) => {
       ];
     }
 
-    clearInterval(typingInterval);
-
-    // STORE MESSAGES
+    // STORE CURRENT ITERATION MESSAGES
 
     if (response.messages?.length) {
       log.info("Agent response", response.messages.at(-1)?.message);
@@ -805,6 +800,7 @@ Deno.serve(async (req) => {
         .map(fromV1)
         .filter(Boolean) as MessageRow[];
 
+      // Insert and select the inserted messages
       const { data: messages_v0, error: messagesError } = await client
         .from("messages")
         .insert(output_messages_v0)
@@ -815,12 +811,15 @@ Deno.serve(async (req) => {
         throw messagesError;
       }
 
-      context.messages = [
-        ...context.messages,
-        ...(messages_v0.map(toV1).filter(Boolean) as MessageRowV1[]),
-      ];
+      // Append generated messages to the context
+      messages.push(
+        ...(messages_v0.map(toV1).filter(Boolean) as MessageRowV1[])
+      );
     }
   }
+
+  // TODO: take care of the typing interval corner cases
+  clearInterval(typingInterval);
 
   // STORE RESPONSE
 
@@ -860,6 +859,8 @@ Deno.serve(async (req) => {
 
 /** TODO
  * - README
+ * - Revisit RLS
  * - Mejores errores
  *   https://modelcontextprotocol.io/specification/2025-03-26/server/tools#error-handling
+ * - Timesatmp precision (JS milliseconds vs PostgreSQL microseconds)
  */

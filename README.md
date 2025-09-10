@@ -126,13 +126,12 @@ This event-driven flow ensures that each component is decoupled and scalable.
 export type OrganizationExtra = {
   response_delay_seconds?: number; // default: 3
   welcome_message?: string;
-  respond_to_allowed_contacts_only?: boolean;
-  default_agent_id_by_contact_group?: { undefined?: string } & {
-    [group: string]: string;
-  };
+  authorized_contacts_only?: boolean;
+  default_agent_id?: string;
   annotations?: {
-    model?: "gemini-2.5-pro" | "gemini-2.5-flash" | "gemini-2.0-flash-lite";
-    api_key: string;
+    mode?: "active" | "inactive";
+    model?: "gemini-2.5-pro" | "gemini-2.5-flash"; // default: gemini-2.5-flash
+    api_key: string; // default GOOGLE_API_KEY env var
     language?: string;
     extra_prompt?: string;
   };

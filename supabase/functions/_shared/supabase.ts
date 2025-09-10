@@ -602,7 +602,7 @@ export type FilePart = {
     uri: string; // internal://media/{organizationId}/{contactId}/{fileId}
     name?: string;
     // Not present in A2A
-    size?: number;
+    size: number;
     description?: string;
     transcription?: string;
     llm?: {
@@ -873,6 +873,7 @@ export type Memory = {
 };
 
 export type AnnotationConfig = {
+  mode?: "active" | "inactive";
   model?: "gemini-2.5-pro" | "gemini-2.5-flash";
   api_key?: string;
   language?: string;
@@ -882,10 +883,8 @@ export type AnnotationConfig = {
 export type OrganizationExtra = {
   response_delay_seconds?: number;
   welcome_message?: string;
-  respond_to_allowed_contacts_only?: boolean;
-  default_agent_id_by_contact_group?: { undefined?: string } & {
-    [group: string]: string;
-  };
+  authorized_contacts_only?: boolean;
+  default_agent_id?: string;
   annotations?: AnnotationConfig;
   error_messages_direction?: "internal" | "outgoing";
 };

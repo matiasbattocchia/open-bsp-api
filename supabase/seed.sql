@@ -18,7 +18,7 @@ select vault.create_secret(
 -- pass: admin
 
 insert into public.organizations (id, name, extra) values
-  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'Default', '{"response_delay_seconds": 0}')
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'Default', '{"response_delay_seconds": 0, "annotations": {"mode": "active"}}')
 ;
 
 insert into auth.users (instance_id, id, aud, role, email, encrypted_password, raw_app_meta_data, raw_user_meta_data, email_confirmed_at, created_at, updated_at, confirmation_token, recovery_token, email_change_token_new, email_change) values
