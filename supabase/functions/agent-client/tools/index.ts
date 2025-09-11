@@ -3,33 +3,32 @@
  *
  * ## Simple tools
  *
- * ### Functions
+ * - Functions
  *
- * Do not require configuration.
+ *   Do not require configuration.
  *
- * - Utils like calculator, calendar.
- * - Core function like handle_conversation.
+ *   - Utils like calculator, calendar.
+ *   - Core function like handle_conversation.
  *
- * ### MCP
+ * - MCP
  *
- * External tools. The tools do not require config, the MCP server does.
+ *   External tools. The tools do not require config, the MCP server does.
  *
  * ## Special tools
  *
- * ### HTTP
+ * - HTTP
+ * - SQL
+ * - Agent
  *
- * ### SQL
- *
- * ### Agent
- *
- * Use an agent as tool. The conversation returns to the agent which made the call.
+ *   Use an agent as tool. The conversation returns to the agent which made the call.
  */
 
 import { HTTPTools } from "./http.ts";
 import { SQLTools } from "./sql.ts";
 import { CalculatorTool } from "./calculator.ts";
+import { TransferToHumanAgentTool } from "./handoff.ts";
 
-const FunctionTools = [CalculatorTool];
+const FunctionTools = [CalculatorTool, TransferToHumanAgentTool];
 const CustomTools: any[] = [];
 
 export const Toolbox = {

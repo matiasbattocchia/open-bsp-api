@@ -8,8 +8,9 @@ import {
   type EndpointMessage,
   type EndpointStatus,
 } from "../_shared/supabase.ts";
+import { downloadFromStorage } from "../_shared/media.ts";
 
-const api_version = "v20.0";
+const api_version = "v21.0";
 
 /** Uploads media to WA servers
  *
@@ -21,18 +22,16 @@ const api_version = "v20.0";
  */
 async function uploadMediaItem(
   phone_number_id: string,
-  media_id: string,
+  uri: string,
   mime_type: string,
   access_token: string,
   api_version: string,
   client: SupabaseClient
 ): Promise<string> {
-  const { data, error } = await client.storage.from("media").download(media_id);
-
-  if (error) throw error;
+  const file = await downloadFromStorage(client, uri);
 
   const formData = new FormData();
-  formData.append("file", data);
+  formData.append("file", file);
   formData.append("type", mime_type);
   formData.append("messaging_product", "whatsapp");
 

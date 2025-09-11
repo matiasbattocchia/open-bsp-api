@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Json } from "../../_shared/db_types.ts";
 import type { RequestContext } from "../protocols/base.ts";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type ToolDefinition<
   InputSchema extends z.ZodType,
@@ -17,7 +18,8 @@ export type ToolDefinition<
     ? (
         input: z.infer<InputSchema>,
         config: Config,
-        context: RequestContext
+        context: RequestContext,
+        supabaseClient: SupabaseClient
       ) => Promise<z.infer<OutputSchema>>
     : (input: z.infer<InputSchema>) => Promise<z.infer<OutputSchema>>;
 };

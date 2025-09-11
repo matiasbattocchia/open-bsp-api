@@ -1,6 +1,7 @@
 -- https://supabase.com/docs/guides/migrations/declarative-schemas#limitations
 
 -- Cron jobs
+/* Replaced at supabase/migrations/20250908132910_cron_jobs.sql
 select
   cron.schedule (
     'dispatch-outgoing-pending-messages',
@@ -37,6 +38,7 @@ select
       and status ->> 'failed' is null
     $$
   );
+*/
 
 -- Delete old cron.job_run_details records of the current user every day at noon
 select
@@ -49,6 +51,7 @@ select
 -- Storage
 insert into storage.buckets (id, name, public) values ('media', 'media', false);
 
+/* Replaced at supabase/migrations/20250908132910_cron_jobs.sql
 -- Allow org members to download media
 create policy "org members can download their orgs media"
 on storage.objects for select to authenticated
@@ -64,6 +67,7 @@ with check (
   bucket_id = 'media' and
   (storage.foldername(name))[1] in ( select get_authorized_orgs()::text )
 );
+*/
 
 -- Realtime
 alter publication supabase_realtime add table only public.conversations;

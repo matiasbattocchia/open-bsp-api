@@ -6,6 +6,7 @@ import {
 } from "../_shared/db_types.ts";
 import { MergeDeep } from "https://esm.sh/type-fest@^4.11.1";
 import type { TaskState } from "./a2a_types.ts";
+import type { SQLToolConfig } from "../agent-client/tools/sql.ts";
 export type { Tables };
 
 // This is what Supabase webhooks send to functions
@@ -326,6 +327,7 @@ export type IncomingMessage = { version?: "0" } & BaseMessage &
 
 export type FunctionCallMessage = {
   type: "function";
+  v1_type: "text" | "data"; // hack for v0 to v1 compatibility
   id: string;
   function: {
     arguments: string;
@@ -336,6 +338,7 @@ export type FunctionCallMessage = {
 
 export type FunctionResponseMessage = {
   type: "text";
+  v1_type: "text" | "data"; // hack for v0 to v1 compatibility
   content: string;
   tool_call_id: string;
   tool_name?: string;
@@ -592,57 +595,24 @@ export const MediaTypes = [
 export type FilePart = {
   type: "file";
   text?: string; // caption (not present in A2A)
-} & (
-  | {
-      kind: "audio";
-      file: {
-        mime_type: string;
-        uri: string;
-        name?: string;
-        // Not present in A2A
-        size?: number;
-        description?: string;
-        transcription?: string;
-        voice?: boolean; // TODO: remove and use description instead? could signal voice and emotions
-      };
-    }
-  | {
-      kind: "image" | "sticker";
-      file: {
-        mime_type: string;
-        uri: string;
-        name?: string;
-        // Not present in A2A
-        size?: number;
-        description?: string;
-        transcription?: string;
-      };
-    }
-  | {
-      kind: "video";
-      file: {
-        mime_type: string;
-        uri: string;
-        name?: string;
-        // Not present in A2A
-        size?: number;
-        description?: string;
-        transcription?: string;
-      };
-    }
-  | {
-      kind: "document";
-      file: {
-        mime_type: string;
-        uri: string;
-        name?: string;
-        // Not present in A2A
-        size?: number;
-        description?: string;
-        transcription?: string;
-      };
-    }
-);
+} & {
+  kind: (typeof MediaTypes)[number];
+  file: {
+    mime_type: string;
+    uri: string; // internal://media/{organizationId}/{contactId}/{fileId}
+    name?: string;
+    // Not present in A2A
+    size: number;
+    description?: string;
+    transcription?: string;
+    llm?: {
+      mime_type: "text/markdown";
+      uri: string;
+      name: string;
+      size: number;
+    };
+  };
+};
 
 // Data based
 
@@ -903,8 +873,9 @@ export type Memory = {
 };
 
 export type AnnotationConfig = {
-  model?: "gemini-2.5-pro" | "gemini-2.5-flash" | "gemini-2.0-flash-lite";
-  api_key: string;
+  mode?: "active" | "inactive";
+  model?: "gemini-2.5-pro" | "gemini-2.5-flash";
+  api_key?: string;
   language?: string;
   extra_prompt?: string;
 };
@@ -912,10 +883,8 @@ export type AnnotationConfig = {
 export type OrganizationExtra = {
   response_delay_seconds?: number;
   welcome_message?: string;
-  respond_to_allowed_contacts_only?: boolean;
-  default_agent_id_by_contact_group?: { undefined?: string } & {
-    [group: string]: string;
-  };
+  authorized_contacts_only?: boolean;
+  default_agent_id?: string;
   annotations?: AnnotationConfig;
   error_messages_direction?: "internal" | "outgoing";
 };
@@ -975,14 +944,7 @@ export type LocalSQLToolConfig = {
   provider: "local";
   type: "sql";
   label: string; // database label
-  config: {
-    driver: "postgres" | "mysql";
-    host: string;
-    port?: number;
-    user?: string;
-    password?: string;
-    database?: string;
-  };
+  config: SQLToolConfig;
 };
 
 export type LocalHTTPToolConfig = {

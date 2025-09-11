@@ -6,7 +6,11 @@ import type {
   ResponseContext,
 } from "./base.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createSignedUrl, fetchMedia, uploadToStorage } from "../media.ts";
+import {
+  createSignedUrl,
+  fetchMedia,
+  uploadToStorage,
+} from "../../_shared/media.ts";
 import * as log from "../../_shared/logger.ts";
 
 export interface AssistantsRequest {
@@ -141,7 +145,7 @@ export class AssistantsHandler
   private async fromAssistants(
     message: OpenAI.Beta.Threads.MessageContent
   ): Promise<Part> {
-    const conv = this.context.conversation;
+    const org = this.context.organization;
 
     switch (message.type) {
       case "text": {
@@ -155,17 +159,16 @@ export class AssistantsHandler
         throw new Error("Message content type image_file is not supported.");
       }
       case "image_url": {
-        const blob = await fetchMedia(message.image_url.url);
-        const mime_type = blob.type;
-        const uri = await uploadToStorage(this.client, conv, blob, mime_type);
+        const file = await fetchMedia(message.image_url.url);
+        const uri = await uploadToStorage(this.client, org.id, file);
 
         return {
           type: "file",
           kind: "image",
           file: {
             uri,
-            mime_type,
-            size: blob.size,
+            mime_type: file.type,
+            size: file.size,
           },
         };
       }

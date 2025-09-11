@@ -58,22 +58,27 @@ on public.messages
 for each row
 when (
   new.direction = 'outgoing'::public.direction
-  and new.service <> 'local'::public.service
   and new.timestamp <= now()
   and (new.status ->> 'pending'::text) is not null
 )
 execute function public.dispatcher_edge_function();
 
-create trigger mark_outgoing_local_message_as_sent
-before insert
+create trigger handle_message_to_annotator
+after insert
 on public.messages
 for each row
 when (
-  new.direction = 'outgoing'::public.direction
-  and new.service = 'local'::public.service
-  and new.timestamp <= now()
+  (
+    new.direction = 'outgoing'::public.direction
+    or new.direction = 'incoming'::public.direction
+  )
+  and (new.status ->> 'pending'::text) is not null
+  and (
+    (new.message ->> 'media') is not null -- message v0 - TODO: deprecate
+    or (new.message ->> 'type') = 'file' -- message v1
+  )
 )
-execute function public.mark_outgoing_local_message_as_sent();
+execute function public.edge_function('/annotator', 'post');
 
 create trigger notify_webhook_messages
 after insert or update

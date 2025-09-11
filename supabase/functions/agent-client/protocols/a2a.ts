@@ -11,13 +11,14 @@ import type {
   Part as A2aPart,
   FileContent,
 } from "../../_shared/a2a_types.ts";
-import { decodeBase64, encodeBase64 } from "jsr:@std/encoding/base64";
+import { encodeBase64 } from "jsr:@std/encoding/base64";
 import {
   fetchMedia,
   uploadToStorage,
   createSignedUrl,
   downloadFromStorage,
-} from "../media.ts";
+  base64ToBlob,
+} from "../../_shared/media.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Json } from "../../_shared/db_types.ts";
 
@@ -75,7 +76,7 @@ export class A2AHandler
           );
 
           file = {
-            bytes: encodeBase64(await fileBlob.bytes()),
+            bytes: encodeBase64(await fileBlob.arrayBuffer()),
             name: part.file.name,
             mimeType: part.file.mime_type,
           };
@@ -126,7 +127,7 @@ export class A2AHandler
   }
 
   private async fromA2a(part: A2aPart): Promise<Part> {
-    const conv = this.context.conversation;
+    const org = this.context.organization;
 
     switch (part.type) {
       case "text": {
@@ -146,21 +147,16 @@ export class A2AHandler
       case "file": {
         const mime_type = part.file.mimeType || "application/octet-stream";
         let uri: string;
-        let fileSize = 0;
+        let fileSize: number;
 
         if (part.file.bytes) {
-          const decodedBytes = decodeBase64(part.file.bytes);
-          fileSize = decodedBytes.byteLength;
-          uri = await uploadToStorage(
-            this.client,
-            conv,
-            decodedBytes,
-            mime_type
-          );
+          const file = base64ToBlob(part.file.bytes, mime_type);
+          fileSize = file.size;
+          uri = await uploadToStorage(this.client, org.id, file);
         } else if (part.file.uri) {
-          const blob = await fetchMedia(part.file.uri);
-          fileSize = blob.size;
-          uri = await uploadToStorage(this.client, conv, blob);
+          const file = await fetchMedia(part.file.uri);
+          fileSize = file.size;
+          uri = await uploadToStorage(this.client, org.id, file);
         }
 
         let kind = "document";
@@ -178,7 +174,7 @@ export class A2AHandler
             uri: uri!,
             mime_type,
             ...(part.file.name && { name: part.file.name }),
-            size: fileSize,
+            size: fileSize!,
           },
         };
       }

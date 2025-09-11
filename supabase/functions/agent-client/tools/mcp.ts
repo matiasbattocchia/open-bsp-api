@@ -1,12 +1,14 @@
 import type { ContentBlock } from "../../_shared/mcp_types.ts";
 import type {
-  ConversationRow,
   LocalMCPToolConfig,
   Part,
   ToolInfo,
 } from "../../_shared/supabase.ts";
-import { decodeBase64 } from "jsr:@std/encoding/base64";
-import { fetchMedia, uploadToStorage } from "../media.ts";
+import {
+  fetchMedia,
+  uploadToStorage,
+  base64ToBlob,
+} from "../../_shared/media.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 // Import map is bad at resolving entry points, so we need to use the full path.
 import { Client } from "npm:@modelcontextprotocol/sdk/client/index.js";
@@ -18,6 +20,7 @@ import {
   type Tool,
 } from "../../_shared/mcp_types.ts";
 import type { Json } from "../../_shared/db_types.ts";
+import { RequestContext } from "../protocols/base.ts";
 
 export type MCPServer = {
   label: string;
@@ -52,10 +55,12 @@ export async function initMCP(tool: LocalMCPToolConfig): Promise<MCPServer> {
 }
 
 export async function fromMCP(
-  client: SupabaseClient,
-  conversation: ConversationRow,
-  part: ContentBlock
+  part: ContentBlock,
+  context: RequestContext,
+  client: SupabaseClient
 ): Promise<Part> {
+  const org = context.organization;
+
   switch (part.type) {
     case "text":
       return {
@@ -64,80 +69,65 @@ export async function fromMCP(
         text: part.text,
       };
     case "image": {
-      const file = decodeBase64(part.data);
-      const uri = await uploadToStorage(
-        client,
-        conversation,
-        file,
-        part.mimeType
-      );
+      const file = base64ToBlob(part.data, part.mimeType);
+      const uri = await uploadToStorage(client, org.id, file);
 
       return {
         type: "file",
         kind: "image",
         file: {
           uri,
-          mime_type: part.mimeType,
-          size: file.length,
+          mime_type: file.type,
+          size: file.size,
         },
       };
     }
     case "audio": {
-      const file = decodeBase64(part.data);
-      const uri = await uploadToStorage(
-        client,
-        conversation,
-        file,
-        part.mimeType
-      );
+      const file = base64ToBlob(part.data, part.mimeType);
+      const uri = await uploadToStorage(client, org.id, file);
 
       return {
         type: "file",
         kind: "audio",
         file: {
           uri,
-          mime_type: part.mimeType,
-          size: file.length,
+          mime_type: file.type,
+          size: file.size,
         },
       };
     }
     case "resource": {
       if (part.resource.type === "text") {
-        const file = new TextEncoder().encode(part.resource.text as string);
-        const uri = await uploadToStorage(
-          client,
-          conversation,
-          file,
-          part.resource.mimeType || "text/plain"
-        );
+        const file = new Blob([part.resource.text as string], {
+          type: part.resource.mimeType || "text/plain",
+        });
+        const uri = await uploadToStorage(client, org.id, file);
 
         return {
           type: "file",
           kind: "document",
           file: {
             uri,
-            mime_type: part.resource.mimeType || "text/plain",
-            size: file.length,
+            mime_type: file.type,
+            size: file.size,
           },
         };
       }
 
       if (part.resource.type === "blob") {
-        const file = decodeBase64(part.resource.blob as string);
-        const uri = await uploadToStorage(
-          client,
-          conversation,
-          file,
-          part.resource.mimeType || "application/octet-stream"
+        const file = base64ToBlob(
+          part.resource.blob as string,
+          part.resource.mimeType
         );
+        const uri = await uploadToStorage(client, org.id, file);
 
         return {
           type: "file",
           kind: "document",
           file: {
             uri,
-            mime_type: part.resource.mimeType || "application/octet-stream",
-            size: file.length,
+            mime_type: file.type,
+            size: file.size,
           },
         };
       }
@@ -145,7 +135,7 @@ export async function fromMCP(
     }
     case "resource_link": {
       const file = await fetchMedia(part.uri);
-      const uri = await uploadToStorage(client, conversation, file);
+      const uri = await uploadToStorage(client, org.id, file);
 
       return {
         type: "file",
@@ -163,8 +153,8 @@ export async function fromMCP(
 export async function callTool(
   mcp: MCPServer,
   part: Part & ToolInfo,
-  client: SupabaseClient,
-  conversation: ConversationRow
+  context: RequestContext,
+  client: SupabaseClient
 ): Promise<(Part & ToolInfo)[]> {
   if (
     !part.tool ||
@@ -189,7 +179,7 @@ export async function callTool(
         },
       ]
     : await Promise.all(
-        result.content.map((part) => fromMCP(client, conversation, part))
+        result.content.map((part) => fromMCP(part, context, client))
       );
 
   return parts.map((outPart) => ({

@@ -11,6 +11,9 @@ import {
   type BaseMessage,
   createUnsecureClient,
 } from "../_shared/supabase.ts";
+import { fetchMedia, uploadToStorage } from "../_shared/media.ts";
+
+const api_version = "v21.0";
 
 Deno.serve(async (request) => {
   switch (request.method) {
@@ -40,7 +43,6 @@ function verifyToken(request: Request): Response {
 
 async function downloadMediaItem(
   organization_id: string,
-  phone_number_id: string,
   media_id: string,
   access_token: string,
   messageRecord: MessageInsert,
@@ -53,10 +55,13 @@ async function downloadMediaItem(
   }
 
   // Fetch part 1: Get the download url using the media id
-  let response = await fetch(`https://graph.facebook.com/v17.0/${media_id}`, {
-    method: "GET",
-    headers: { Authorization: `Bearer ${access_token}` },
-  });
+  const response = await fetch(
+    `https://graph.facebook.com/${api_version}/${media_id}`,
+    {
+      method: "GET",
+      headers: { Authorization: `Bearer ${access_token}` },
+    }
+  );
 
   if (!response.ok) {
     log.error(response.headers.get("www-authenticate")!);
@@ -73,34 +78,14 @@ async function downloadMediaItem(
   };
 
   // Fetch part 2: Get the file using the download url
-  response = await fetch(mediaMetadata.url, {
-    method: "GET",
-    headers: { Authorization: `Bearer ${access_token}` },
-  });
-
-  if (!response.ok) {
-    log.error(response.headers.get("www-authenticate")!);
-    throw response;
-  }
+  const file = await fetchMedia(mediaMetadata.url, access_token);
 
   // Store the file
-  (
-    messageRecord.message as BaseMessage
-  ).media!.id = `${organization_id}/${phone_number_id}/${media_id}`; // Overwrite WA media id with the internal media id
+  const uri = await uploadToStorage(client, organization_id, file);
+
+  (messageRecord.message as BaseMessage).media!.id = uri; // Overwrite WA media id with the internal uri
   (messageRecord.message as BaseMessage).media!.file_size =
     mediaMetadata.file_size;
-
-  const { error } = await client.storage
-    .from("media")
-    .upload(
-      (messageRecord.message as BaseMessage).media!.id,
-      await response.blob(),
-      {
-        upsert: true,
-      }
-    );
-
-  if (error) throw error;
 
   return messageRecord;
 }
@@ -139,7 +124,6 @@ async function downloadMedia(
     mediaMessages.map((m) =>
       downloadMediaItem(
         number_ids_to_org_ids.get(m.organization_address)!,
-        m.organization_address,
         (m.message as BaseMessage).media!.id,
         number_ids_to_access_tokens.get(m.organization_address)!,
         m,
@@ -185,16 +169,16 @@ async function processMessage(request: Request): Promise<Response> {
       log.info("WhatsApp payload", value);
       const organization_address = value.metadata.phone_number_id; // WhatsApp business account phone number id
 
-      let messages = [];
+      let valueMessages = [];
 
       if (field === "messages") {
-        messages = value.messages;
+        valueMessages = value.messages;
       } else if (field === "smb_message_echoes") {
-        messages = value.message_echoes;
+        valueMessages = value.message_echoes;
       }
 
-      if (messages) {
-        for (const message of messages as WebhookMessage[]) {
+      if (valueMessages) {
+        for (const message of valueMessages as WebhookMessage[]) {
           let contact_address = message.from; // Phone number
 
           if (field === "smb_message_echoes") {
@@ -561,6 +545,15 @@ async function processMessage(request: Request): Promise<Response> {
  * @returns Promise<boolean> true if signature is valid, false otherwise
  */
 async function validateWebhookSignature(request: Request): Promise<boolean> {
+  const appSecret = Deno.env.get("META_APP_SECRET");
+
+  if (!appSecret) {
+    log.warn(
+      "META_APP_SECRET environment variable not set, skipping signature validation"
+    );
+    return true;
+  }
+
   const signature = request.headers.get("X-Hub-Signature-256");
 
   if (!signature) {
@@ -569,13 +562,6 @@ async function validateWebhookSignature(request: Request): Promise<boolean> {
   }
 
   const signatureValue = signature.replace("sha256=", "");
-
-  const appSecret = Deno.env.get("META_APP_SECRET");
-
-  if (!appSecret) {
-    log.error("META_APP_SECRET environment variable not set");
-    return false;
-  }
 
   try {
     // Clone the request to read the body without consuming it

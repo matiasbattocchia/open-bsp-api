@@ -1,7 +1,10 @@
-create function public.dispatcher_edge_function() returns trigger
-language plpgsql
-security definer
-as $$
+set check_function_bodies = off;
+
+CREATE OR REPLACE FUNCTION public.dispatcher_edge_function()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
 declare
   service text := new.service::text;
   path text := concat('/', service, '-dispatcher');
@@ -12,12 +15,6 @@ declare
   headers jsonb;
   timeout_ms integer := 10000;
 begin
-  if service = 'local' then
-    update public.messages set status = jsonb_build_object('delivered', now()) where id = new.id;
-
-    return new;
-  end if;
-
   select decrypted_secret into base_url from vault.decrypted_secrets where name = 'edge_functions_url';
   select decrypted_secret into auth_token from vault.decrypted_secrets where name = 'edge_functions_token';
   
@@ -49,12 +46,14 @@ begin
 
   return new;
 end;
-$$;
+$function$
+;
 
-create function public.edge_function() returns trigger
-language plpgsql
-security definer
-as $$
+CREATE OR REPLACE FUNCTION public.edge_function()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
 declare
   request_id bigint;
   payload jsonb;
@@ -128,4 +127,7 @@ begin
 
   return new;
 end
-$$; 
+$function$
+;
+
+
