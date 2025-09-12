@@ -60,6 +60,57 @@ and more types:
 
 - `SUPABASE_PROJECT_ID`: the `{project_id}` in `supabase.com/dashboard/project/{project_id}`.
 
+## WhatsApp Integration
+
+To connect your WhatsApp API to your Supabase project, you'll need to configure the following Edge Functions secrets. Add these at `supabase.com/dashboard/project/{project_id}/functions/secrets`:
+
+| Secret                          | Description                                       |
+| ------------------------------- | ------------------------------------------------- |
+| `WHATSAPP_VERIFY_TOKEN`         | Custom verification token for webhook validation  |
+| `META_APP_ID`                   | Your Meta app's unique identifier                 |
+| `META_APP_SECRET`               | Your Meta app's secret key                        |
+| `META_SYSTEM_USER_ID`           | System user ID for business management            |
+| `META_SYSTEM_USER_ACCESS_TOKEN` | Access token with business management permissions |
+
+Follow these steps to obtain the required credentials:
+
+### Step 1: Create Meta app (skip if you already have one)
+
+1. Navigate to [Facebook Developers](https://developers.facebook.com/apps)
+2. Click **Create App**
+3. Select the following options:
+   - **Use case**: Other
+   - **App type**: Business
+4. Add **WhatsApp** as a product to your app
+
+### Step 2: Configure WhatsApp webhook
+
+1. Go to `https://developers.facebook.com/apps/{app_id}/whatsapp-business/wa-settings`
+2. Set the **callback URL** to: `https://{project_id}.supabase.co/functions/v1/whatsapp-webhook`
+3. Create and note your **verify token** → This becomes `WHATSAPP_VERIFY_TOKEN`
+
+### Step 3: Get app credentials
+
+1. Navigate to `https://developers.facebook.com/apps/{app_id}`
+2. Go to **App settings** > **Basic**
+3. Copy the following values:
+   - **App ID** → `META_APP_ID`
+   - **App secret** → `META_APP_SECRET`
+
+### Step 4: Create system user
+
+1. Go to `https://business.facebook.com/latest/settings/system_users?business_id={business_id}`
+2. Add an **admin system user**
+3. Assign your app to the user with **full control** permissions
+4. Generate a token with these permissions:
+   - `business_management`
+   - `whatsapp_business_messaging`
+   - `whatsapp_business_management`
+5. Copy the **User ID** → `META_SYSTEM_USER_ID`
+6. Copy the **Access Token** → `META_SYSTEM_USER_ACCESS_TOKEN`
+
+> **Note**: For detailed instructions on system user setup, refer to the [WhatsApp Business Management API documentation](https://developers.facebook.com/docs/whatsapp/business-management-api/get-started).
+
 ## Local development
 
 Requires Node 🐢 and Docker 🐋.

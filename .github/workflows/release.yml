@@ -20,6 +20,14 @@ jobs:
       SUPABASE_PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID }}
 
     steps:
+      - name: Check for self-hosted Supabase
+        run: |
+          if [ -z "$SUPABASE_PROJECT_ID" ]; then
+            echo "SUPABASE_PROJECT_ID is not defined - this appears to be a self-hosted Supabase setup"
+            echo "Skipping workflow as it's intended for Supabase Cloud deployments only"
+            exit 0
+          fi
+
       - uses: actions/checkout@v4
 
       - uses: supabase/setup-cli@v1

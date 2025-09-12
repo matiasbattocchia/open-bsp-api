@@ -2,21 +2,45 @@
 
 # Script to insert or update vault secrets using environment variables
 # This script should be run after database deployment to configure secrets
+# Supports both Supabase Cloud and self-hosted deployments
 
 set -e
 
-# Check required environment variables
-if [ -z "$SUPABASE_PROJECT_ID" ] || [ -z "$SUPABASE_DB_PASSWORD" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
-    echo "Error: Required environment variables are not set"
-    echo "Required: SUPABASE_PROJECT_ID, SUPABASE_DB_PASSWORD, SUPABASE_SERVICE_ROLE_KEY"
+# Detect deployment type and set variables accordingly
+if [ -n "$SUPABASE_DB_URL" ] || [ -n "$SUPABASE_URL" ]; then
+    # Self-hosted deployment
+    echo "Detected self-hosted Supabase deployment"
+    
+    # Check required environment variables for self-hosted
+    if [ -z "$SUPABASE_DB_URL" ] || [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+        echo "Error: Required environment variables for self-hosted deployment are not set"
+        echo "Required: SUPABASE_DB_URL, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY"
+        exit 1
+    fi
+    
+    DB_URL="$SUPABASE_DB_URL"
+    EDGE_FUNCTIONS_URL="${SUPABASE_URL}/functions/v1"
+    
+elif [ -n "$SUPABASE_PROJECT_ID" ] || [ -n "$SUPABASE_DB_PASSWORD" ]; then
+    # Supabase Cloud deployment
+    echo "Detected Supabase Cloud deployment"
+    
+    # Check required environment variables for cloud
+    if [ -z "$SUPABASE_PROJECT_ID" ] || [ -z "$SUPABASE_DB_PASSWORD" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+        echo "Error: Required environment variables for cloud deployment are not set"
+        echo "Required: SUPABASE_PROJECT_ID, SUPABASE_DB_PASSWORD, SUPABASE_SERVICE_ROLE_KEY"
+        exit 1
+    fi
+    
+    DB_URL="postgresql://postgres.${SUPABASE_PROJECT_ID}:${SUPABASE_DB_PASSWORD}@aws-0-us-east-1.pooler.supabase.com:5432/postgres"
+    EDGE_FUNCTIONS_URL="https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1"
+    
+else
+    echo "Error: Cannot determine deployment type"
+    echo "For self-hosted: Set SUPABASE_DB_URL, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY"
+    echo "For cloud: Set SUPABASE_PROJECT_ID, SUPABASE_DB_PASSWORD, SUPABASE_SERVICE_ROLE_KEY"
     exit 1
 fi
-
-# Construct database URL
-DB_URL="postgresql://postgres.${SUPABASE_PROJECT_ID}:${SUPABASE_DB_PASSWORD}@aws-0-us-east-1.pooler.supabase.com:5432/postgres"
-
-# Construct edge functions URL
-EDGE_FUNCTIONS_URL="https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1"
 
 echo "Updating vault secrets..."
 
