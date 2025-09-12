@@ -53,11 +53,12 @@ and more types:
 #### Secrets
 
 - `SUPABASE_ACCESS_TOKEN`: a [personal access token](https://supabase.com/dashboard/account/tokens).
-<!-- - `SUPABASE_DB_PASSWORD` -->
+- `SUPABASE_DB_PASSWORD`
+- `SUPABASE_SERVICE_ROLE_KEY`: Get it from `supabase.com/dashboard/project/{project_id}/settings/api-keys`.
 
 #### Variables
 
-- `SUPABASE_PROJECT_ID`: the `{id}` in `supabase.com/dashboard/project/{id}`.
+- `SUPABASE_PROJECT_ID`: the `{project_id}` in `supabase.com/dashboard/project/{project_id}`.
 
 ## Local development
 
