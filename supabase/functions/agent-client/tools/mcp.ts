@@ -1,4 +1,3 @@
-import type { ContentBlock } from "../../_shared/mcp_types.ts";
 import type {
   LocalMCPToolConfig,
   Part,
@@ -13,12 +12,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 // Import map is bad at resolving entry points, so we need to use the full path.
 import { Client } from "npm:@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "npm:@modelcontextprotocol/sdk/client/streamableHttp.js";
-import {
+import type {
+  ContentBlock,
   CallToolRequest,
   CallToolResult,
   ListToolsResult,
-  type Tool,
-} from "../../_shared/mcp_types.ts";
+  Tool,
+} from "npm:@modelcontextprotocol/sdk/types.js";
 import type { Json } from "../../_shared/db_types.ts";
 import { RequestContext } from "../protocols/base.ts";
 

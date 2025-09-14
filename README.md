@@ -1,6 +1,6 @@
 # Open BSP API
 
-An application built with [Deno 🦕](https://deno.land), powered by Postgres 🐘 and running on [Supabase ⚡](https://supabase.com) for scalable, modern backend infrastructure.
+The Open Business Service Provider API is built with [Deno 🦕](https://deno.land), powered by Postgres 🐘 and runs on [Supabase ⚡](https://supabase.com) for scalable, modern backend infrastructure.
 
 ## Description
 
@@ -8,7 +8,7 @@ Open BSP API is a multi-tenant platform that connects to the official WhatsApp A
 
 The architecture is based on webhooks for receiving messages and conversations, and uses the Supabase client for reading and writing data. The API is designed to be simple and easy to integrate, supporting automation and custom workflows.
 
-Optionally, the platform can include the `agent-client` module, which allows you to create lightweight agents or connect to external, more advanced agents (such as OpenAI, Anthropic, Google) using different protocols like `a2a` and `chat-completions`. Lightweight agents can use built-in tools such as:
+Optionally, the platform can include the `agent-client` module, which allows you to create lightweight agents or connect to external, more advanced agents using different protocols like `a2a` and `chat-completions`. Lightweight agents can use built-in tools such as:
 
 - MCP client
 - SQL client
@@ -16,13 +16,15 @@ Optionally, the platform can include the `agent-client` module, which allows you
 - Calculator
 - Transfer to human agent
 
-Additionally, `agent-client` includes an "annotator" module that can interpret and extract information from media and document files, including:
+Additionally, `annotator` module that can interpret and extract information from media and document files, including:
 
 - Audio
 - Images
 - Video
 - PDF
 - Other text-based documents (CSV, HTML, TXT, etc.)
+
+The `mcp` module utilizes an MCP server to provide agentic access to the API. For instance, you can send messages directly from clients like Claude Desktop or other agent platforms. In addition, most built-in tools—such as SQL, HTTP, and calculator—are also made available through the MCP server.
 
 ## Roadmap
 

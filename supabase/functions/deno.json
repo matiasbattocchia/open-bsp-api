@@ -9,6 +9,8 @@
     "openai": "npm:openai@^5.12.2",
     "postgres": "npm:postgres@^3.4.7",
     "zod": "npm:zod@^4.0.9",
-    "ajv": "https://esm.sh/ajv@8.17/dist/2020"
+    "ajv": "https://esm.sh/ajv@8.17/dist/2020",
+    "@hono/mcp": "npm:@hono/mcp",
+    "@hono/hono": "jsr:@hono/hono"
   }
 }
