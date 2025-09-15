@@ -13,7 +13,7 @@ fi
 
 echo "Found pod: $POD_NAME"
 echo "Copying functions to pod..."
-kubectl cp ./functions/. supa/$POD_NAME:/home/deno/functions
+kubectl cp ./supabase/functions/. supa/$POD_NAME:/home/deno/functions
 
 echo "Finding Supabase functions deployment..."
 # Get deployment name from the pod's owner reference
