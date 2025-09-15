@@ -857,10 +857,12 @@ Deno.serve(async (req) => {
   });
 });
 
-/** TODO
- * - README
+/**
+ * TODO
+ * - Store integration API keys (openai, anthropic, google, etc.) in api_keys table
+ * - An awesome README
  * - Revisit RLS
- * - Mejores errores
+ * - Improved error handling
  *   https://modelcontextprotocol.io/specification/2025-03-26/server/tools#error-handling
- * - Timesatmp precision (JS milliseconds vs PostgreSQL microseconds)
+ * - Timestamp precision (JS milliseconds vs PostgreSQL microseconds)
  */

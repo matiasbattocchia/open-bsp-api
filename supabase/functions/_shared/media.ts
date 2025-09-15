@@ -1,7 +1,7 @@
 import ky from "ky";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { encodeHex } from "jsr:@std/encoding/hex";
 import { decodeBase64 } from "jsr:@std/encoding/base64";
+import { encodeBase64Url } from "jsr:@std/encoding/base64url";
 
 const SIGNED_URL_EXPIRATION_SECONDS = 3600; // 1 hour
 const BASE_URI = "internal://media";
@@ -30,7 +30,7 @@ export async function uploadToStorage(
   // Use a hash of the file contents as the file id to help with deduplication
   const buffer = await file.arrayBuffer();
   const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
-  const file_hash = encodeHex(hashBuffer);
+  const file_hash = encodeBase64Url(hashBuffer);
 
   const key = `/organizations/${organization_id}/attachments/${file_hash}`;
 
