@@ -26,7 +26,10 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: latest
-      - run: sudo apt-get update && sudo apt-get install -y postgresql-client kubectl
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      
+      - run: curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+      - run: sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
       # kubectl port-forward -n supa svc/whatsapp-dev-supabase-db 5555:5432
       - run: PGSSLMODE=disable supabase db push --db-url $SUPABASE_DB_URL
 
