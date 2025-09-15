@@ -30,7 +30,7 @@ jobs:
       # kubectl port-forward -n supa svc/whatsapp-dev-supabase-db 5555:5432
       - run: PGSSLMODE=disable supabase db push --db-url $SUPABASE_DB_URL
 
-      - run: sh supabase/functions-deploy.sh
+      - run: sh supabase/deploy-functions.sh
 
       - run: sudo apt-get update && sudo apt-get install -y postgresql-client
       - run: sh .github/workflows/vault.sh
