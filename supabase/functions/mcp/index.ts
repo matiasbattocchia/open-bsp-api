@@ -5,6 +5,7 @@ import type { CallToolResult } from "npm:@modelcontextprotocol/sdk/types.js";
 import { StreamableHTTPTransport } from "@hono/mcp";
 import { Hono } from "@hono/hono";
 import { createApiClient } from "../_shared/supabase.ts";
+import { z } from "npm:zod@^3.23.8";
 
 const app = new Hono();
 
@@ -50,11 +51,20 @@ This kinda works but not quite. MCP SDK is stuck at Zod v3. We are using v4.
 TODO: wait a month or so... https://github.com/modelcontextprotocol/typescript-sdk/pull/869
 */
 
+// TODO: This is a work in progress.
 server.tool(
   "send-message",
   "Sends a message to the user.",
-  {},
-  async (input): Promise<CallToolResult> => {
+  {
+    organization_address: z.string(),
+    contact_address: z.string(),
+    message: z.string(),
+  },
+  async ({
+    organization_address,
+    contact_address,
+    message,
+  }): Promise<CallToolResult> => {
     if (config) {
       config = JSON.parse(config);
     }
@@ -63,11 +73,11 @@ server.tool(
 
     const { data, error } = await client.from("messages").insert({
       direction: "outgoing",
-      organization_address: "3a182d8d-d6d8-44bd-b021-029915476b8c",
-      contact_address: "121e5fcd-e796-4455-9ac9-ee9b7cb185c8",
+      organization_address,
+      contact_address,
       service: "local",
       type: "outgoing",
-      message: { type: "text", content: "Hello!" },
+      message: { type: "text", content: message },
     });
 
     if (error) {
@@ -86,6 +96,11 @@ server.tool(
     };
   }
 );
+
+/**
+ * TODO: Change polling to pushing. MCP SDK does not support pushing yet.
+ * https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/1192
+ */
 
 app.all("/mcp", async (c) => {
   token = c.req.header("Authorization")?.replace("Bearer ", "");

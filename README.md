@@ -88,8 +88,12 @@ Follow these steps to obtain the required credentials:
 ### Step 2: Configure WhatsApp webhook
 
 1. Go to `https://developers.facebook.com/apps/{app_id}/whatsapp-business/wa-settings`
-2. Set the **callback URL** to: `https://{project_id}.supabase.co/functions/v1/whatsapp-webhook`
-3. Create and note your **verify token** → This becomes `WHATSAPP_VERIFY_TOKEN`
+2. Set the WhatsApp Business Account webhook **callback URL** to: `https://{project_id}.supabase.co/functions/v1/whatsapp-webhook`. Subscribe to the following webhook fields:
+   - `messages`
+   - `history`
+   - `smb_app_state_sync`
+   - `smb_message_echoes`
+3. Create and note your `WHATSAPP_VERIFY_TOKEN` → Set **verify token**.
 
 ### Step 3: Get app credentials
 
@@ -103,15 +107,55 @@ Follow these steps to obtain the required credentials:
 
 1. Go to `https://business.facebook.com/latest/settings/system_users?business_id={business_id}`
 2. Add an **admin system user**
-3. Assign your app to the user with **full control** permissions
-4. Generate a token with these permissions:
+3. Copy the **User ID** → `META_SYSTEM_USER_ID`
+4. Assign your app to the user with **full control** permissions
+5. Generate a token with these permissions:
    - `business_management`
    - `whatsapp_business_messaging`
    - `whatsapp_business_management`
-5. Copy the **User ID** → `META_SYSTEM_USER_ID`
 6. Copy the **Access Token** → `META_SYSTEM_USER_ACCESS_TOKEN`
 
 > **Note**: For detailed instructions on system user setup, refer to the [WhatsApp Business Management API documentation](https://developers.facebook.com/docs/whatsapp/business-management-api/get-started).
+
+### Step 5: Add a phone number
+
+If you decide to add the test number,
+
+1. Click **Generate access token** (you can't use the one you got from step 4 here)
+2. Copy these values:
+   - **Phone number ID**
+   - **WhatsApp Business Account ID**
+3. Select a recipient phone number (Manage phone number list)
+4. Send messages with the API > **Send message** (the test number doesn't seem to fully activate to receive messages if you don't send a test message once)
+
+In order to add a production phone number,
+
+1. Click _Step 5: Add a phone number_ > **Add phone number**
+2. Follow the flow.
+
+```sql
+insert into public.organizations (name, extra) values
+  ('Default', '{ "response_delay_seconds": 0 }')
+;
+```
+
+```sql
+insert into public.organizations_addresses (address, organization_id, service, extra) values
+  ('<Phone number ID>', '<ORG_ID>', 'whatsapp', '{ "waba_id": "<WhatsApp Business Account ID>", "phone_number": "<Phone number>" }')
+;
+```
+
+### Considerations
+
+There is quiet a Meta nomenclature of entities that you might want to get in order
+to not to get lost in the platform.
+
+- Business Profile - This is the top-level entity and represents a business. It has users and assets.
+- User - Real or system users. System users have access tokens. They all belong to a business portfolio and can have assigned assets.
+- Assests - WhatsApp accounts, Instagram accounts, Meta apps, among many others. They belong to a business portfolio and are assigned to users.
+- App - An asset that integrates Meta products and APIs.
+- WhatsApp Business Account (WABA) - A WhatsApp account asset, can have many phone numbers.
+- Phone number - A registered phone number within the WhatsApp Cloud API. Belongs to a WABA.
 
 ## Local development
 
