@@ -1,0 +1,36 @@
+name: Self-hosted Supabase release
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+jobs:
+  db-release:
+    runs-on: arc-runner-set
+
+    environment: ${{ github.ref == 'refs/heads/main' && 'Production' || 'Staging' }}
+
+    env:
+      # DB URL is like postgres://postgres:9yxpvx2ppd47vfdvrsxb3bvrrzi8ah@localhost:5555/postgres
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      # Following variables are used for creating vault secrets
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # kubectl port-forward -n supa svc/whatsapp-dev-supabase-db 5555:5432
+      - run: PGSSLMODE=disable supabase db push --db-url $SUPABASE_DB_URL
+
+      - run: sh supabase/functions-deploy.sh
+
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - run: sh .github/workflows/vault.sh
