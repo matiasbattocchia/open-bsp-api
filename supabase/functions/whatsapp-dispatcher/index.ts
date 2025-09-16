@@ -10,7 +10,9 @@ import {
 } from "../_shared/supabase.ts";
 import { downloadFromStorage } from "../_shared/media.ts";
 
-const api_version = "v21.0";
+const API_VERSION = "v23.0";
+const DEFAULT_ACCESS_TOKEN =
+  Deno.env.get("META_SYSTEM_USER_ACCESS_TOKEN") || "";
 
 /** Uploads media to WA servers
  *
@@ -25,7 +27,6 @@ async function uploadMediaItem(
   uri: string,
   mime_type: string,
   access_token: string,
-  api_version: string,
   client: SupabaseClient
 ): Promise<string> {
   const file = await downloadFromStorage(client, uri);
@@ -36,7 +37,7 @@ async function uploadMediaItem(
   formData.append("messaging_product", "whatsapp");
 
   const response = await fetch(
-    `https://graph.facebook.com/${api_version}/${phone_number_id}/media`,
+    `https://graph.facebook.com/${API_VERSION}/${phone_number_id}/media`,
     {
       method: "POST",
       headers: { Authorization: `Bearer ${access_token}` },
@@ -101,15 +102,12 @@ Deno.serve(async (request) => {
 
   if (queryError) throw queryError;
 
+  account.access_token ||= DEFAULT_ACCESS_TOKEN;
+
   let message: EndpointMessage | EndpointStatus;
 
   if (record.direction === "outgoing") {
-    message = await outgoingMessage(
-      record,
-      account.access_token,
-      api_version,
-      client
-    );
+    message = await outgoingMessage(record, account.access_token, client);
   } else if (record.direction === "incoming") {
     let readReceipt = false;
     let typingIndicator = false;
@@ -153,7 +151,7 @@ Deno.serve(async (request) => {
   }
 
   const response = await fetch(
-    `https://graph.facebook.com/${api_version}/${record.organization_address}/messages`, // org address is the WA phone_number_id
+    `https://graph.facebook.com/${API_VERSION}/${record.organization_address}/messages`, // org address is the WA phone_number_id
     {
       method: "POST",
       headers: {
@@ -246,7 +244,6 @@ Deno.serve(async (request) => {
 async function outgoingMessage(
   record: MessageRow,
   access_token: string,
-  api_version: string,
   client: SupabaseClient
 ) {
   if (record.direction !== "outgoing") {
@@ -274,7 +271,6 @@ async function outgoingMessage(
         outMessage.media.id,
         outMessage.media.mime_type,
         access_token,
-        api_version,
         client
       );
     }
