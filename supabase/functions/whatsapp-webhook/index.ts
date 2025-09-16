@@ -13,7 +13,11 @@ import {
 } from "../_shared/supabase.ts";
 import { fetchMedia, uploadToStorage } from "../_shared/media.ts";
 
-const api_version = "v21.0";
+const API_VERSION = "v23.0";
+const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN");
+const APP_SECRET = Deno.env.get("META_APP_SECRET");
+const DEFAULT_ACCESS_TOKEN =
+  Deno.env.get("META_SYSTEM_USER_ACCESS_TOKEN") || "";
 
 Deno.serve(async (request) => {
   switch (request.method) {
@@ -27,11 +31,17 @@ Deno.serve(async (request) => {
 });
 
 function verifyToken(request: Request): Response {
+  if (!VERIFY_TOKEN) {
+    log.warn(
+      "WHATSAPP_VERIFY_TOKEN environment variable not set, verification will fail"
+    );
+  }
+
   const params = new URL(request.url).searchParams;
 
   if (
     params.get("hub.mode") === "subscribe" &&
-    params.get("hub.verify_token") === Deno.env.get("WHATSAPP_VERIFY_TOKEN")
+    params.get("hub.verify_token") === VERIFY_TOKEN
   ) {
     return new Response(params.get("hub.challenge"));
   }
@@ -56,7 +66,7 @@ async function downloadMediaItem(
 
   // Fetch part 1: Get the download url using the media id
   const response = await fetch(
-    `https://graph.facebook.com/${api_version}/${media_id}`,
+    `https://graph.facebook.com/${API_VERSION}/${media_id}`,
     {
       method: "GET",
       headers: { Authorization: `Bearer ${access_token}` },
@@ -111,6 +121,10 @@ async function downloadMedia(
     .in("address", unique_number_ids);
 
   if (queryError) throw queryError;
+
+  addresses.forEach((a) => {
+    a.access_token ||= DEFAULT_ACCESS_TOKEN;
+  });
 
   const number_ids_to_org_ids: Map<string, string> = new Map(
     addresses.map((a) => [a.address, a.organization_id])
@@ -545,9 +559,7 @@ async function processMessage(request: Request): Promise<Response> {
  * @returns Promise<boolean> true if signature is valid, false otherwise
  */
 async function validateWebhookSignature(request: Request): Promise<boolean> {
-  const appSecret = Deno.env.get("META_APP_SECRET");
-
-  if (!appSecret) {
+  if (!APP_SECRET) {
     log.warn(
       "META_APP_SECRET environment variable not set, skipping signature validation"
     );
@@ -570,7 +582,7 @@ async function validateWebhookSignature(request: Request): Promise<boolean> {
 
     // Create HMAC-SHA256 signature
     const encoder = new TextEncoder();
-    const key = encoder.encode(appSecret);
+    const key = encoder.encode(APP_SECRET);
     const data = encoder.encode(body);
 
     const cryptoKey = await crypto.subtle.importKey(
