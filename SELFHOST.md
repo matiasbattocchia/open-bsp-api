@@ -6,7 +6,7 @@ We used these [Helm 3 charts](https://github.com/supabase-community/supabase-kub
 ### Custom files
 
 - supabase/functions/main/index.ts
-- supabase/deploy-functions.sh
+- .github/workflows/deploy-edge-functions.sh
 - .github/workflows/self-host.yml
 
 ### Repo secrets and variables

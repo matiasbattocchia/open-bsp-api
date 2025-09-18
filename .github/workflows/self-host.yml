@@ -9,7 +9,7 @@ on:
 
 jobs:
   db-release:
-    runs-on: arc-runner-set
+    runs-on: ${{ github.ref == 'refs/heads/main' && 'arc-runner-eks-prod' || 'arc-runner-eks-dev' }}
 
     environment: ${{ github.ref == 'refs/heads/main' && 'Production' || 'Staging' }}
 
