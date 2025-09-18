@@ -56,23 +56,26 @@ and more types:
 
 - `SUPABASE_ACCESS_TOKEN`: a [personal access token](https://supabase.com/dashboard/account/tokens).
 - `SUPABASE_DB_PASSWORD`
-- `SUPABASE_SERVICE_ROLE_KEY`: Get it from `supabase.com/dashboard/project/{project_id}/settings/api-keys`.
+- `SUPABASE_SERVICE_ROLE_KEY`: Get it from `https://supabase.com/dashboard/project/{project_id}/settings/api-keys`.
 
 #### Variables
 
-- `SUPABASE_PROJECT_ID`: the `{project_id}` in `supabase.com/dashboard/project/{project_id}`.
+- `SUPABASE_PROJECT_ID`: the `{project_id}` in `https://supabase.com/dashboard/project/{project_id}`.
 
 ## WhatsApp Integration
 
-To connect your WhatsApp API to your Supabase project, you'll need to configure the following Edge Functions secrets. Add these at `supabase.com/dashboard/project/{project_id}/functions/secrets`:
+To connect your WhatsApp API to your Supabase project, you'll need to configure the following Edge Functions secrets. You can set these up in two ways:
 
-| Secret                          | Description                                       |
-| ------------------------------- | ------------------------------------------------- |
-| `META_SYSTEM_USER_ID`           | System user ID for business management            |
-| `META_SYSTEM_USER_ACCESS_TOKEN` | Access token with business management permissions |
-| `META_APP_ID`                   | Your Meta app's unique identifier                 |
-| `META_APP_SECRET`               | Your Meta app's secret key                        |
-| `WHATSAPP_VERIFY_TOKEN`         | Custom verification token for webhook validation  |
+1. **Direct configuration**: Add them directly in your Supabase dashboard at `https://supabase.com/dashboard/project/{project_id}/functions/secrets`.
+2. **GitHub Actions**: Set them as GitHub Actions secrets in your repository settings and re-run the _Release_ action to automatically deploy them.
+
+#### Secrets
+
+- `META_SYSTEM_USER_ID`
+- `META_SYSTEM_USER_ACCESS_TOKEN`
+- `META_APP_ID`
+- `META_APP_SECRET`
+- `WHATSAPP_VERIFY_TOKEN`
 
 Follow these steps to obtain the required credentials:
 
@@ -88,7 +91,7 @@ to not to get lost in the platform.
 - **WhatsApp Business Account (WABA)**. A WhatsApp account asset, can have many phone numbers.
 - **Phone number**. A registered phone number within the WhatsApp Cloud API. Belongs to a WABA.
 
-For more details, refer to [Cloud API overview](https://developers.facebook.com/docs/whatsapp/cloud-api/overview).
+> **Note**: For more details, refer to [Cloud API overview](https://developers.facebook.com/docs/whatsapp/cloud-api/overview).
 
 ### Step 1: Create a Meta app (skip if you already have one)
 
@@ -122,6 +125,8 @@ For more details, refer to [Cloud API overview](https://developers.facebook.com/
    - **App ID** → `META_APP_ID`
    - **App secret** → `META_APP_SECRET`
 
+> **Note**: Multiple Meta apps are supported by separating values with `|` (pipe) characters. For example: `META_APP_ID=app_id_1|app_id_2` and `META_APP_SECRET=app_secret_1|app_secret_2`.
+
 ### Step 4: Configure the `WhatsApp Business Account` webhook
 
 1. Within the App Dashboard
@@ -133,6 +138,8 @@ For more details, refer to [Cloud API overview](https://developers.facebook.com/
    - `history`
    - `smb_app_state_sync`
    - `smb_message_echoes`
+
+> **Note**: Multiple Meta apps are supported by appending the query param `?app_id={META_APP_ID}` to the callback URL. For example: `https://{SUPABASE_PROJECT_ID}.supabase.co/functions/v1/whatsapp-webhook?app_id=app_id_2`.
 
 Optionally, test the configuration so far. In the `messages` subscription section, click **Test**. You should see the request in your Supabase project > Edge Functions > whatsapp-webhook > Logs `https://supabase.com/dashboard/project/{project_id}/functions/whatsapp-webhook/logs`.
 
@@ -149,7 +156,7 @@ If you decide to add the test number,
 5. Select a recipient phone number
 6. Send messages with the API > **Send message**
 
-**Note:** the test number doesn't seem to fully activate to receive messages unless you send a test message at least once.
+> **Note**: the test number doesn't seem to fully activate to receive messages unless you send a test message at least once.
 
 In order to add a production phone number,
 
