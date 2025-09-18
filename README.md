@@ -68,69 +68,92 @@ To connect your WhatsApp API to your Supabase project, you'll need to configure 
 
 | Secret                          | Description                                       |
 | ------------------------------- | ------------------------------------------------- |
-| `WHATSAPP_VERIFY_TOKEN`         | Custom verification token for webhook validation  |
-| `META_APP_ID`                   | Your Meta app's unique identifier                 |
-| `META_APP_SECRET`               | Your Meta app's secret key                        |
 | `META_SYSTEM_USER_ID`           | System user ID for business management            |
 | `META_SYSTEM_USER_ACCESS_TOKEN` | Access token with business management permissions |
+| `META_APP_ID`                   | Your Meta app's unique identifier                 |
+| `META_APP_SECRET`               | Your Meta app's secret key                        |
+| `WHATSAPP_VERIFY_TOKEN`         | Custom verification token for webhook validation  |
 
 Follow these steps to obtain the required credentials:
 
-### Step 1: Create Meta app (skip if you already have one)
+### Overview
 
-1. Navigate to [Facebook Developers](https://developers.facebook.com/apps)
+There is quiet a Meta nomenclature of entities that you might want to get in order
+to not to get lost in the platform.
+
+- **Business profile** - This is the top-level entity, represents a business. Has users and assets.
+- **User** - Real or system users. System users can have access tokens. Users belong to a business portfolio and can have assigned assets.
+- **Asset**. WhatsApp accounts, Instagram accounts, Meta apps, among others. Assets belong to a business portfolio and are assigned to users.
+- **App**. An asset that integrates Meta products such as the WhatsApp Cloud API.
+- **WhatsApp Business Account (WABA)**. A WhatsApp account asset, can have many phone numbers.
+- **Phone number**. A registered phone number within the WhatsApp Cloud API. Belongs to a WABA.
+
+For more details, refer to [Cloud API overview](https://developers.facebook.com/docs/whatsapp/cloud-api/overview).
+
+### Step 1: Create a Meta app (skip if you already have one)
+
+1. Navigate to [My Apps](https://developers.facebook.com/apps)
 2. Click **Create App**
 3. Select the following options:
    - **Use case**: Other
    - **App type**: Business
-4. Add **WhatsApp** as a product to your app
+4. Add the **WhatsApp** product to your app
 
-### Step 2: Configure WhatsApp webhook
+### Step 2: Create a system user
 
-1. Go to `https://developers.facebook.com/apps/{app_id}/whatsapp-business/wa-settings`
-2. Set the WhatsApp Business Account webhook **callback URL** to: `https://{project_id}.supabase.co/functions/v1/whatsapp-webhook`. Subscribe to the following webhook fields:
-   - `messages`
-   - `history`
-   - `smb_app_state_sync`
-   - `smb_message_echoes`
-3. Create and note your `WHATSAPP_VERIFY_TOKEN` → Set **verify token**.
+1. Get into the [Meta Business Suite](https://business.facebook.com)
+2. Go to Settings > Users > System users `https://business.facebook.com/latest/settings/system_users`
+3. Add an **admin system user**
+4. Copy the **ID** → `META_SYSTEM_USER_ID`
+5. Assign your app to the user with **full control** permissions
+6. Generate a token with these permissions:
+   - `business_management`
+   - `whatsapp_business_messaging`
+   - `whatsapp_business_management`
+7. Copy the **Access Token** → `META_SYSTEM_USER_ACCESS_TOKEN`
 
-### Step 3: Get app credentials
+> **Note**: For detailed instructions on system user setup, refer to the [WhatsApp Business Management API documentation](https://developers.facebook.com/docs/whatsapp/business-management-api/get-started).
 
-1. Navigate to `https://developers.facebook.com/apps/{app_id}`
-2. Go to **App settings** > **Basic**
+### Step 3: Get the app credentials
+
+1. Navigate to [My Apps](`https://developers.facebook.com/apps`) > App Dashboard `https://developers.facebook.com/apps/{app_id}`
+2. Go to App settings > Basic `https://developers.facebook.com/apps/{app_id}/settings/basic`
 3. Copy the following values:
    - **App ID** → `META_APP_ID`
    - **App secret** → `META_APP_SECRET`
 
-### Step 4: Create system user
+### Step 4: Configure the `WhatsApp Business Account` webhook
 
-1. Go to `https://business.facebook.com/latest/settings/system_users?business_id={business_id}`
-2. Add an **admin system user**
-3. Copy the **User ID** → `META_SYSTEM_USER_ID`
-4. Assign your app to the user with **full control** permissions
-5. Generate a token with these permissions:
-   - `business_management`
-   - `whatsapp_business_messaging`
-   - `whatsapp_business_management`
-6. Copy the **Access Token** → `META_SYSTEM_USER_ACCESS_TOKEN`
+1. Within the App Dashboard
+2. Go to WhatsApp > Configuration `https://developers.facebook.com/apps/{app_id}/whatsapp-business/wa-settings`
+3. Set the **Callback URL** to: `https://{SUPABASE_PROJECT_ID}.supabase.co/functions/v1/whatsapp-webhook`.
+4. Create and note your `WHATSAPP_VERIFY_TOKEN` → Set **Verify token**.
+5. Subscribe to the following **Webhook fields**:
+   - `messages`
+   - `history`
+   - `smb_app_state_sync`
+   - `smb_message_echoes`
 
-> **Note**: For detailed instructions on system user setup, refer to the [WhatsApp Business Management API documentation](https://developers.facebook.com/docs/whatsapp/business-management-api/get-started).
+Optionally, test the configuration so far. In the `messages` subscription section, click **Test**. You should see the request in your Supabase project > Edge Functions > whatsapp-webhook > Logs `https://supabase.com/dashboard/project/{project_id}/functions/whatsapp-webhook/logs`.
 
 ### Step 5: Add a phone number
 
 If you decide to add the test number,
 
-1. Click **Generate access token** (you can't use the one you got from step 4 here)
-2. Copy these values:
+1. Within the App Dashboard
+2. Go to WhatsApp > API Setup `https://developers.facebook.com/apps/{app_id}/whatsapp-business/wa-dev-console`
+3. Click **Generate access token** (you can't use the one you got from step 2 here)
+4. Copy these values:
    - **Phone number ID**
    - **WhatsApp Business Account ID**
-3. Select a recipient phone number (Manage phone number list)
-4. Send messages with the API > **Send message** (the test number doesn't seem to fully activate to receive messages if you don't send a test message once)
+5. Select a recipient phone number
+6. Send messages with the API > **Send message**
+
+**Note:** the test number doesn't seem to fully activate to receive messages unless you send a test message at least once.
 
 In order to add a production phone number,
 
-1. Click _Step 5: Add a phone number_ > **Add phone number**
+1. Click **Add phone number**
 2. Follow the flow.
 
 ```sql
@@ -144,18 +167,6 @@ insert into public.organizations_addresses (address, organization_id, service, e
   ('<Phone number ID>', '<ORG_ID>', 'whatsapp', '{ "waba_id": "<WhatsApp Business Account ID>", "phone_number": "<Phone number>" }')
 ;
 ```
-
-### Considerations
-
-There is quiet a Meta nomenclature of entities that you might want to get in order
-to not to get lost in the platform.
-
-- Business Profile - This is the top-level entity and represents a business. It has users and assets.
-- User - Real or system users. System users have access tokens. They all belong to a business portfolio and can have assigned assets.
-- Assests - WhatsApp accounts, Instagram accounts, Meta apps, among many others. They belong to a business portfolio and are assigned to users.
-- App - An asset that integrates Meta products and APIs.
-- WhatsApp Business Account (WABA) - A WhatsApp account asset, can have many phone numbers.
-- Phone number - A registered phone number within the WhatsApp Cloud API. Belongs to a WABA.
 
 ## Local development
 

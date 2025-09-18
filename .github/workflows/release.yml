@@ -19,7 +19,8 @@ jobs:
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       SUPABASE_PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID }}
 
-    if: vars.SUPABASE_PROJECT_ID == ''
+    # TODO: this is not working as expected
+    # if: vars.SUPABASE_PROJECT_ID
 
     steps:
       - uses: actions/checkout@v4
@@ -34,3 +35,17 @@ jobs:
 
       - run: sudo apt-get update && sudo apt-get install -y postgresql-client
       - run: sh .github/workflows/deploy-vault-secrets.sh
+
+      # Deploy Meta/WhatsApp configuration
+      - run: |
+          [ -n "$META_SYSTEM_USER_ID" ] && supabase secrets set META_SYSTEM_USER_ID="$META_SYSTEM_USER_ID"
+          [ -n "$META_SYSTEM_USER_ACCESS_TOKEN" ] && supabase secrets set META_SYSTEM_USER_ACCESS_TOKEN="$META_SYSTEM_USER_ACCESS_TOKEN"
+          [ -n "$META_APP_ID" ] && supabase secrets set META_APP_ID="$META_APP_ID"
+          [ -n "$META_APP_SECRET" ] && supabase secrets set META_APP_SECRET="$META_APP_SECRET"
+          [ -n "$WHATSAPP_VERIFY_TOKEN" ] && supabase secrets set WHATSAPP_VERIFY_TOKEN="$WHATSAPP_VERIFY_TOKEN"
+        env:
+          META_SYSTEM_USER_ID: ${{ secrets.META_SYSTEM_USER_ID }}
+          META_SYSTEM_USER_ACCESS_TOKEN: ${{ secrets.META_SYSTEM_USER_ACCESS_TOKEN }}
+          META_APP_ID: ${{ secrets.META_APP_ID }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          WHATSAPP_VERIFY_TOKEN: ${{ secrets.WHATSAPP_VERIFY_TOKEN }}

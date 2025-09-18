@@ -15,6 +15,7 @@ import { fetchMedia, uploadToStorage } from "../_shared/media.ts";
 
 const API_VERSION = "v23.0";
 const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN");
+const APP_ID = Deno.env.get("META_APP_ID");
 const APP_SECRET = Deno.env.get("META_APP_SECRET");
 const DEFAULT_ACCESS_TOKEN =
   Deno.env.get("META_SYSTEM_USER_ACCESS_TOKEN") || "";
@@ -32,9 +33,7 @@ Deno.serve(async (request) => {
 
 function verifyToken(request: Request): Response {
   if (!VERIFY_TOKEN) {
-    log.warn(
-      "WHATSAPP_VERIFY_TOKEN environment variable not set, verification will fail"
-    );
+    log.warn("WHATSAPP_VERIFY_TOKEN environment variable not set");
   }
 
   const params = new URL(request.url).searchParams;
@@ -158,8 +157,9 @@ async function processMessage(request: Request): Promise<Response> {
   const isValidSignature = await validateWebhookSignature(request);
 
   if (!isValidSignature) {
-    log.warn("Invalid webhook signature, rejecting request");
-    return new Response("Unauthorized", { status: 401 });
+    return new Response("Unauthorized: Invalid webhook signature", {
+      status: 401,
+    });
   }
 
   const client = createUnsecureClient();
@@ -559,16 +559,40 @@ async function processMessage(request: Request): Promise<Response> {
  * @returns Promise<boolean> true if signature is valid, false otherwise
  */
 async function validateWebhookSignature(request: Request): Promise<boolean> {
-  log.info("Headers", request.headers);
+  if (!APP_ID || !APP_SECRET) {
+    log.warn("META_APP_ID or META_APP_SECRET environment variable not set");
+    return false;
+  }
 
-  if (!APP_SECRET) {
+  const ids = APP_ID.split("|");
+  const secrets = APP_SECRET.split("|");
+
+  if (ids.length !== secrets.length) {
     log.warn(
-      "META_APP_SECRET environment variable not set, skipping signature validation"
+      "META_APP_ID and META_APP_SECRET environment variables must have the same number of elements, separated by '|'"
     );
+    return false;
+  }
+
+  let idIndex = 0;
+
+  const url = new URL(request.url);
+  const appId = url.searchParams.get("app_id");
+
+  if (appId === "no-verify") {
     return true;
   }
 
-  const secrets = APP_SECRET.split("|");
+  if (appId) {
+    idIndex = ids.indexOf(appId);
+
+    if (idIndex === -1) {
+      log.warn(
+        `Could not find app_id '${appId}' in META_APP_ID environment variable`
+      );
+      return false;
+    }
+  }
 
   const signature = request.headers.get("X-Hub-Signature-256");
 
@@ -586,7 +610,7 @@ async function validateWebhookSignature(request: Request): Promise<boolean> {
 
     // Create HMAC-SHA256 signature
     const encoder = new TextEncoder();
-    const key = encoder.encode(secrets[0]);
+    const key = encoder.encode(secrets[idIndex]);
     const data = encoder.encode(body);
 
     const cryptoKey = await crypto.subtle.importKey(
