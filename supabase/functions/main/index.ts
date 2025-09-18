@@ -5,7 +5,7 @@ import { load } from "jsr:@std/dotenv";
 console.log("main function started");
 
 const JWT_SECRET = Deno.env.get("JWT_SECRET");
-const VERIFY_JWT = Deno.env.get("VERIFY_JWT") === "true";
+const VERIFY_JWT = false;
 
 function getAuthToken(req: Request) {
   const authHeader = req.headers.get("authorization");
