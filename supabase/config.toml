@@ -27,3 +27,8 @@ entrypoint = "./functions/agent-client/index.ts"
 verify_jwt = true
 import_map = "./functions/deno.json"
 entrypoint = "./functions/whatsapp-dispatcher/index.ts"
+
+[functions.mcp]
+verify_jwt = false
+import_map = "./functions/deno.json"
+entrypoint = "./functions/mcp/index.ts"

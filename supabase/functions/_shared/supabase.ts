@@ -1186,7 +1186,30 @@ export function createClient(req: Request) {
       auth: { persistSession: false },
       global: {
         headers: {
-          Authorization: req.headers.get("Authorization")!,
+          Authorization: req.headers.get("Authorization") || "",
+        },
+      },
+    }
+  );
+}
+
+export function createApiClient(token?: string) {
+  if (!Deno.env.get("SUPABASE_URL")) {
+    throw new Error("Undefined SUPABASE_URL env var.");
+  }
+
+  if (!Deno.env.get("SUPABASE_ANON_KEY")) {
+    throw new Error("Undefined SUPABASE_ANON_KEY env var.");
+  }
+
+  return createClientBase<Database>(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_ANON_KEY")!,
+    {
+      auth: { persistSession: false },
+      global: {
+        headers: {
+          "x-app-api-key": token || "",
         },
       },
     }

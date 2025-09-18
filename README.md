@@ -1,6 +1,6 @@
 # Open BSP API
 
-An application built with [Deno 🦕](https://deno.land), powered by Postgres 🐘 and running on [Supabase ⚡](https://supabase.com) for scalable, modern backend infrastructure.
+The Open Business Service Provider API is built with [Deno 🦕](https://deno.land), powered by Postgres 🐘 and runs on [Supabase ⚡](https://supabase.com) for scalable, modern backend infrastructure.
 
 ## Description
 
@@ -8,7 +8,7 @@ Open BSP API is a multi-tenant platform that connects to the official WhatsApp A
 
 The architecture is based on webhooks for receiving messages and conversations, and uses the Supabase client for reading and writing data. The API is designed to be simple and easy to integrate, supporting automation and custom workflows.
 
-Optionally, the platform can include the `agent-client` module, which allows you to create lightweight agents or connect to external, more advanced agents (such as OpenAI, Anthropic, Google) using different protocols like `a2a` and `chat-completions`. Lightweight agents can use built-in tools such as:
+Optionally, the platform can include the `agent-client` module, which allows you to create lightweight agents or connect to external, more advanced agents using different protocols like `a2a` and `chat-completions`. Lightweight agents can use built-in tools such as:
 
 - MCP client
 - SQL client
@@ -16,13 +16,15 @@ Optionally, the platform can include the `agent-client` module, which allows you
 - Calculator
 - Transfer to human agent
 
-Additionally, `agent-client` includes an "annotator" module that can interpret and extract information from media and document files, including:
+Additionally, `annotator` module that can interpret and extract information from media and document files, including:
 
 - Audio
 - Images
 - Video
 - PDF
 - Other text-based documents (CSV, HTML, TXT, etc.)
+
+The `mcp` module utilizes an MCP server to provide agentic access to the API. For instance, you can send messages directly from clients like Claude Desktop or other agent platforms. In addition, most built-in tools—such as SQL, HTTP, and calculator—are also made available through the MCP server.
 
 ## Roadmap
 
@@ -54,62 +56,124 @@ and more types:
 
 - `SUPABASE_ACCESS_TOKEN`: a [personal access token](https://supabase.com/dashboard/account/tokens).
 - `SUPABASE_DB_PASSWORD`
-- `SUPABASE_SERVICE_ROLE_KEY`: Get it from `supabase.com/dashboard/project/{project_id}/settings/api-keys`.
+- `SUPABASE_SERVICE_ROLE_KEY`: Get it from `https://supabase.com/dashboard/project/{project_id}/settings/api-keys`.
 
 #### Variables
 
-- `SUPABASE_PROJECT_ID`: the `{project_id}` in `supabase.com/dashboard/project/{project_id}`.
+- `SUPABASE_PROJECT_ID`: the `{project_id}` in `https://supabase.com/dashboard/project/{project_id}`.
 
 ## WhatsApp Integration
 
-To connect your WhatsApp API to your Supabase project, you'll need to configure the following Edge Functions secrets. Add these at `supabase.com/dashboard/project/{project_id}/functions/secrets`:
+To connect your WhatsApp API to your Supabase project, you'll need to configure the following Edge Functions secrets. You can set these up in two ways:
 
-| Secret                          | Description                                       |
-| ------------------------------- | ------------------------------------------------- |
-| `WHATSAPP_VERIFY_TOKEN`         | Custom verification token for webhook validation  |
-| `META_APP_ID`                   | Your Meta app's unique identifier                 |
-| `META_APP_SECRET`               | Your Meta app's secret key                        |
-| `META_SYSTEM_USER_ID`           | System user ID for business management            |
-| `META_SYSTEM_USER_ACCESS_TOKEN` | Access token with business management permissions |
+1. **Direct configuration**: Add them directly in your Supabase dashboard at `https://supabase.com/dashboard/project/{project_id}/functions/secrets`.
+2. **GitHub Actions**: Set them as GitHub Actions secrets in your repository settings and re-run the _Release_ action to automatically deploy them.
+
+#### Secrets
+
+- `META_SYSTEM_USER_ID`
+- `META_SYSTEM_USER_ACCESS_TOKEN`
+- `META_APP_ID`
+- `META_APP_SECRET`
+- `WHATSAPP_VERIFY_TOKEN`
 
 Follow these steps to obtain the required credentials:
 
-### Step 1: Create Meta app (skip if you already have one)
+### Overview
 
-1. Navigate to [Facebook Developers](https://developers.facebook.com/apps)
+There is quiet a Meta nomenclature of entities that you might want to get in order
+to not to get lost in the platform.
+
+- **Business profile** - This is the top-level entity, represents a business. Has users and assets.
+- **User** - Real or system users. System users can have access tokens. Users belong to a business portfolio and can have assigned assets.
+- **Asset**. WhatsApp accounts, Instagram accounts, Meta apps, among others. Assets belong to a business portfolio and are assigned to users.
+- **App**. An asset that integrates Meta products such as the WhatsApp Cloud API.
+- **WhatsApp Business Account (WABA)**. A WhatsApp account asset, can have many phone numbers.
+- **Phone number**. A registered phone number within the WhatsApp Cloud API. Belongs to a WABA.
+
+> **Note**: For more details, refer to [Cloud API overview](https://developers.facebook.com/docs/whatsapp/cloud-api/overview).
+
+### Step 1: Create a Meta app (skip if you already have one)
+
+1. Navigate to [My Apps](https://developers.facebook.com/apps)
 2. Click **Create App**
 3. Select the following options:
    - **Use case**: Other
    - **App type**: Business
-4. Add **WhatsApp** as a product to your app
+4. Add the **WhatsApp** product to your app
 
-### Step 2: Configure WhatsApp webhook
+### Step 2: Create a system user
 
-1. Go to `https://developers.facebook.com/apps/{app_id}/whatsapp-business/wa-settings`
-2. Set the **callback URL** to: `https://{project_id}.supabase.co/functions/v1/whatsapp-webhook`
-3. Create and note your **verify token** → This becomes `WHATSAPP_VERIFY_TOKEN`
+1. Get into the [Meta Business Suite](https://business.facebook.com)
+2. Go to Settings > Users > System users `https://business.facebook.com/latest/settings/system_users`
+3. Add an **admin system user**
+4. Copy the **ID** → `META_SYSTEM_USER_ID`
+5. Assign your app to the user with **full control** permissions
+6. Generate a token with these permissions:
+   - `business_management`
+   - `whatsapp_business_messaging`
+   - `whatsapp_business_management`
+7. Copy the **Access Token** → `META_SYSTEM_USER_ACCESS_TOKEN`
 
-### Step 3: Get app credentials
+> **Note**: For detailed instructions on system user setup, refer to the [WhatsApp Business Management API documentation](https://developers.facebook.com/docs/whatsapp/business-management-api/get-started).
 
-1. Navigate to `https://developers.facebook.com/apps/{app_id}`
-2. Go to **App settings** > **Basic**
+### Step 3: Get the app credentials
+
+1. Navigate to [My Apps](`https://developers.facebook.com/apps`) > App Dashboard `https://developers.facebook.com/apps/{app_id}`
+2. Go to App settings > Basic `https://developers.facebook.com/apps/{app_id}/settings/basic`
 3. Copy the following values:
    - **App ID** → `META_APP_ID`
    - **App secret** → `META_APP_SECRET`
 
-### Step 4: Create system user
+> **Note**: Multiple Meta apps are supported by separating values with `|` (pipe) characters. For example: `META_APP_ID=app_id_1|app_id_2` and `META_APP_SECRET=app_secret_1|app_secret_2`.
 
-1. Go to `https://business.facebook.com/latest/settings/system_users?business_id={business_id}`
-2. Add an **admin system user**
-3. Assign your app to the user with **full control** permissions
-4. Generate a token with these permissions:
-   - `business_management`
-   - `whatsapp_business_messaging`
-   - `whatsapp_business_management`
-5. Copy the **User ID** → `META_SYSTEM_USER_ID`
-6. Copy the **Access Token** → `META_SYSTEM_USER_ACCESS_TOKEN`
+### Step 4: Configure the `WhatsApp Business Account` webhook
 
-> **Note**: For detailed instructions on system user setup, refer to the [WhatsApp Business Management API documentation](https://developers.facebook.com/docs/whatsapp/business-management-api/get-started).
+1. Within the App Dashboard
+2. Go to WhatsApp > Configuration `https://developers.facebook.com/apps/{app_id}/whatsapp-business/wa-settings`
+3. Set the **Callback URL** to: `https://{SUPABASE_PROJECT_ID}.supabase.co/functions/v1/whatsapp-webhook`.
+4. Create and note your `WHATSAPP_VERIFY_TOKEN` → Set **Verify token**.
+5. Subscribe to the following **Webhook fields**:
+   - `messages`
+   - `history`
+   - `smb_app_state_sync`
+   - `smb_message_echoes`
+
+> **Note**: Multiple Meta apps are supported by appending the query param `?app_id={META_APP_ID}` to the callback URL. For example: `https://{SUPABASE_PROJECT_ID}.supabase.co/functions/v1/whatsapp-webhook?app_id=app_id_2`.
+
+Optionally, test the configuration so far. In the `messages` subscription section, click **Test**. You should see the request in your Supabase project > Edge Functions > whatsapp-webhook > Logs `https://supabase.com/dashboard/project/{project_id}/functions/whatsapp-webhook/logs`.
+
+### Step 5: Add a phone number
+
+If you decide to add the test number,
+
+1. Within the App Dashboard
+2. Go to WhatsApp > API Setup `https://developers.facebook.com/apps/{app_id}/whatsapp-business/wa-dev-console`
+3. Click **Generate access token** (you can't use the one you got from step 2 here)
+4. Copy these values:
+   - **Phone number ID**
+   - **WhatsApp Business Account ID**
+5. Select a recipient phone number
+6. Send messages with the API > **Send message**
+
+> **Note**: the test number doesn't seem to fully activate to receive messages unless you send a test message at least once.
+
+In order to add a production phone number,
+
+1. Click **Add phone number**
+2. Follow the flow.
+
+```sql
+insert into public.organizations (name, extra) values
+  ('Default', '{ "response_delay_seconds": 0 }')
+;
+```
+
+```sql
+insert into public.organizations_addresses (address, organization_id, service, extra) values
+  ('<Phone number ID>', '<ORG_ID>', 'whatsapp', '{ "waba_id": "<WhatsApp Business Account ID>", "phone_number": "<Phone number>" }')
+;
+```
 
 ## Local development
 
