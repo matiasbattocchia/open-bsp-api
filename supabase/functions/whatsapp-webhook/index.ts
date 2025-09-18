@@ -559,12 +559,16 @@ async function processMessage(request: Request): Promise<Response> {
  * @returns Promise<boolean> true if signature is valid, false otherwise
  */
 async function validateWebhookSignature(request: Request): Promise<boolean> {
+  log.info("Headers", request.headers);
+
   if (!APP_SECRET) {
     log.warn(
       "META_APP_SECRET environment variable not set, skipping signature validation"
     );
     return true;
   }
+
+  const secrets = APP_SECRET.split("|");
 
   const signature = request.headers.get("X-Hub-Signature-256");
 
@@ -582,7 +586,7 @@ async function validateWebhookSignature(request: Request): Promise<boolean> {
 
     // Create HMAC-SHA256 signature
     const encoder = new TextEncoder();
-    const key = encoder.encode(APP_SECRET);
+    const key = encoder.encode(secrets[0]);
     const data = encoder.encode(body);
 
     const cryptoKey = await crypto.subtle.importKey(

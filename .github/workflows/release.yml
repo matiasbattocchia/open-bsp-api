@@ -19,7 +19,7 @@ jobs:
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       SUPABASE_PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID }}
 
-    if: vars.SUPABASE_PROJECT_ID
+    if: vars.SUPABASE_PROJECT_ID == ''
 
     steps:
       - uses: actions/checkout@v4
