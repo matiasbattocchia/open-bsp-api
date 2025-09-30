@@ -58,13 +58,14 @@ and more types:
 - `SUPABASE_DB_PASSWORD`: Get it at Supabase > Project > Database > Settings > Database password (`https://supabase.com/dashboard/project/{project_id}/database/settings`)
 - `SUPABASE_SERVICE_ROLE_KEY`: Get it at Supabase > Project > Project Settings > API keys > Legacy API Keys (`https://supabase.com/dashboard/project/{project_id}/settings/api-keys`)
 
-Create the secrets at GitHub > Repository > Settings ⚙️ > Secrets and variables \*️⃣ > Actions > Secrets (`https://github.com/{github_account}/open-bsp-api/settings/secrets/actions`).
+> Create the secrets at GitHub > Repository > Settings ⚙️ > Secrets and variables \*️⃣ > Actions > Secrets (`https://github.com/{github_account}/open-bsp-api/settings/secrets/actions`).
 
 #### Variables
 
-- `SUPABASE_PROJECT_ID`: the `{project_id}` in `https://supabase.com/dashboard/project/{project_id}`.
+- `SUPABASE_PROJECT_ID`: the `{project_id}` in `https://supabase.com/dashboard/project/{project_id}`
+- `SUPABASE_SESSION_POOLER_HOST`: Found at Supabase > Project > Connect 🔌 > Session pooler > View parameters > Host (`https://supabase.com/dashboard/project/{project_id}/database/schemas?showConnect=true`)
 
-Create the variables at GitHub > Repository > Settings ⚙️ > Secrets and variables \*️⃣ > Actions > Variables (`https://github.com/{github_account}/open-bsp-api/settings/variables/actions`).
+> Create the variables at GitHub > Repository > Settings ⚙️ > Secrets and variables \*️⃣ > Actions > Variables (`https://github.com/{github_account}/open-bsp-api/settings/variables/actions`).
 
 #### Release
 
