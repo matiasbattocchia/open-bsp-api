@@ -1,6 +1,8 @@
 # Open BSP API
 
-The Open Business Service Provider API is built with [Deno 🦕](https://deno.land), powered by Postgres 🐘 and runs on [Supabase ⚡](https://supabase.com) for scalable, modern backend infrastructure.
+The Open Business Service Provider API integrates with the [WhatsApp Business Platform 💬](https://developers.facebook.com/docs/whatsapp). It is built with [Deno 🦕](https://deno.land), powered by [Postgres 🐘](https://www.postgresql.org) and runs on [Supabase ⚡](https://supabase.com) for scalable, modern backend infrastructure.
+
+Open BSP is designed for both individual businesses and service providers. You can use it to manage your own WhatsApp messaging, or leverage its features to become a [Meta Business Partner](https://developers.facebook.com/docs/whatsapp/solution-providers) and offer WhatsApp messaging services to other organizations.
 
 ## Description
 

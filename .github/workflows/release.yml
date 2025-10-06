@@ -39,11 +39,11 @@ jobs:
 
       # Deploy Meta/WhatsApp configuration
       - run: |
-          [ -n "$META_SYSTEM_USER_ID" ] && supabase secrets set META_SYSTEM_USER_ID="$META_SYSTEM_USER_ID"
-          [ -n "$META_SYSTEM_USER_ACCESS_TOKEN" ] && supabase secrets set META_SYSTEM_USER_ACCESS_TOKEN="$META_SYSTEM_USER_ACCESS_TOKEN"
-          [ -n "$META_APP_ID" ] && supabase secrets set META_APP_ID="$META_APP_ID"
-          [ -n "$META_APP_SECRET" ] && supabase secrets set META_APP_SECRET="$META_APP_SECRET"
-          [ -n "$WHATSAPP_VERIFY_TOKEN" ] && supabase secrets set WHATSAPP_VERIFY_TOKEN="$WHATSAPP_VERIFY_TOKEN"
+          if [ -n "$META_SYSTEM_USER_ID" ]; then supabase secrets set META_SYSTEM_USER_ID="$META_SYSTEM_USER_ID"; fi
+          if [ -n "$META_SYSTEM_USER_ACCESS_TOKEN" ]; then supabase secrets set META_SYSTEM_USER_ACCESS_TOKEN="$META_SYSTEM_USER_ACCESS_TOKEN"; fi
+          if [ -n "$META_APP_ID" ]; then supabase secrets set META_APP_ID="$META_APP_ID"; fi
+          if [ -n "$META_APP_SECRET" ]; then supabase secrets set META_APP_SECRET="$META_APP_SECRET"; fi
+          if [ -n "$WHATSAPP_VERIFY_TOKEN" ]; then supabase secrets set WHATSAPP_VERIFY_TOKEN="$WHATSAPP_VERIFY_TOKEN"; fi
         env:
           META_SYSTEM_USER_ID: ${{ secrets.META_SYSTEM_USER_ID }}
           META_SYSTEM_USER_ACCESS_TOKEN: ${{ secrets.META_SYSTEM_USER_ACCESS_TOKEN }}

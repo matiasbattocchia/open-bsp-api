@@ -2,17 +2,17 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import * as log from "../_shared/logger.ts";
 import {
   createClient,
-  type WebhookPayload,
-  type MessageRow,
-  MediaTypes,
   type EndpointMessage,
   type EndpointStatus,
+  MediaTypes,
+  type MessageRow,
+  type WebhookPayload,
 } from "../_shared/supabase.ts";
 import { downloadFromStorage } from "../_shared/media.ts";
 
 const API_VERSION = "v23.0";
-const DEFAULT_ACCESS_TOKEN =
-  Deno.env.get("META_SYSTEM_USER_ACCESS_TOKEN") || "";
+const DEFAULT_ACCESS_TOKEN = Deno.env.get("META_SYSTEM_USER_ACCESS_TOKEN") ||
+  "";
 
 /** Uploads media to WA servers
  *
@@ -27,7 +27,7 @@ async function uploadMediaItem(
   uri: string,
   mime_type: string,
   access_token: string,
-  client: SupabaseClient
+  client: SupabaseClient,
 ): Promise<string> {
   const file = await downloadFromStorage(client, uri);
 
@@ -42,7 +42,7 @@ async function uploadMediaItem(
       method: "POST",
       headers: { Authorization: `Bearer ${access_token}` },
       body: formData,
-    }
+    },
   );
 
   if (!response.ok) {
@@ -53,14 +53,23 @@ async function uploadMediaItem(
   return (await response.json()).id as string;
 }
 
-Deno.serve(async (request) => {
-  const client = createClient(request);
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-  const record = ((await request.json()) as WebhookPayload<MessageRow>).record!;
+Deno.serve(async (req) => {
+  const authHeader = req.headers.get("Authorization");
+  const token = authHeader?.replace("Bearer ", "");
+
+  if (token !== SERVICE_ROLE_KEY) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
+  const client = createClient(req);
+
+  const record = ((await req.json()) as WebhookPayload<MessageRow>).record!;
 
   if (!["internal", "whatsapp"].includes(record.service)) {
     throw new Error(
-      `Dispatch for '${record.service}' service is not implemented!`
+      `Dispatch for '${record.service}' service is not implemented!`,
     );
   }
 
@@ -130,7 +139,7 @@ Deno.serve(async (request) => {
 
     if (!record.external_id) {
       throw new Error(
-        `Cannot mark message with id ${record.id} as read because its external_id is missing.`
+        `Cannot mark message with id ${record.id} as read because its external_id is missing.`,
       );
     }
 
@@ -146,7 +155,7 @@ Deno.serve(async (request) => {
     };
   } else {
     throw new Error(
-      `Cannot dispatch message with id ${record.id} because its direction is not 'outgoing' or 'incoming'.`
+      `Cannot dispatch message with id ${record.id} because its direction is not 'outgoing' or 'incoming'.`,
     );
   }
 
@@ -159,7 +168,7 @@ Deno.serve(async (request) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(message),
-    }
+    },
   );
 
   if (!response.ok) {
@@ -181,7 +190,7 @@ Deno.serve(async (request) => {
       if (updateError) {
         log.error(
           `Could not update status of outgoing message with id ${record.id}`,
-          updateError
+          updateError,
         );
       }
     }
@@ -224,8 +233,8 @@ Deno.serve(async (request) => {
       .update({
         external_id: endpointPayload.messages[0].id,
         status: {
-          [endpointPayload.messages[0].message_status || "accepted"]:
-            new Date().toISOString(),
+          [endpointPayload.messages[0].message_status || "accepted"]: new Date()
+            .toISOString(),
         },
       })
       .eq("id", record.id);
@@ -233,7 +242,7 @@ Deno.serve(async (request) => {
     if (updateError) {
       log.error(
         `Could not update status of outgoing message with id ${record.id}`,
-        updateError
+        updateError,
       );
     }
   }
@@ -244,11 +253,11 @@ Deno.serve(async (request) => {
 async function outgoingMessage(
   record: MessageRow,
   access_token: string,
-  client: SupabaseClient
+  client: SupabaseClient,
 ) {
   if (record.direction !== "outgoing") {
     throw new Error(
-      `Cannot dispatch outgoing message with id ${record.id} because its direction is not 'outgoing'!`
+      `Cannot dispatch outgoing message with id ${record.id} because its direction is not 'outgoing'!`,
     );
   }
 
@@ -262,7 +271,7 @@ async function outgoingMessage(
     } else {
       if (!outMessage.media?.id || !outMessage.media?.mime_type) {
         throw new Error(
-          `Could not upload media for message with id ${record.id}. Missing media_id or mime_type.`
+          `Could not upload media for message with id ${record.id}. Missing media_id or mime_type.`,
         );
       }
 
@@ -271,7 +280,7 @@ async function outgoingMessage(
         outMessage.media.id,
         outMessage.media.mime_type,
         access_token,
-        client
+        client,
       );
     }
   }
@@ -295,7 +304,7 @@ async function outgoingMessage(
     case "text":
       if (!outMessage.content) {
         throw new Error(
-          `Cannot dispatch outgoing message with id ${record.id} of type 'text' because its content is missing!`
+          `Cannot dispatch outgoing message with id ${record.id} of type 'text' because its content is missing!`,
         );
       }
 
@@ -304,7 +313,7 @@ async function outgoingMessage(
     case "reaction":
       if (!outMessage.re_message_id) {
         throw new Error(
-          `Cannot dispatch outgoing message with id ${record.id} of type 'reaction' because its re_message_id is missing!`
+          `Cannot dispatch outgoing message with id ${record.id} of type 'reaction' because its re_message_id is missing!`,
         );
       }
 
@@ -361,7 +370,7 @@ async function outgoingMessage(
       break;
     default:
       throw new Error(
-        `Dispatch for '${record.service}' service does not know how to handle message of type ${outMessage.type}!`
+        `Dispatch for '${record.service}' service does not know how to handle message of type ${outMessage.type}!`,
       );
   }
 

@@ -1,18 +1,18 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import {
   createClient,
-  type WebhookPayload,
   type MessageRow,
+  type WebhookPayload,
 } from "../_shared/supabase.ts";
 import {
+  type ApiError,
+  type GenerateContentResponse,
   GoogleGenAI,
   Type,
-  type GenerateContentResponse,
-  type ApiError,
 } from "@google/genai";
 import { downloadFromStorage, uploadToStorage } from "../_shared/media.ts";
 import { encodeBase64 } from "jsr:@std/encoding/base64";
-import { toV1, fromV1 } from "../_shared/messages-v0.ts";
+import { fromV1, toV1 } from "../_shared/messages-v0.ts";
 import * as log from "../_shared/logger.ts";
 
 /**
@@ -57,14 +57,23 @@ import * as log from "../_shared/logger.ts";
 const MAX_SMALL_DOCUMENT_SIZE = 1 * 1000; // 1 KB
 const INLINE_DATA_SIZE_LIMIT = 19 * 1000 * 1000; // 19MB
 
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
 Deno.serve(async (req) => {
+  const authHeader = req.headers.get("Authorization");
+  const token = authHeader?.replace("Bearer ", "");
+
+  if (token !== SERVICE_ROLE_KEY) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
   const client = createClient(req);
 
   const incoming = ((await req.json()) as WebhookPayload<MessageRow>).record!;
 
   const log_update_and_respond = async (
     logLevel: "error" | "warn" | "info",
-    logMessage: string
+    logMessage: string,
   ) => {
     log[logLevel](logMessage);
 
@@ -106,7 +115,7 @@ Deno.serve(async (req) => {
   if (config.mode !== "active") {
     return log_update_and_respond(
       "info",
-      "Annotation mode is not active. Skipping annotation."
+      "Annotation mode is not active. Skipping annotation.",
     );
   }
 
@@ -114,12 +123,14 @@ Deno.serve(async (req) => {
 
   const language = config.language || "English";
 
-  const apiKey = config.api_key || Deno.env.get("GOOGLE_API_KEY");
+  const apiKey = config.api_key ||
+    Deno.env.get("GOOGLE_API_KEY") ||
+    Deno.env.get("GEMINI_API_KEY");
 
   if (!apiKey) {
     return log_update_and_respond(
       "warn",
-      "No GOOGLE API KEY found for annotation. Skipping annotation."
+      "No GOOGLE API KEY found for annotation. Skipping annotation.",
     );
   }
 
@@ -132,7 +143,7 @@ Deno.serve(async (req) => {
   if (!row_v1) {
     return log_update_and_respond(
       "error",
-      "Failed to convert incoming message row from v0 to v1. Skipping annotation."
+      "Failed to convert incoming message row from v0 to v1. Skipping annotation.",
     );
   }
 
@@ -141,7 +152,7 @@ Deno.serve(async (req) => {
   if (message.type !== "file") {
     return log_update_and_respond(
       "error",
-      "Incoming message is not a file. Skipping annotation."
+      "Incoming message is not a file. Skipping annotation.",
     );
   }
 
@@ -194,14 +205,13 @@ Deno.serve(async (req) => {
     ],
   };
 
-  const isSupportedMimeType =
-    mimeType.startsWith("text/") ||
+  const isSupportedMimeType = mimeType.startsWith("text/") ||
     allowedMimeTypes[mediaType]?.includes(mimeType.split(";")[0]); // "audio/ogg; codecs=opus" -> "audio/ogg"
 
   if (!isSupportedMimeType) {
     return log_update_and_respond(
       "warn",
-      `Unsupported mime type ${mimeType} for media type ${mediaType}. Skipping annotation.`
+      `Unsupported mime type ${mimeType} for media type ${mediaType}. Skipping annotation.`,
     );
   }
 
@@ -213,7 +223,7 @@ Deno.serve(async (req) => {
   if (shouldUseFileAPI) {
     return log_update_and_respond(
       "warn",
-      "Base64 encoded data size exceeds 19MB limit. File should be uploaded using the Gemini File API but it is not implemented yet."
+      "Base64 encoded data size exceeds 19MB limit. File should be uploaded using the Gemini File API but it is not implemented yet.",
     );
   }
 
@@ -233,19 +243,24 @@ Deno.serve(async (req) => {
 
   switch (mediaType) {
     case "audio":
-      prompt = `Analyze this audio file. Provide a transcription of the audio content in its original language and a brief description in ${language} of what it contains (voice, music, noises, etc.). If it's voice, include emotion recognition in the description.`;
+      prompt =
+        `Analyze this audio file. Provide a transcription of the audio content in its original language and a brief description in ${language} of what it contains (voice, music, noises, etc.). If it's voice, include emotion recognition in the description.`;
       break;
     case "video":
-      prompt = `Analyze this video file. Provide a transcription of any audio content in its original language and a brief description in ${language} of what the video shows.`;
+      prompt =
+        `Analyze this video file. Provide a transcription of any audio content in its original language and a brief description in ${language} of what the video shows.`;
       break;
     case "image":
-      prompt = `Analyze this image. If it contains text, extract it as transcription in its original language using markdown format if possible. Provide a brief description in ${language} of the image content, or if it's a document, specify the document type (invoice, receipt, etc.) and include relevant information (dates, amounts, etc.).`;
+      prompt =
+        `Analyze this image. If it contains text, extract it as transcription in its original language using markdown format if possible. Provide a brief description in ${language} of the image content, or if it's a document, specify the document type (invoice, receipt, etc.) and include relevant information (dates, amounts, etc.).`;
       break;
     case "document":
-      prompt = `Analyze this document. Extract the text content as transcription in its original language using markdown format if possible. Provide a brief description in ${language} of the document, specify the document type (invoice, receipt, etc.) and include relevant information (dates, amounts, etc.).`;
+      prompt =
+        `Analyze this document. Extract the text content as transcription in its original language using markdown format if possible. If the content includes a table, do not transcribe the table. Instead, provide the table as an array of arrays; the first row should contain the column names (if the header is multi-row, flatten it and pick sensible column names). Provide a brief description in ${language} of the document, specify the document type (invoice, receipt, etc.) and include relevant information (dates, amounts, etc.).`;
       break;
     default:
-      prompt = `Analyze this file and provide a transcription of any text content in its original language and a brief description in ${language} of what it contains.`;
+      prompt =
+        `Analyze this file and provide a transcription of any text content in its original language and a brief description in ${language} of what it contains.`;
   }
 
   if (config?.extra_prompt) {
@@ -254,24 +269,33 @@ Deno.serve(async (req) => {
 
   // TODO: Asking for transcription of text based files is a waste of tokens.
   const responseSchema = {
-    type: Type.OBJECT,
+    type: "object",
     properties: {
       transcription: {
-        type: Type.STRING,
+        type: "string",
       },
       description: {
-        type: Type.STRING,
+        type: "string",
+      },
+      table: {
+        type: "array",
+        items: {
+          type: "array",
+          items: {
+            type: "string",
+          },
+        },
       },
     },
   };
 
   const contents: Array<
     | {
-        text: string;
-      }
+      text: string;
+    }
     | {
-        inlineData: { mimeType: string; data: string };
-      }
+      inlineData: { mimeType: string; data: string };
+    }
   > = [
     {
       inlineData: {
@@ -310,27 +334,33 @@ Deno.serve(async (req) => {
 
     return log_update_and_respond(
       "error",
-      `Gemini API error in annotation. Skipping annotation. ${error}`
+      `Gemini API error in annotation. Skipping annotation. ${error}`,
     );
   }
 
   if (!response?.text) {
     return log_update_and_respond(
       "error",
-      "No response text received from the annotation model. Skipping annotation."
+      "No response text received from the annotation model. Skipping annotation.",
     );
   }
 
-  let result: { transcription: string; description: string };
+  let result: {
+    transcription: string;
+    description: string;
+    table: Array<{ column: string; value: string }>;
+  };
 
   try {
     result = JSON.parse(response.text);
   } catch (error) {
     return log_update_and_respond(
       "error",
-      "Failed to parse the response text from the annotation model into a JSON object. Skipping annotation."
+      "Failed to parse the response text from the annotation model into a JSON object. Skipping annotation.",
     );
   }
+
+  console.log(result.table);
 
   let llm:
     | { mime_type: "text/markdown"; uri: string; name: string; size: number }
@@ -379,7 +409,7 @@ Deno.serve(async (req) => {
   if (!annotated_v0) {
     return log_update_and_respond(
       "error",
-      "Failed to convert annotated message row from v1 to v0. Skipping annotation."
+      "Failed to convert annotated message row from v1 to v0. Skipping annotation.",
     );
   }
 

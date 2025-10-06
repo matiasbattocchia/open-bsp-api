@@ -2,18 +2,18 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import * as log from "../_shared/logger.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import {
-  type WebhookPayload,
-  type MessageRow,
-  type MessageInsert,
-  type MessageRowV1,
   type AgentRow,
-  type TextPart,
   createClient,
   type LocalMCPToolConfig,
+  type MessageInsert,
+  type MessageRow,
+  type MessageRowV1,
   type Part,
+  type TextPart,
   type ToolInfo,
+  type WebhookPayload,
 } from "../_shared/supabase.ts";
-import { toV1, fromV1 } from "../_shared/messages-v0.ts";
+import { fromV1, toV1 } from "../_shared/messages-v0.ts";
 import { ProtocolFactory } from "./protocols/index.ts";
 import { callTool, initMCP, type MCPServer } from "./tools/mcp.ts";
 import { Toolbox } from "./tools/index.ts";
@@ -82,7 +82,16 @@ function isNewestMessage(incoming: MessageRow, messages: MessageRowV1[]) {
   return newestMessage.id === incoming.id;
 }
 
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
 Deno.serve(async (req) => {
+  const authHeader = req.headers.get("Authorization");
+  const token = authHeader?.replace("Bearer ", "");
+
+  if (token !== SERVICE_ROLE_KEY) {
+    return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+  }
+
   const client = createClient(req);
 
   const incoming = ((await req.json()) as WebhookPayload<MessageRow>).record!;
@@ -128,7 +137,7 @@ Deno.serve(async (req) => {
     !contact?.extra?.allowed
   ) {
     log.info(
-      `Conversation ${conv.name} does not correspond to an authorized contact. Skipping response.`
+      `Conversation ${conv.name} does not correspond to an authorized contact. Skipping response.`,
     );
 
     return new Response("ok", { headers: corsHeaders });
@@ -147,8 +156,8 @@ Deno.serve(async (req) => {
 
   // WAIT FOR A NEWER MESSAGE
 
-  const delay =
-    (org.extra.response_delay_seconds ?? RESPONSE_DELAY_SECS) * 1000;
+  const delay = (org.extra.response_delay_seconds ?? RESPONSE_DELAY_SECS) *
+    1000;
 
   if (delay > 0) {
     log.info(`Waiting ${delay}ms before processing the message...`);
@@ -183,7 +192,7 @@ Deno.serve(async (req) => {
   if (!isNewestMessage(incoming, messages)) {
     // Then the newest message is not the incoming one that triggered this edge function.
     log.info(
-      `Newer message for conversation ${conv.name} found. Skipping response.`
+      `Newer message for conversation ${conv.name} found. Skipping response.`,
     );
 
     return new Response("ok", { headers: corsHeaders });
@@ -195,7 +204,7 @@ Deno.serve(async (req) => {
     ({ direction, message }) =>
       direction === "incoming" &&
       message.type === "text" &&
-      message.text.startsWith("/new")
+      message.text.startsWith("/new"),
   );
 
   if (firstMessageIndex > -1) {
@@ -257,12 +266,12 @@ Deno.serve(async (req) => {
   // CHECK IF THERE ARE ACTIVE AI AGENTS
 
   const aiAgents = agents.filter(
-    (agent) => agent.ai && agent.extra && agent.extra.mode !== "inactive"
+    (agent) => agent.ai && agent.extra && agent.extra.mode !== "inactive",
   );
 
   if (!aiAgents.length) {
     log.info(
-      `No active AI agents found for conversation ${conv.name}. Skipping response.`
+      `No active AI agents found for conversation ${conv.name}. Skipping response.`,
     );
     return new Response("ok", { headers: corsHeaders });
   }
@@ -317,7 +326,7 @@ Deno.serve(async (req) => {
     if (typingIndicatorError) {
       log.warn(
         "Failed to update incoming message typing indicator status.",
-        typingIndicatorError
+        typingIndicatorError,
       );
     }
   };
@@ -381,7 +390,7 @@ Deno.serve(async (req) => {
             m.message.type === "file" &&
             m.status.pending && // Note: not using status.annotating to avoid race conditions with the annotator Edge Function.
             !m.status.annotated &&
-            +new Date(m.status.pending) > +new Date() - ANNOTATION_TIMEOUT
+            +new Date(m.status.pending) > +new Date() - ANNOTATION_TIMEOUT,
         );
 
         if (!pendingAnnotations.length) {
@@ -391,7 +400,7 @@ Deno.serve(async (req) => {
         // WAIT FOR THE ANNOTATIONS TO COMPLETE
 
         log.info(
-          `Waiting ${ANNOTATION_POLLING_INTERVAL}ms for pending annotations to complete...`
+          `Waiting ${ANNOTATION_POLLING_INTERVAL}ms for pending annotations to complete...`,
         );
 
         await new Promise((resolve) =>
@@ -407,7 +416,7 @@ Deno.serve(async (req) => {
           .select()
           .in(
             "id",
-            pendingAnnotations.map((m) => m.id)
+            pendingAnnotations.map((m) => m.id),
           );
 
         if (messagesError) {
@@ -446,7 +455,7 @@ Deno.serve(async (req) => {
 
       if (new_messages_v0.length) {
         log.info(
-          `Newer message for conversation ${conv.name} found while waiting for pending annotations. Skipping response.`
+          `Newer message for conversation ${conv.name} found while waiting for pending annotations. Skipping response.`,
         );
 
         return new Response("ok", { headers: corsHeaders });
@@ -455,16 +464,15 @@ Deno.serve(async (req) => {
       // MCP SERVERS INITIALIZATION
       // It is here because of multi-agents, which we are not using by the time being.
 
-      const mcpServersToInit =
-        agent.extra.tools?.filter(
-          (tool) =>
-            tool.provider === "local" &&
-            tool.type === "mcp" &&
-            !mcpServers.has(tool.label)
-        ) || [];
+      const mcpServersToInit = agent.extra.tools?.filter(
+        (tool) =>
+          tool.provider === "local" &&
+          tool.type === "mcp" &&
+          !mcpServers.has(tool.label),
+      ) || [];
 
       const mcpServersAux = await Promise.all(
-        mcpServersToInit.map((tool) => initMCP(tool as LocalMCPToolConfig))
+        mcpServersToInit.map((tool) => initMCP(tool as LocalMCPToolConfig)),
       );
 
       mcpServersAux.forEach((mcp) => {
@@ -499,7 +507,7 @@ Deno.serve(async (req) => {
         switch (toolConfig.type) {
           case "function": {
             const unlabeledTool = Toolbox.function.find(
-              (t) => t.name === toolConfig.name
+              (t) => t.name === toolConfig.name,
             );
 
             if (!unlabeledTool) {
@@ -520,8 +528,8 @@ Deno.serve(async (req) => {
                 label: toolConfig.label,
                 name: unlabeledTool.name,
                 description: unlabeledTool.description,
-                inputSchema:
-                  unlabeledTool.inputSchema as z.core.JSONSchema.JSONSchema,
+                inputSchema: unlabeledTool
+                  .inputSchema as z.core.JSONSchema.JSONSchema,
                 outputSchema: unlabeledTool.outputSchema as
                   | z.core.JSONSchema.JSONSchema
                   | undefined,
@@ -568,14 +576,13 @@ Deno.serve(async (req) => {
 
       // TOOL USES AND RESULTS
 
-      const toolUses =
-        response.messages.filter(
-          (m) =>
-            m.direction === "internal" &&
-            m.message.type === "text" &&
-            m.message.tool &&
-            m.message.tool.provider === "local"
-        ) || [];
+      const toolUses = response.messages.filter(
+        (m) =>
+          m.direction === "internal" &&
+          m.message.type === "text" &&
+          m.message.tool &&
+          m.message.tool.provider === "local",
+      ) || [];
 
       for (const row of toolUses) {
         // Only needed to please the TypeScript compiler
@@ -610,13 +617,13 @@ Deno.serve(async (req) => {
             t.provider === toolInfo.provider &&
             t.type === toolInfo.type &&
             ("label" in toolInfo ? t.label === toolInfo.label : true) &&
-            t.name === toolInfo.name
+            t.name === toolInfo.name,
         );
 
         try {
           if (!agentTool) {
             throw new Error(
-              `Tool ${toolInfo.name} not found between available tools.`
+              `Tool ${toolInfo.name} not found between available tools.`,
             );
           }
 
@@ -683,7 +690,7 @@ Deno.serve(async (req) => {
                 input,
                 agentTool.config,
                 context,
-                client
+                client,
               );
 
               parts = [
@@ -714,8 +721,9 @@ Deno.serve(async (req) => {
             }
           }
         } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : "Unknown error";
+          const errorMessage = error instanceof Error
+            ? error.message
+            : "Unknown error";
 
           log.warn("Tool error", { tool: toolInfo, error: errorMessage });
 
@@ -751,7 +759,7 @@ Deno.serve(async (req) => {
               task: { id: taskId },
               ...part,
             },
-          }))
+          })),
         );
       }
 
@@ -813,7 +821,7 @@ Deno.serve(async (req) => {
 
       // Append generated messages to the context
       messages.push(
-        ...(messages_v0.map(toV1).filter(Boolean) as MessageRowV1[])
+        ...(messages_v0.map(toV1).filter(Boolean) as MessageRowV1[]),
       );
     }
   }
