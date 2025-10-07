@@ -23,6 +23,7 @@ import type {
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AgentTool } from "../index.ts";
 import * as log from "../../_shared/logger.ts";
+import { serializePartAsXML } from "./serializer.ts";
 
 export interface ChatCompletionsRequest {
   messages: ChatCompletionMessageParam[];
@@ -47,7 +48,7 @@ export class ChatCompletionsHandler
   constructor(
     tools: AgentTool[],
     context: RequestContext,
-    client: SupabaseClient
+    client: SupabaseClient,
   ) {
     this.tools = tools;
     this.context = context;
@@ -127,7 +128,7 @@ export class ChatCompletionsHandler
   }
 
   private removeOtherAgentsToolMessages(
-    messages: MessageRowV1[]
+    messages: MessageRowV1[],
   ): MessageRowV1[] {
     return messages.filter((message) => {
       if (message.direction === "internal" && message.message.tool) {
@@ -167,7 +168,7 @@ export class ChatCompletionsHandler
    * Expects tool messages to be sorted.
    */
   private mergeToolUseMessages(
-    messages: MessageRowV1[]
+    messages: MessageRowV1[],
   ): ChatCompletionMessageParam[] {
     const messageParams: ChatCompletionMessageParam[] = [];
 
@@ -176,7 +177,7 @@ export class ChatCompletionsHandler
 
       const param = this.toChatCompletion(
         row.agent_id,
-        row.message as Part & ToolInfo
+        row.message as Part & ToolInfo,
       );
 
       if (
@@ -204,7 +205,7 @@ export class ChatCompletionsHandler
    */
   private toChatCompletion(
     agentId: string | null | undefined,
-    part: Part & ToolInfo
+    part: Part & ToolInfo,
   ): ChatCompletionMessageParam {
     const role = agentId === this.context.agent.id ? "assistant" : "user";
 
@@ -274,61 +275,10 @@ export class ChatCompletionsHandler
       }
     }
 
-    switch (part.type) {
-      case "text":
-        return {
-          role,
-          content: part.text,
-        };
-      case "data":
-        return {
-          role,
-          content:
-            `<${part.kind}>\n` +
-            JSON.stringify(part.data, null, 2) +
-            `\n</${part.kind}>`,
-        };
-      case "file": {
-        const content = [`<${part.kind}>`];
-
-        content.push(`<uri>`, part.file.uri, `</uri>`);
-
-        if (part.file.name) {
-          content.push(`<filename>`, part.file.name, `</filename>`);
-        }
-
-        if (part.kind === "document") {
-          content.push(`<mime_type>`, part.file.mime_type, `</mime_type>`);
-        }
-
-        if ("description" in part.file && part.file.description) {
-          content.push(
-            `<description>`,
-            part.file.description,
-            `</description>`
-          );
-        }
-
-        if ("transcription" in part.file && part.file.transcription) {
-          content.push(
-            `<transcription>`,
-            part.file.transcription,
-            `</transcription>`
-          );
-        }
-
-        if (part.text) {
-          content.push(`<caption>`, part.text, `</caption>`);
-        }
-
-        content.push(`</${part.kind}>`);
-
-        return {
-          role,
-          content: content.join("\n"),
-        };
-      }
-    }
+    return {
+      role,
+      content: serializePartAsXML(part),
+    };
   }
 
   async prepareRequest(): Promise<ChatCompletionsRequest> {
@@ -385,7 +335,7 @@ export class ChatCompletionsHandler
   }
 
   async sendRequest(
-    request: ChatCompletionsRequest
+    request: ChatCompletionsRequest,
   ): Promise<ChatCompletionsResponse> {
     const { agent } = this.context;
 
@@ -448,7 +398,7 @@ export class ChatCompletionsHandler
   }
 
   async processResponse(
-    response: ChatCompletionsResponse
+    response: ChatCompletionsResponse,
   ): Promise<ResponseContext> {
     const { finish_reason, message } = response;
     const { agent, conversation } = this.context;
@@ -473,7 +423,7 @@ export class ChatCompletionsHandler
           const [label, _name] = name.split(this.FUNCTION_NAME_SEPARATOR);
 
           const toolInfo = this.tools.find(
-            (t) => t.label === label && t.name === _name
+            (t) => t.label === label && t.name === _name,
           );
 
           tool = {

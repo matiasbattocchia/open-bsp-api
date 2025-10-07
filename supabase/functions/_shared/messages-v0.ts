@@ -1,8 +1,8 @@
 import {
-  type MessageRow,
   type MessageInsert,
-  type MessageRowV1,
   type MessageInsertV1,
+  type MessageRow,
+  type MessageRowV1,
 } from "./supabase.ts";
 
 export function toV1(row: MessageRow): MessageRowV1 | undefined {
@@ -24,6 +24,7 @@ export function toV1(row: MessageRow): MessageRowV1 | undefined {
           type: "data",
           kind: "data",
           data: JSON.parse(row.message.function.arguments),
+          artifacts: row.message.artifacts,
         },
       };
     }
@@ -44,11 +45,11 @@ export function toV1(row: MessageRow): MessageRowV1 | undefined {
           type: "text",
           kind: "text",
           text: row.message.function.arguments,
+          artifacts: row.message.artifacts,
         },
       };
     }
-  }
-  // FunctionResponseMessageDeprecated
+  } // FunctionResponseMessageDeprecated
   else if (row.type === "function_response") {
     if (row.message.v1_type === "data") {
       return {
@@ -66,6 +67,7 @@ export function toV1(row: MessageRow): MessageRowV1 | undefined {
           type: "data",
           kind: "data",
           data: JSON.parse(row.message.content),
+          artifacts: row.message.artifacts,
         },
       };
     }
@@ -86,11 +88,11 @@ export function toV1(row: MessageRow): MessageRowV1 | undefined {
           type: "text",
           kind: "text",
           text: row.message.content,
+          artifacts: row.message.artifacts,
         },
       };
     }
-  }
-  // Media types
+  } // Media types
   else if ("media" in row.message && row.message.media) {
     return {
       ...row,
@@ -101,20 +103,15 @@ export function toV1(row: MessageRow): MessageRowV1 | undefined {
         kind: row.message.type,
         file: {
           mime_type: row.message.media.mime_type,
-          size: row.message.media.file_size,
+          size: row.message.media.file_size || 0,
           name: row.message.media.filename,
           uri: row.message.media.id,
-          description: row.message.media.description,
-          transcription:
-            row.message.type === "audio"
-              ? row.message.content
-              : row.message.media.annotation,
         },
         text: row.message.type === "audio" ? "" : row.message.content,
+        artifacts: row.message.artifacts,
       },
     };
-  }
-  // Text types
+  } // Text types
   else if ("content" in row.message && row.message.content) {
     return {
       ...row,
@@ -124,9 +121,10 @@ export function toV1(row: MessageRow): MessageRowV1 | undefined {
         // @ts-ignore
         kind: row.message.type,
         text: row.message.content,
+        artifacts: row.message.artifacts,
       },
     };
-  }
+  } // Data types
   // @ts-ignore
   else if (row.message.type in row.message && row.message[row.message.type]) {
     return {
@@ -138,6 +136,7 @@ export function toV1(row: MessageRow): MessageRowV1 | undefined {
         kind: row.message.type,
         // @ts-ignore
         data: row.message[row.message.type],
+        artifacts: row.message.artifacts,
       },
     };
   }
@@ -169,6 +168,7 @@ export function fromV1(row: MessageInsertV1): MessageInsert | undefined {
             arguments: JSON.stringify(row.message.data),
           },
           tool: row.message.tool,
+          artifacts: row.message.artifacts,
         },
       };
     }
@@ -188,6 +188,7 @@ export function fromV1(row: MessageInsertV1): MessageInsert | undefined {
             arguments: row.message.text,
           },
           tool: row.message.tool,
+          artifacts: row.message.artifacts,
         },
       };
     }
@@ -210,6 +211,7 @@ export function fromV1(row: MessageInsertV1): MessageInsert | undefined {
           tool_name: row.message.tool.name,
           content: JSON.stringify(row.message.data),
           tool: row.message.tool,
+          artifacts: row.message.artifacts,
         },
       };
     }
@@ -227,6 +229,7 @@ export function fromV1(row: MessageInsertV1): MessageInsert | undefined {
           tool_name: row.message.tool.name,
           content: row.message.text,
           tool: row.message.tool,
+          artifacts: row.message.artifacts,
         },
       };
     }
@@ -238,9 +241,19 @@ export function fromV1(row: MessageInsertV1): MessageInsert | undefined {
         // @ts-ignore
         type: row.message.kind,
         content: row.message.text,
+        artifacts: row.message.artifacts,
       },
     };
   } else if (row.message.type === "file") {
+    const transcription = row.message.artifacts?.find(
+      (a) => a.type === "text" && a.kind === "transcription",
+      // @ts-ignore
+    )?.text;
+    const description = row.message.artifacts?.find(
+      (a) => a.type === "text" && a.kind === "description",
+      // @ts-ignore
+    )?.text;
+
     return {
       ...row,
       message: {
@@ -249,9 +262,7 @@ export function fromV1(row: MessageInsertV1): MessageInsert | undefined {
         type: row.message.kind,
         // @ts-ignore
         content:
-          row.message.kind === "audio"
-            ? row.message.file.transcription
-            : row.message.text,
+          row.message.kind === "audio" ? transcription : row.message.text,
         media: {
           // @ts-ignore
           mime_type: row.message.file.mime_type,
@@ -261,11 +272,12 @@ export function fromV1(row: MessageInsertV1): MessageInsert | undefined {
           filename: row.message.file.name,
           // @ts-ignore
           id: row.message.file.uri,
-          description: row.message.file.description,
+          description,
           ...(row.message.kind === "audio"
             ? {}
-            : { annotation: row.message.file.transcription }),
+            : { annotation: transcription }),
         },
+        artifacts: row.message.artifacts,
       },
     };
   } else if (row.message.type === "data") {
@@ -276,6 +288,7 @@ export function fromV1(row: MessageInsertV1): MessageInsert | undefined {
         // @ts-ignore
         type: row.message.kind,
         [row.message.kind]: row.message.data,
+        artifacts: row.message.artifacts,
       },
     };
   }

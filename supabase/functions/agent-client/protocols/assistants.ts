@@ -12,6 +12,7 @@ import {
   uploadToStorage,
 } from "../../_shared/media.ts";
 import * as log from "../../_shared/logger.ts";
+import { serializePartAsXML } from "./serializer.ts";
 
 export interface AssistantsRequest {
   thread_id?: string;
@@ -52,7 +53,7 @@ export class AssistantsHandler
    */
   private async toAssistants(
     role: "user" | "assistant",
-    part: Part & ToolInfo
+    part: Part & ToolInfo,
   ): Promise<OpenAI.Beta.Threads.MessageCreateParams> {
     switch (part.type) {
       case "text":
@@ -71,68 +72,23 @@ export class AssistantsHandler
       case "file": {
         const content: OpenAI.Beta.Threads.MessageContentPartParam[] = [];
 
-        const secondPart = part.file.mime_type.split("/")[1].toLowerCase();
+        const mimeSubtype = part.file.mime_type.split("/")[1].toLowerCase();
 
-        const acceptedImageTypes = ["png", "jpeg", "jpg", "gif", "webp"];
+        const acceptedImageSubtypes = ["png", "jpeg", "jpg", "gif", "webp"];
 
-        if (acceptedImageTypes.includes(secondPart)) {
+        if (acceptedImageSubtypes.includes(mimeSubtype)) {
           content.push({
             type: "image_url",
             image_url: {
               url: await createSignedUrl(this.client, part.file.uri),
             },
           });
-        } else {
-          content.push({
-            type: "text",
-            text: [`<attachment>`, part.kind, `</attachment>`].join("\n"),
-          });
         }
 
-        if (part.file.name) {
-          content.push({
-            type: "text",
-            text: [`<filename>`, part.file.name, `</filename>`].join("\n"),
-          });
-        }
-
-        if (part.kind === "document") {
-          content.push({
-            type: "text",
-            text: [`<mime_type>`, part.file.mime_type, `</mime_type>`].join(
-              "\n"
-            ),
-          });
-        }
-
-        if ("description" in part.file && part.file.description) {
-          content.push({
-            type: "text",
-            text: [
-              `<description>`,
-              part.file.description,
-              `</description>`,
-            ].join("\n"),
-          });
-        }
-
-        if ("transcription" in part.file && part.file.transcription) {
-          content.push({
-            type: "text",
-            text: [
-              `<transcription>`,
-              part.file.transcription,
-              `</transcription>`,
-            ].join("\n"),
-          });
-        }
-
-        if (part.text) {
-          content.push({
-            type: "text",
-            text: [`<caption>`, part.text, `</caption>`].join("\n"),
-          });
-        }
+        content.push({
+          type: "text",
+          text: serializePartAsXML(part),
+        });
 
         return {
           role,
@@ -143,7 +99,7 @@ export class AssistantsHandler
   }
 
   private async fromAssistants(
-    message: OpenAI.Beta.Threads.MessageContent
+    message: OpenAI.Beta.Threads.MessageContent,
   ): Promise<Part> {
     const org = this.context.organization;
 
@@ -188,7 +144,7 @@ export class AssistantsHandler
     const lastMessage = messages.at(-1);
 
     const lastPreviousTurnMessageIdx = messages.findLastIndex(
-      (m) => m.agent_id !== lastMessage?.agent_id
+      (m) => m.agent_id !== lastMessage?.agent_id,
     );
 
     const currentTurnMessages = messages.slice(lastPreviousTurnMessageIdx + 1);
@@ -197,9 +153,9 @@ export class AssistantsHandler
       currentTurnMessages.map(({ message, agent_id }) =>
         this.toAssistants(
           agent_id === agent.id ? "assistant" : "user",
-          message as Part & ToolInfo
-        )
-      )
+          message as Part & ToolInfo,
+        ),
+      ),
     );
 
     const lastAgentTask = messages.findLast((m) => m.agent_id === agent.id);
@@ -245,7 +201,7 @@ export class AssistantsHandler
       for (const message of request.messages) {
         await this.openai.beta.threads.messages.create(
           request.thread_id,
-          message
+          message,
         );
       }
     }
@@ -281,7 +237,7 @@ export class AssistantsHandler
         assistant_id: agent.extra.assistant_id,
         // instructions: string; // override instructions
         tools: [], // TODO: Tools. By the time being, we don't support tools.
-      }
+      },
     );
 
     if (run.status === "failed" || run.status === "expired") {
@@ -295,7 +251,7 @@ export class AssistantsHandler
       {
         run_id: run.id,
         order: "asc",
-      }
+      },
     );
 
     return {
@@ -307,7 +263,7 @@ export class AssistantsHandler
   }
 
   async processResponse(
-    response: AssistantsResponse
+    response: AssistantsResponse,
   ): Promise<ResponseContext> {
     const { agent, conversation } = this.context;
 
@@ -315,7 +271,7 @@ export class AssistantsHandler
       response.messages
         .map((m) => m.content)
         .flat()
-        .map(this.fromAssistants)
+        .map(this.fromAssistants),
     );
 
     return {

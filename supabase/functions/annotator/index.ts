@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import {
   createClient,
+  Part,
   type MessageRow,
   type WebhookPayload,
 } from "../_shared/supabase.ts";
@@ -14,6 +15,7 @@ import { downloadFromStorage, uploadToStorage } from "../_shared/media.ts";
 import { encodeBase64 } from "jsr:@std/encoding/base64";
 import { fromV1, toV1 } from "../_shared/messages-v0.ts";
 import * as log from "../_shared/logger.ts";
+import { stringify } from "jsr:@std/csv/stringify";
 
 /**
  * Documentation for automatic file annotation handling:
@@ -21,7 +23,7 @@ import * as log from "../_shared/logger.ts";
  * The file parts have these fields available for the LLM:
  *
  * - `description`: about 500 characters (0.5KB)
- * - `transcription`: about 1000 characters (1KB)
+ * - `transcription`: about 2000 characters (2KB)
  *
  * Transcription is the human readable text content of the document.
  *
@@ -54,7 +56,7 @@ import * as log from "../_shared/logger.ts";
  * - Edge Functions limits
  *     Maximum Duration (Wall clock limit): Free plan: 150s, Paid plans: 400s
  */
-const MAX_SMALL_DOCUMENT_SIZE = 1 * 1000; // 1 KB
+const MAX_SMALL_DOCUMENT_SIZE = 2 * 1000; // 2 KB
 const INLINE_DATA_SIZE_LIMIT = 19 * 1000 * 1000; // 19MB
 
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -123,7 +125,8 @@ Deno.serve(async (req) => {
 
   const language = config.language || "English";
 
-  const apiKey = config.api_key ||
+  const apiKey =
+    config.api_key ||
     Deno.env.get("GOOGLE_API_KEY") ||
     Deno.env.get("GEMINI_API_KEY");
 
@@ -205,7 +208,8 @@ Deno.serve(async (req) => {
     ],
   };
 
-  const isSupportedMimeType = mimeType.startsWith("text/") ||
+  const isSupportedMimeType =
+    mimeType.startsWith("text/") ||
     allowedMimeTypes[mediaType]?.includes(mimeType.split(";")[0]); // "audio/ogg; codecs=opus" -> "audio/ogg"
 
   if (!isSupportedMimeType) {
@@ -243,31 +247,29 @@ Deno.serve(async (req) => {
 
   switch (mediaType) {
     case "audio":
-      prompt =
-        `Analyze this audio file. Provide a transcription of the audio content in its original language and a brief description in ${language} of what it contains (voice, music, noises, etc.). If it's voice, include emotion recognition in the description.`;
+      prompt = `Analyze this audio file. Provide a transcription of the audio content in its original language and a brief description in ${language} of what it contains (voice, music, noises, etc.). If it's voice, include emotion recognition in the description.`;
       break;
     case "video":
-      prompt =
-        `Analyze this video file. Provide a transcription of any audio content in its original language and a brief description in ${language} of what the video shows.`;
+      prompt = `Analyze this video file. Provide a transcription of any audio content in its original language and a brief description in ${language} of what the video shows.`;
       break;
     case "image":
-      prompt =
-        `Analyze this image. If it contains text, extract it as transcription in its original language using markdown format if possible. Provide a brief description in ${language} of the image content, or if it's a document, specify the document type (invoice, receipt, etc.) and include relevant information (dates, amounts, etc.).`;
+      prompt = `Analyze this image. If it contains text, extract it as transcription in its original language using markdown format if possible. Provide a brief description in ${language} of the image content, or if it's a document, specify the document type (invoice, receipt, etc.) and include relevant information (dates, amounts, etc.).`;
       break;
     case "document":
-      prompt =
-        `Analyze this document. Extract the text content as transcription in its original language using markdown format if possible. If the content includes a table, do not transcribe the table. Instead, provide the table as an array of arrays; the first row should contain the column names (if the header is multi-row, flatten it and pick sensible column names). Provide a brief description in ${language} of the document, specify the document type (invoice, receipt, etc.) and include relevant information (dates, amounts, etc.).`;
+      if (mimeType.startsWith("text/")) {
+        prompt = `Analyze this document. Do not transcribe! Provide a brief description in ${language} of the document, specify the document type (invoice, receipt, etc.) and include relevant information (dates, amounts, etc.).`;
+      } else {
+        prompt = `Analyze this document. Extract the text content as transcription in its original language using markdown format if possible. If the content includes a table, do not transcribe the table. Instead, provide the table as an array of arrays; the first row should contain the column names (if the header is multi-row, flatten it and pick sensible column names). Do not treat key-value data as a table (avoid single-row tables). Provide a brief description in ${language} of the document, specify the document type (invoice, receipt, etc.) and include relevant information (dates, amounts, etc.).`;
+      }
       break;
     default:
-      prompt =
-        `Analyze this file and provide a transcription of any text content in its original language and a brief description in ${language} of what it contains.`;
+      prompt = `Analyze this file and provide a transcription of any text content in its original language and a brief description in ${language} of what it contains.`;
   }
 
   if (config?.extra_prompt) {
     prompt += `\n\n${config.extra_prompt}`;
   }
 
-  // TODO: Asking for transcription of text based files is a waste of tokens.
   const responseSchema = {
     type: "object",
     properties: {
@@ -291,11 +293,11 @@ Deno.serve(async (req) => {
 
   const contents: Array<
     | {
-      text: string;
-    }
+        text: string;
+      }
     | {
-      inlineData: { mimeType: string; data: string };
-    }
+        inlineData: { mimeType: string; data: string };
+      }
   > = [
     {
       inlineData: {
@@ -346,9 +348,9 @@ Deno.serve(async (req) => {
   }
 
   let result: {
-    transcription: string;
-    description: string;
-    table: Array<{ column: string; value: string }>;
+    transcription: string | undefined;
+    description: string | undefined;
+    table: Array<Array<string>> | undefined;
   };
 
   try {
@@ -360,43 +362,74 @@ Deno.serve(async (req) => {
     );
   }
 
-  console.log(result.table);
+  const artifacts: Part[] = [];
 
-  let llm:
-    | { mime_type: "text/markdown"; uri: string; name: string; size: number }
-    | undefined;
+  if (result.description) {
+    artifacts.push({
+      type: "text",
+      kind: "description",
+      text: result.description,
+    });
+  }
 
-  // Document transcription exceeding 1KB
-  if (result.transcription.length > MAX_SMALL_DOCUMENT_SIZE) {
-    // Store enriched documents (PDF) transcription as llms.txt
-    if (mediaType === "document" && mimeType === "application/pdf") {
-      const name = [message.file.name, "llms.txt"].join(".");
+  // PDF transcription exceeding 2KB
+  if (
+    mimeType === "application/pdf" &&
+    result.transcription &&
+    result.transcription.length > MAX_SMALL_DOCUMENT_SIZE
+  ) {
+    // Store enriched documents (PDF) transcription as llm.txt
+    const name = [message.file.name, "llm.txt"].join(".");
 
-      const file = new Blob([result.transcription], {
-        type: "text/markdown",
-      });
+    const file = new Blob([result.transcription], {
+      type: "text/markdown",
+    });
 
-      const uri = await uploadToStorage(client, org.id, file);
+    const uri = await uploadToStorage(client, org.id, file);
 
-      llm = { mime_type: "text/markdown", uri, name, size: file.size };
-    }
+    artifacts.push({
+      type: "file",
+      kind: "document",
+      file: { mime_type: file.type, uri, name, size: file.size },
+    });
 
     // Truncate transcription
-    result.transcription =
-      result.transcription.slice(0, MAX_SMALL_DOCUMENT_SIZE) +
-      `\n[Note: Transcription truncated to ${MAX_SMALL_DOCUMENT_SIZE} of ${result.transcription.length} chars.]`;
+    result.transcription = undefined;
+  }
+
+  if (result.transcription) {
+    artifacts.push({
+      type: "text",
+      kind: "transcription",
+      text: result.transcription,
+    });
+  }
+
+  if (result.table?.length) {
+    console.log("table", result.table);
+
+    const csv = stringify(result.table);
+
+    const name = [message.file.name, "csv"].join(".");
+
+    const file = new Blob([csv], {
+      type: "text/csv",
+    });
+
+    const uri = await uploadToStorage(client, org.id, file);
+
+    artifacts.push({
+      type: "file",
+      kind: "document",
+      file: { mime_type: file.type, uri, name, size: file.size },
+    });
   }
 
   const annotated_v1 = {
     ...row_v1,
     message: {
       ...message,
-      file: {
-        ...message.file,
-        ...(result.description && { description: result.description }),
-        ...(result.transcription && { transcription: result.transcription }),
-        ...(llm && { llm }),
-      },
+      artifacts,
     },
     status: {
       ...status,
