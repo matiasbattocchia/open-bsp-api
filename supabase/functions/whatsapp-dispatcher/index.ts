@@ -11,10 +11,31 @@ import {
 import { downloadFromStorage } from "../_shared/media.ts";
 
 const API_VERSION = "v23.0";
-const DEFAULT_ACCESS_TOKEN = Deno.env.get("META_SYSTEM_USER_ACCESS_TOKEN") ||
-  "";
+const DEFAULT_ACCESS_TOKEN =
+  Deno.env.get("META_SYSTEM_USER_ACCESS_TOKEN") || "";
 
 /** Uploads media to WA servers
+ *
+ * Allowed MIME types:
+ * - audio/aac
+ * - audio/mp4
+ * - audio/mpeg
+ * - audio/amr
+ * - audio/ogg
+ * - audio/opus
+ * - application/vnd.ms-powerpoint
+ * - application/msword
+ * - application/vnd.openxmlformats-officedocument.wordprocessingml.document
+ * - application/vnd.openxmlformats-officedocument.presentationml.presentation
+ * - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+ * - application/pdf
+ * - text/plain
+ * - application/vnd.ms-excel
+ * - image/jpeg
+ * - image/png
+ * - image/webp
+ * - video/mp4
+ * - video/3gpp
  *
  * @param phone_number_id
  * @param media_id
@@ -30,6 +51,11 @@ async function uploadMediaItem(
   client: SupabaseClient,
 ): Promise<string> {
   const file = await downloadFromStorage(client, uri);
+
+  // make WA accept text/csv
+  if (mime_type.startsWith("text/")) {
+    mime_type = "text/plain";
+  }
 
   const formData = new FormData();
   formData.append("file", file);
@@ -58,6 +84,9 @@ const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 Deno.serve(async (req) => {
   const authHeader = req.headers.get("Authorization");
   const token = authHeader?.replace("Bearer ", "");
+
+  console.log("auth header", authHeader);
+  console.log("auth token", SERVICE_ROLE_KEY);
 
   if (token !== SERVICE_ROLE_KEY) {
     return new Response("Unauthorized", { status: 401 });
@@ -233,8 +262,8 @@ Deno.serve(async (req) => {
       .update({
         external_id: endpointPayload.messages[0].id,
         status: {
-          [endpointPayload.messages[0].message_status || "accepted"]: new Date()
-            .toISOString(),
+          [endpointPayload.messages[0].message_status || "accepted"]:
+            new Date().toISOString(),
         },
       })
       .eq("id", record.id);
