@@ -50,11 +50,12 @@ async function uploadMediaItem(
   access_token: string,
   client: SupabaseClient,
 ): Promise<string> {
-  const file = await downloadFromStorage(client, uri);
+  let file = await downloadFromStorage(client, uri);
 
   // make WA accept text/csv
   if (mime_type.startsWith("text/")) {
     mime_type = "text/plain";
+    file = new Blob([file], { type: "text/plain" });
   }
 
   const formData = new FormData();
