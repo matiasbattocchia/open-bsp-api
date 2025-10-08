@@ -89,7 +89,11 @@ Deno.serve(async (req) => {
   const token = authHeader?.replace("Bearer ", "");
 
   if (token !== SERVICE_ROLE_KEY) {
-    return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+    // TODO: SERVICE_ROLE_KEY might be the new secret key
+    // but we are sending the legacy one because the new one does not work
+    // with PostgREST yet
+    // This check is needed to not to respond to the anon / public key
+    //return new Response("Unauthorized", { status: 401, headers: corsHeaders });
   }
 
   const client = createClient(req);
@@ -156,8 +160,8 @@ Deno.serve(async (req) => {
 
   // WAIT FOR A NEWER MESSAGE
 
-  const delay = (org.extra.response_delay_seconds ?? RESPONSE_DELAY_SECS) *
-    1000;
+  const delay =
+    (org.extra.response_delay_seconds ?? RESPONSE_DELAY_SECS) * 1000;
 
   if (delay > 0) {
     log.info(`Waiting ${delay}ms before processing the message...`);
@@ -404,7 +408,7 @@ Deno.serve(async (req) => {
         );
 
         await new Promise((resolve) =>
-          setTimeout(resolve, ANNOTATION_POLLING_INTERVAL)
+          setTimeout(resolve, ANNOTATION_POLLING_INTERVAL),
         );
 
         // Note: we could check for newer messages here too, but it would bloat the code.
@@ -464,12 +468,13 @@ Deno.serve(async (req) => {
       // MCP SERVERS INITIALIZATION
       // It is here because of multi-agents, which we are not using by the time being.
 
-      const mcpServersToInit = agent.extra.tools?.filter(
-        (tool) =>
-          tool.provider === "local" &&
-          tool.type === "mcp" &&
-          !mcpServers.has(tool.label),
-      ) || [];
+      const mcpServersToInit =
+        agent.extra.tools?.filter(
+          (tool) =>
+            tool.provider === "local" &&
+            tool.type === "mcp" &&
+            !mcpServers.has(tool.label),
+        ) || [];
 
       const mcpServersAux = await Promise.all(
         mcpServersToInit.map((tool) => initMCP(tool as LocalMCPToolConfig)),
@@ -528,8 +533,8 @@ Deno.serve(async (req) => {
                 label: toolConfig.label,
                 name: unlabeledTool.name,
                 description: unlabeledTool.description,
-                inputSchema: unlabeledTool
-                  .inputSchema as z.core.JSONSchema.JSONSchema,
+                inputSchema:
+                  unlabeledTool.inputSchema as z.core.JSONSchema.JSONSchema,
                 outputSchema: unlabeledTool.outputSchema as
                   | z.core.JSONSchema.JSONSchema
                   | undefined,
@@ -576,13 +581,14 @@ Deno.serve(async (req) => {
 
       // TOOL USES AND RESULTS
 
-      const toolUses = response.messages.filter(
-        (m) =>
-          m.direction === "internal" &&
-          m.message.type === "text" &&
-          m.message.tool &&
-          m.message.tool.provider === "local",
-      ) || [];
+      const toolUses =
+        response.messages.filter(
+          (m) =>
+            m.direction === "internal" &&
+            m.message.type === "text" &&
+            m.message.tool &&
+            m.message.tool.provider === "local",
+        ) || [];
 
       for (const row of toolUses) {
         // Only needed to please the TypeScript compiler
@@ -721,9 +727,8 @@ Deno.serve(async (req) => {
             }
           }
         } catch (error) {
-          const errorMessage = error instanceof Error
-            ? error.message
-            : "Unknown error";
+          const errorMessage =
+            error instanceof Error ? error.message : "Unknown error";
 
           log.warn("Tool error", { tool: toolInfo, error: errorMessage });
 

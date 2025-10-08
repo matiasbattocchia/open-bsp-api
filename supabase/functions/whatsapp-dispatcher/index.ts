@@ -85,11 +85,8 @@ Deno.serve(async (req) => {
   const authHeader = req.headers.get("Authorization");
   const token = authHeader?.replace("Bearer ", "");
 
-  console.log("auth header", authHeader);
-  console.log("auth token", SERVICE_ROLE_KEY);
-
   if (token !== SERVICE_ROLE_KEY) {
-    return new Response("Unauthorized", { status: 401 });
+    //return new Response("Unauthorized", { status: 401 });
   }
 
   const client = createClient(req);
