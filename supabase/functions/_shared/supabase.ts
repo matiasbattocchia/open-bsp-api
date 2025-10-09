@@ -301,6 +301,7 @@ export type BaseMessage = {
     description?: string; // image and video description
     url?: string; // WhatsApp can attach media from a URL
   };
+  artifacts?: Part[];
 };
 
 export type IncomingMessage = { version?: "0" } & BaseMessage &
@@ -333,6 +334,7 @@ export type FunctionCallMessage = {
     arguments: string;
     name: string;
   };
+  artifacts?: Part[];
 } & TaskInfo &
   ToolInfo;
 
@@ -342,6 +344,7 @@ export type FunctionResponseMessage = {
   content: string;
   tool_call_id: string;
   tool_name?: string;
+  artifacts?: Part[];
 } & TaskInfo &
   ToolInfo;
 
@@ -578,8 +581,9 @@ type AnthropicToolInfo = {
 
 export type TextPart = {
   type: "text";
-  kind: "text" | "reaction" | "caption";
+  kind: "text" | "reaction" | "caption" | "transcription" | "description";
   text: string;
+  artifacts?: Part[];
 };
 
 // File based
@@ -592,26 +596,24 @@ export const MediaTypes = [
   "sticker",
 ] as const;
 
+/**
+ * Represents a file, such as an image, video, or document.
+ * WhatsApp allows media messages to include an accompanying text caption.
+ * For now, this caption is embedded directly within the `text` attribute of the `FilePart`.
+ * A more structured approach, leveraging the `Parts` type, would involve separate
+ * `FilePart` and `TextPart` components for such messages in the future.
+ */
 export type FilePart = {
   type: "file";
-  text?: string; // caption (not present in A2A)
-} & {
   kind: (typeof MediaTypes)[number];
   file: {
     mime_type: string;
-    uri: string; // internal://media/{organizationId}/{contactId}/{fileId}
+    uri: string; // --> internal://media/organizations/${organization_id}/attachments/${file_hash}
     name?: string;
-    // Not present in A2A
     size: number;
-    description?: string;
-    transcription?: string;
-    llm?: {
-      mime_type: "text/markdown";
-      uri: string;
-      name: string;
-      size: number;
-    };
   };
+  text?: string; // caption
+  artifacts?: Part[];
 };
 
 // Data based
@@ -620,6 +622,7 @@ export type DataPart<Kind = "data", T = Json> = {
   type: "data";
   kind: Kind;
   data: T;
+  artifacts?: Part[];
 };
 
 type ContactsPart = DataPart<"contacts", Contact[]>;
@@ -641,9 +644,9 @@ export type Part = TextPart | DataPart | FilePart;
 // Parts type is not used yet. It is a proof of concept.
 export type Parts = {
   type: "parts";
-  //kind: string;
+  kind: "parts";
   parts: Part[];
-  // TODO: artifacts?
+  artifacts?: Part[];
 };
 
 /**
@@ -1189,7 +1192,7 @@ export function createClient(req: Request) {
           Authorization: req.headers.get("Authorization") || "",
         },
       },
-    }
+    },
   );
 }
 
@@ -1212,7 +1215,7 @@ export function createApiClient(token?: string) {
           "x-app-api-key": token || "",
         },
       },
-    }
+    },
   );
 }
 
@@ -1230,6 +1233,6 @@ export function createUnsecureClient() {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     {
       auth: { persistSession: false },
-    }
+    },
   );
 }

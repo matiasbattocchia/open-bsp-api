@@ -1,6 +1,8 @@
 # Open BSP API
 
-The Open Business Service Provider API is built with [Deno 🦕](https://deno.land), powered by Postgres 🐘 and runs on [Supabase ⚡](https://supabase.com) for scalable, modern backend infrastructure.
+The Open Business Service Provider API integrates with the [WhatsApp Business Platform 💬](https://developers.facebook.com/docs/whatsapp). It is built with [Deno 🦕](https://deno.land), powered by [Postgres 🐘](https://www.postgresql.org) and runs on [Supabase ⚡](https://supabase.com) for scalable, modern backend infrastructure.
+
+Open BSP is designed for both individual businesses and service providers. You can use it to manage your own WhatsApp messaging, or leverage its features to become a [Meta Business Partner](https://developers.facebook.com/docs/whatsapp/solution-providers) and offer WhatsApp messaging services to other organizations.
 
 ## Description
 
@@ -47,26 +49,36 @@ and more types:
 
 ## Deployment
 
-1. Create a Supabase project.
-2. [Fork me](https://github.com/matiasbattocchia/open-bsp-api/fork).
-3. Configure the following secrets and variables for GitHub Actions in your repository settings.
-4. Re-run the _Release_ action.
+1. Create a [Supabase](https://supabase.com) project
+2. [Fork me](https://github.com/matiasbattocchia/open-bsp-api/fork)
+3. Configure the following secrets and variables for GitHub Actions in your repository settings
+4. Re-run the _Release_ action
 
 #### Secrets
 
-- `SUPABASE_ACCESS_TOKEN`: a [personal access token](https://supabase.com/dashboard/account/tokens).
-- `SUPABASE_DB_PASSWORD`
-- `SUPABASE_SERVICE_ROLE_KEY`: Get it from `https://supabase.com/dashboard/project/{project_id}/settings/api-keys`.
+- `SUPABASE_ACCESS_TOKEN`: A [personal access token](https://supabase.com/dashboard/account/tokens)
+- `SUPABASE_DB_PASSWORD`: Get it at Supabase > Project > Database > Settings > Database password (`https://supabase.com/dashboard/project/{project_id}/database/settings`)
+- `SUPABASE_SERVICE_ROLE_KEY`: Get it at Supabase > Project > Project Settings > API keys > Legacy API Keys (`https://supabase.com/dashboard/project/{project_id}/settings/api-keys`)
+
+> Create the secrets at GitHub > Repository > Settings ⚙️ > Secrets and variables \*️⃣ > Actions > Secrets (`https://github.com/{github_account}/open-bsp-api/settings/secrets/actions`).
 
 #### Variables
 
-- `SUPABASE_PROJECT_ID`: the `{project_id}` in `https://supabase.com/dashboard/project/{project_id}`.
+- `SUPABASE_PROJECT_ID`: the `{project_id}` in `https://supabase.com/dashboard/project/{project_id}`
+- `SUPABASE_SESSION_POOLER_HOST`: Found at Supabase > Project > Connect 🔌 > Session pooler > View parameters > Host (`https://supabase.com/dashboard/project/{project_id}/database/schemas?showConnect=true`)
+
+> Create the variables at GitHub > Repository > Settings ⚙️ > Secrets and variables \*️⃣ > Actions > Variables (`https://github.com/{github_account}/open-bsp-api/settings/variables/actions`).
+
+#### Release
+
+1. Go to GitHub > Repository > Actions ▶️ > Release (`https://github.com/{github_account}/open-bsp-api/actions/workflows/release.yml`)
+2. Click **Run workflow**
 
 ## WhatsApp Integration
 
 To connect your WhatsApp API to your Supabase project, you'll need to configure the following Edge Functions secrets. You can set these up in two ways:
 
-1. **Direct configuration**: Add them directly in your Supabase dashboard at `https://supabase.com/dashboard/project/{project_id}/functions/secrets`.
+1. **Direct configuration**: Add them directly in your Supabase dashboard at Supabase > Project > Edge Functions > Secrets (`https://supabase.com/dashboard/project/{project_id}/functions/secrets`).
 2. **GitHub Actions**: Set them as GitHub Actions secrets in your repository settings and re-run the _Release_ action to automatically deploy them.
 
 #### Secrets
@@ -105,7 +117,7 @@ to not to get lost in the platform.
 ### Step 2: Create a system user
 
 1. Get into the [Meta Business Suite](https://business.facebook.com)
-2. Go to Settings > Users > System users `https://business.facebook.com/latest/settings/system_users`
+2. Go to Settings > Users > System users (`https://business.facebook.com/latest/settings/system_users`)
 3. Add an **admin system user**
 4. Copy the **ID** → `META_SYSTEM_USER_ID`
 5. Assign your app to the user with **full control** permissions
@@ -119,8 +131,8 @@ to not to get lost in the platform.
 
 ### Step 3: Get the app credentials
 
-1. Navigate to [My Apps](`https://developers.facebook.com/apps`) > App Dashboard `https://developers.facebook.com/apps/{app_id}`
-2. Go to App settings > Basic `https://developers.facebook.com/apps/{app_id}/settings/basic`
+1. Navigate to [My Apps](`https://developers.facebook.com/apps`) > App Dashboard (`https://developers.facebook.com/apps/{app_id}`)
+2. Go to App settings > Basic (`https://developers.facebook.com/apps/{app_id}/settings/basic`)
 3. Copy the following values:
    - **App ID** → `META_APP_ID`
    - **App secret** → `META_APP_SECRET`
@@ -130,7 +142,7 @@ to not to get lost in the platform.
 ### Step 4: Configure the `WhatsApp Business Account` webhook
 
 1. Within the App Dashboard
-2. Go to WhatsApp > Configuration `https://developers.facebook.com/apps/{app_id}/whatsapp-business/wa-settings`
+2. Go to WhatsApp > Configuration (`https://developers.facebook.com/apps/{app_id}/whatsapp-business/wa-settings`)
 3. Set the **Callback URL** to: `https://{SUPABASE_PROJECT_ID}.supabase.co/functions/v1/whatsapp-webhook`.
 4. Create and note your `WHATSAPP_VERIFY_TOKEN` → Set **Verify token**.
 5. Subscribe to the following **Webhook fields**:
@@ -141,14 +153,14 @@ to not to get lost in the platform.
 
 > **Note**: Multiple Meta apps are supported by appending the query param `?app_id={META_APP_ID}` to the callback URL. For example: `https://{SUPABASE_PROJECT_ID}.supabase.co/functions/v1/whatsapp-webhook?app_id=app_id_2`.
 
-Optionally, test the configuration so far. In the `messages` subscription section, click **Test**. You should see the request in your Supabase project > Edge Functions > whatsapp-webhook > Logs `https://supabase.com/dashboard/project/{project_id}/functions/whatsapp-webhook/logs`.
+Optionally, test the configuration so far. In the `messages` subscription section, click **Test**. You should see the request in Supabase > Project > Edge Functions > Functions > whatsapp-webhook > Logs (`https://supabase.com/dashboard/project/{project_id}/functions/whatsapp-webhook/logs`).
 
 ### Step 5: Add a phone number
 
 If you decide to add the test number,
 
 1. Within the App Dashboard
-2. Go to WhatsApp > API Setup `https://developers.facebook.com/apps/{app_id}/whatsapp-business/wa-dev-console`
+2. Go to WhatsApp > API Setup (`https://developers.facebook.com/apps/{app_id}/whatsapp-business/wa-dev-console`)
 3. Click **Generate access token** (you can't use the one you got from step 2 here)
 4. Copy these values:
    - **Phone number ID**
@@ -162,12 +174,19 @@ In order to add a production phone number,
 
 1. Click **Add phone number**
 2. Follow the flow.
+3. Navigate to [WhatsApp Manager](https://business.facebook.com/latest/whatsapp_manager/overview)
+
+#### For any number you add
+
+Create an organization if you haven't done that already.
 
 ```sql
 insert into public.organizations (name, extra) values
   ('Default', '{ "response_delay_seconds": 0 }')
 ;
 ```
+
+Register the phone number with your organization in the system.
 
 ```sql
 insert into public.organizations_addresses (address, organization_id, service, extra) values

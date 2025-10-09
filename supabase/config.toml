@@ -3,13 +3,16 @@
 
 project_id = "open-bsp-api"
 
+[api]
+schemas = ["public", "storage"]
+
 [functions.whatsapp-webhook]
 verify_jwt = false
 import_map = "./functions/deno.json"
 entrypoint = "./functions/whatsapp-webhook/index.ts"
 
 [functions.whatsapp-management]
-verify_jwt = false
+verify_jwt = true
 import_map = "./functions/deno.json"
 entrypoint = "./functions/whatsapp-management/index.ts"
 

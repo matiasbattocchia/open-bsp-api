@@ -72,7 +72,7 @@ export class A2AHandler
         ) {
           const fileBlob = await downloadFromStorage(
             this.client,
-            part.file.uri
+            part.file.uri,
           );
 
           file = {
@@ -97,28 +97,20 @@ export class A2AHandler
           },
         });
 
-        if ("description" in part.file && part.file.description) {
-          parts.push({
-            type: "text",
-            text: part.file.description,
-            metadata: { kind: "description" },
-          });
-        }
-
-        if ("transcription" in part.file && part.file.transcription) {
-          parts.push({
-            type: "text",
-            text: part.file.transcription,
-            metadata: { kind: "transcription" },
-          });
-        }
-
         if (part.text) {
           parts.push({
             type: "text",
             text: part.text,
             metadata: { kind: "caption" },
           });
+        }
+
+        // Handle artifacts recursively
+        if (part.artifacts) {
+          for (const artifact of part.artifacts) {
+            const artifactParts = await this.toA2a(artifact);
+            parts.push(...artifactParts);
+          }
         }
 
         return parts;
@@ -188,7 +180,7 @@ export class A2AHandler
     const lastMessage = messages.at(-1);
 
     const lastPreviousTurnMessageIdx = messages.findLastIndex(
-      (m) => m.agent_id !== lastMessage?.agent_id
+      (m) => m.agent_id !== lastMessage?.agent_id,
     );
 
     const currentTurnMessages = messages.slice(lastPreviousTurnMessageIdx + 1);
@@ -196,7 +188,7 @@ export class A2AHandler
     // Multiple messages are merged into a single A2A message.
     const parts = (
       await Promise.all(
-        currentTurnMessages.map(({ message }) => this.toA2a(message as Part))
+        currentTurnMessages.map(({ message }) => this.toA2a(message as Part)),
       )
     ).flat();
 
@@ -281,7 +273,7 @@ export class A2AHandler
     }
 
     const parts = await Promise.all(
-      responseStatus.message.parts.map(this.fromA2a)
+      responseStatus.message.parts.map(this.fromA2a),
     );
 
     const outputMessagesV1 = parts.map((part: Part) => ({

@@ -1,9 +1,9 @@
 # Env
-
 .env*
 
-# VS Code
+# Editors
 .vscode
+.zed
 
 # Supabase
 supabase/.branches
