@@ -256,10 +256,12 @@ Deno.serve(async (req) => {
       prompt = `Analyze this image. If it contains text, extract it as transcription in its original language using markdown format if possible. Provide a brief description in ${language} of the image content, or if it's a document, specify the document type (invoice, receipt, etc.) and include relevant information (dates, amounts, etc.).`;
       break;
     case "document":
-      if (mimeType.startsWith("text/")) {
-        prompt = `Analyze this document. Do not transcribe! Provide a brief description in ${language} of the document, specify the document type (invoice, receipt, etc.) and include relevant information (dates, amounts, etc.).`;
+      if (mimeType === "text/csv") {
+        prompt = `Analyze this CSV document. Do not transcribe! Do not extract the data as a table either! Provide a brief description in ${language} of the data (column names, row samples, etc.).`;
+      } else if (mimeType === "application/pdf") {
+        prompt = `Analyze this PDF document. Extract the text content as transcription in its original language using markdown format if possible. If the content includes a table, do not transcribe the table. Instead, provide the table as an array of arrays; the first row should contain the column names (if the header is multi-row, flatten it and pick sensible column names). Do not treat key-value data as a table (avoid single-row tables). Provide a brief description in ${language} of the document, specify the document type (invoice, receipt, etc.) and include relevant information (dates, amounts, etc.).`;
       } else {
-        prompt = `Analyze this document. Extract the text content as transcription in its original language using markdown format if possible. If the content includes a table, do not transcribe the table. Instead, provide the table as an array of arrays; the first row should contain the column names (if the header is multi-row, flatten it and pick sensible column names). Do not treat key-value data as a table (avoid single-row tables). Provide a brief description in ${language} of the document, specify the document type (invoice, receipt, etc.) and include relevant information (dates, amounts, etc.).`;
+        prompt = `Analyze this text document. Do not transcribe! If the content includes a table, provide the table as an array of arrays; the first row should contain the column names (if the header is multi-row, flatten it and pick sensible column names). Do not treat key-value data as a table (avoid single-row tables). Provide a brief description in ${language} of the document, specify the document type (invoice, receipt, etc.) and include relevant information (dates, amounts, etc.).`;
       }
       break;
     default:
@@ -393,11 +395,14 @@ Deno.serve(async (req) => {
       file: { mime_type: file.type, uri, name, size: file.size },
     });
 
-    // Truncate transcription
     result.transcription = undefined;
   }
 
-  if (result.transcription) {
+  if (
+    result.transcription &&
+    // Do not store the transcription for text documents safeguard
+    (mediaType !== "document" || mimeType === "application/pdf")
+  ) {
     artifacts.push({
       type: "text",
       kind: "transcription",
@@ -405,9 +410,8 @@ Deno.serve(async (req) => {
     });
   }
 
-  if (result.table?.length) {
-    console.log("table", result.table);
-
+  // Do not create a CSV from a CSV safeguard
+  if (result.table?.length && mimeType !== "text/csv") {
     const csv = stringify(result.table);
 
     const name = [message.file.name, "csv"].join(".");

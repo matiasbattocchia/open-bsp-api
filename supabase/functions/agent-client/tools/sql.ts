@@ -140,7 +140,7 @@ export const GetDbSchemaOutputSchema = z.object({
         schema: z.string(),
         name: z.string(),
         values: z.array(z.string()),
-      })
+      }),
     )
     .optional(),
   tables: z.array(
@@ -155,7 +155,7 @@ export const GetDbSchemaOutputSchema = z.object({
           nullable: z.boolean(),
           default: z.string().optional(),
           comment: z.string().optional(),
-        })
+        }),
       ),
       constraints: z.array(
         z.union([
@@ -180,10 +180,10 @@ export const GetDbSchemaOutputSchema = z.object({
               name: z.string(),
             }),
           }),
-        ])
+        ]),
       ),
       comment: z.string().optional(),
-    })
+    }),
   ),
 });
 
@@ -197,7 +197,7 @@ type TableRow = {
 
 function getTablesQuery(quotedSchemas: string) {
   return `
-    SELECT 
+    SELECT
       t.table_schema AS schema,
       t.table_name AS name,
       t.table_type AS type
@@ -226,7 +226,7 @@ function getColumnsQuery(quotedSchemas: string, driver: Driver) {
   }
 
   return `
-    SELECT 
+    SELECT
       c.table_schema,
       c.table_name,
       c.column_name AS name,
@@ -266,7 +266,7 @@ type ConstraintRow =
 
 function getPostgresConstraintsQuery(quotedSchemas: string) {
   return `
-    SELECT 
+    SELECT
       tc.table_schema,
       tc.table_name,
       tc.constraint_schema AS schema,
@@ -280,7 +280,7 @@ function getPostgresConstraintsQuery(quotedSchemas: string) {
       ccu.table_name   AS referenced_table_name,
       ccu.column_name  AS referenced_column_name
     FROM information_schema.table_constraints tc
-    JOIN information_schema.key_column_usage kcu 
+    JOIN information_schema.key_column_usage kcu
       ON tc.constraint_schema = kcu.constraint_schema
      AND tc.constraint_name   = kcu.constraint_name
     LEFT JOIN information_schema.referential_constraints rc
@@ -291,7 +291,7 @@ function getPostgresConstraintsQuery(quotedSchemas: string) {
      AND tc.constraint_name   = ccu.constraint_name
     WHERE tc.table_schema IN (${quotedSchemas})
       AND tc.constraint_type IN ('PRIMARY KEY', 'UNIQUE', 'FOREIGN KEY')
-    ORDER BY 
+    ORDER BY
       tc.table_schema,
       tc.table_name,
       tc.constraint_schema,
@@ -302,7 +302,7 @@ function getPostgresConstraintsQuery(quotedSchemas: string) {
 
 function getMySQLConstraintsQuery(quotedSchemas: string) {
   return `
-    SELECT 
+    SELECT
       tc.table_schema,
       tc.table_name,
       tc.constraint_schema AS schema,
@@ -316,14 +316,14 @@ function getMySQLConstraintsQuery(quotedSchemas: string) {
       kcu.referenced_table_name,
       kcu.referenced_column_name
     FROM information_schema.table_constraints tc
-    JOIN information_schema.key_column_usage kcu 
+    JOIN information_schema.key_column_usage kcu
       ON tc.constraint_name = kcu.constraint_name
      AND tc.table_name      = kcu.table_name
     LEFT JOIN information_schema.referential_constraints rc
       ON tc.constraint_name = rc.constraint_name
      AND tc.table_name      = rc.table_name
     WHERE tc.constraint_type IN ('PRIMARY KEY', 'UNIQUE', 'FOREIGN KEY')
-    ORDER BY 
+    ORDER BY
       tc.table_schema,
       tc.table_name,
       tc.constraint_schema,
@@ -340,7 +340,7 @@ type TableCommentRow = {
 
 function getPostgresTableCommentsQuery(quotedSchemas: string) {
   return `
-      SELECT 
+      SELECT
         n.nspname AS schema,
         c.relname AS name,
         d.description AS comment
@@ -358,7 +358,7 @@ function getPostgresTableCommentsQuery(quotedSchemas: string) {
 
 function getMySQLTableCommentsQuery(quotedSchemas: string) {
   return `
-      SELECT 
+      SELECT
         t.table_schema AS schema,
         t.table_name AS name,
         t.table_comment AS comment
@@ -377,7 +377,7 @@ type ColumnCommentRow = {
 
 function getPostgresColumnCommentsQuery(quotedSchemas: string) {
   return `
-      SELECT 
+      SELECT
         n.nspname AS table_schema,
         c.relname AS table_name,
         a.attname AS name,
@@ -400,7 +400,7 @@ function getPostgresColumnCommentsQuery(quotedSchemas: string) {
 
 function getMySQLColumnCommentsQuery(quotedSchemas: string) {
   return `
-      SELECT 
+      SELECT
         c.table_schema,
         c.table_name,
         c.column_name AS name,
@@ -419,7 +419,7 @@ type EnumRow = {
 
 function getPostgresEnumsQuery(quotedSchemas: string) {
   return `
-      SELECT 
+      SELECT
         n.nspname AS schema,
         t.typname AS name,
         array_agg(e.enumlabel ORDER BY e.enumsortorder) AS values
@@ -464,7 +464,7 @@ class BaseClient {
 
   async execute<T = Record<string, unknown>>(
     query: string,
-    args?: unknown[]
+    args?: unknown[],
   ): Promise<T[]> {
     throw new Error("Not implemented");
   }
@@ -479,7 +479,7 @@ class BaseClient {
 
   async columns() {
     return await this.execute<ColumnRow>(
-      getColumnsQuery(this.quotedSchemas, this.driver!)
+      getColumnsQuery(this.quotedSchemas, this.driver!),
     );
   }
 
@@ -534,11 +534,11 @@ class PostgresClient extends BaseClient {
 
   override async execute<T = Record<string, unknown>>(
     query: string,
-    args?: unknown[]
+    args?: unknown[],
   ): Promise<T[]> {
     return await this.conn.unsafe(
       query,
-      args as postgres.ParameterOrJSON<never>[]
+      args as postgres.ParameterOrJSON<never>[],
     );
   }
 
@@ -548,25 +548,25 @@ class PostgresClient extends BaseClient {
 
   override async constraints(): Promise<ConstraintRow[]> {
     return await this.execute<ConstraintRow>(
-      getPostgresConstraintsQuery(this.quotedSchemas)
+      getPostgresConstraintsQuery(this.quotedSchemas),
     );
   }
 
   override async tableComments(): Promise<TableCommentRow[]> {
     return await this.execute<TableCommentRow>(
-      getPostgresTableCommentsQuery(this.quotedSchemas)
+      getPostgresTableCommentsQuery(this.quotedSchemas),
     );
   }
 
   override async columnComments(): Promise<ColumnCommentRow[]> {
     return await this.execute<ColumnCommentRow>(
-      getPostgresColumnCommentsQuery(this.quotedSchemas)
+      getPostgresColumnCommentsQuery(this.quotedSchemas),
     );
   }
 
   override async enums(): Promise<EnumRow[]> {
     return await this.execute<EnumRow>(
-      getPostgresEnumsQuery(this.quotedSchemas)
+      getPostgresEnumsQuery(this.quotedSchemas),
     );
   }
 }
@@ -590,7 +590,7 @@ class MySQLClient extends BaseClient {
 
   override async execute<T = Record<string, unknown>>(
     query: string,
-    args?: unknown[]
+    args?: unknown[],
   ): Promise<T[]> {
     // @ts-ignore Connection does have a query method
     const [results, _fields] = await (await this.conn).query(query, args);
@@ -603,19 +603,19 @@ class MySQLClient extends BaseClient {
 
   override async constraints(): Promise<ConstraintRow[]> {
     return await this.execute<ConstraintRow>(
-      getMySQLConstraintsQuery(this.quotedSchemas)
+      getMySQLConstraintsQuery(this.quotedSchemas),
     );
   }
 
   override async tableComments(): Promise<TableCommentRow[]> {
     return await this.execute<TableCommentRow>(
-      getMySQLTableCommentsQuery(this.quotedSchemas)
+      getMySQLTableCommentsQuery(this.quotedSchemas),
     );
   }
 
   override async columnComments(): Promise<ColumnCommentRow[]> {
     return await this.execute<ColumnCommentRow>(
-      getMySQLColumnCommentsQuery(this.quotedSchemas)
+      getMySQLColumnCommentsQuery(this.quotedSchemas),
     );
   }
 
@@ -644,7 +644,7 @@ class LibSQLClient extends BaseClient {
 
   override async execute<T = Record<string, unknown>>(
     query: string,
-    args?: unknown[]
+    args?: unknown[],
   ): Promise<T[]> {
     const result = await this.conn.execute(query, args as libsql.InArgs);
     return result.rows as T[];
@@ -811,7 +811,7 @@ async function getDbSchema(client: BaseClient): Promise<DBSchema> {
   for (const cc of columnCommentRows) {
     columnCommentMap.set(
       `${cc.table_schema}.${cc.table_name}.${cc.name}`,
-      cc.comment
+      cc.comment,
     );
   }
 
@@ -825,7 +825,7 @@ async function getDbSchema(client: BaseClient): Promise<DBSchema> {
     if (!table) continue; // should not happen but just in case
 
     const comment = columnCommentMap.get(
-      `${c.table_schema}.${c.table_name}.${c.name}`
+      `${c.table_schema}.${c.table_name}.${c.name}`,
     );
 
     table.columns.push({
@@ -895,7 +895,7 @@ async function getDbSchema(client: BaseClient): Promise<DBSchema> {
       constraintColumn.type === "FOREIGN KEY"
     ) {
       constraint.referenced_table.columns.push(
-        constraintColumn.referenced_column_name
+        constraintColumn.referenced_column_name,
       );
     }
   }
@@ -919,7 +919,7 @@ async function getDbSchema(client: BaseClient): Promise<DBSchema> {
 export async function getDbSchemaImplementation(
   input: z.infer<typeof GetDbSchemaInputSchema>,
   config: SQLToolConfig,
-  _context: RequestContext
+  _context: RequestContext,
 ): Promise<z.infer<typeof GetDbSchemaOutputSchema>> {
   const client = createDBClient(config);
 
@@ -945,7 +945,7 @@ export const ExecuteSqlOutputSchema = z.array(z.record(z.string(), z.any()));
 export async function executeSqlImplementation(
   input: z.infer<typeof ExecuteSqlInputSchema>,
   config: SQLToolConfig,
-  _context: RequestContext
+  _context: RequestContext,
 ): Promise<z.infer<typeof ExecuteSqlOutputSchema>> {
   const client = createDBClient(config);
 
@@ -967,25 +967,25 @@ const BulkInsertInputSchema = z.object({
   table: z
     .string()
     .describe(
-      "The table to insert into. It will be created if it does not exist. Use the 'temp_' prefix if the table should be deleted later."
+      "The table to insert into. It will be created if it does not exist. Use the 'temp_' prefix if the table should be deleted later.",
     ),
   columns: z
     .array(z.string())
     .optional()
     .describe(
-      "Subset of columns to read from the CSV file. If not provided, all columns are used."
+      "Subset of columns to read from the CSV file. If not provided, all columns are used.",
     ),
   types: z
     .array(z.string())
     .optional()
     .describe(
-      "Types of columns, when the table has to be created. If not provided, TEXT is used for all columns."
+      "Types of columns, when the table has to be created. If not provided, TEXT is used for all columns.",
     ),
   renames: z
     .array(z.object({ from: z.string(), to: z.string() }))
     .optional()
     .describe(
-      "Renames columns using a mapper. Columns not in the mapper are left as-is."
+      "Renames columns using a mapper. Columns not in the mapper are left as-is.",
     ),
   file_uri: z.string().describe("The URI of the CSV file to insert."),
 });
@@ -999,7 +999,7 @@ export async function bulkInsertImplementation(
   input: z.infer<typeof BulkInsertInputSchema>,
   config: SQLToolConfig,
   context: RequestContext,
-  supabaseClient: SupabaseClient
+  supabaseClient: SupabaseClient,
 ): Promise<z.infer<typeof BulkInsertOutputSchema>> {
   const client = createDBClient(config);
 
@@ -1034,7 +1034,7 @@ export async function bulkInsertImplementation(
 
   if (input.types && input.types.length !== source.length) {
     throw new Error(
-      `Number of types in 'types' must match the number of columns in 'columns' or the number of columns in the CSV file`
+      `Number of types in 'types' must match the number of columns in 'columns' or the number of columns in the CSV file`,
     );
   }
 
@@ -1043,7 +1043,7 @@ export async function bulkInsertImplementation(
   for (const col of input.renames?.map((r) => r.from) || []) {
     if (!csvColumns.includes(col)) {
       throw new Error(
-        `From column ${col} declared in 'renames' not found in CSV`
+        `From column ${col} declared in 'renames' not found in CSV`,
       );
     }
   }
@@ -1070,7 +1070,7 @@ export async function bulkInsertImplementation(
       ${target
         .map(
           (col, i) =>
-            `${client.quoteIdentifier(col)} ${input.types?.[i] || "TEXT"}`
+            `${client.quoteIdentifier(col)} ${input.types?.[i] || "TEXT"}`,
         )
         .join(",\n      ")}
     );
@@ -1108,18 +1108,12 @@ import { stringify } from "jsr:@std/csv/stringify";
 
 const SelectAsCsvInputSchema = z.object({
   query: z.string().describe("The SQL query to execute."),
-  file_name: z.string().describe("The filename to use for the CSV file."),
+  file_name: z.string().describe("The file name to use for the CSV file."),
 });
 
 const SelectAsCsvOutputSchema = z.object({
-  file: z
-    .object({
-      uri: z.string(),
-      mime_type: z.string(),
-      name: z.string(),
-      size: z.number(),
-    })
-    .nullable(),
+  file_uri: z.string().nullable(),
+  columns: z.array(z.string()),
   rows_selected: z.number(),
 });
 
@@ -1127,7 +1121,7 @@ export async function selectAsCsvImplementation(
   input: z.infer<typeof SelectAsCsvInputSchema>,
   config: SQLToolConfig,
   context: RequestContext,
-  supabaseClient: SupabaseClient
+  supabaseClient: SupabaseClient,
 ): Promise<z.infer<typeof SelectAsCsvOutputSchema>> {
   const client = createDBClient(config);
 
@@ -1136,7 +1130,8 @@ export async function selectAsCsvImplementation(
 
     if (!result.length) {
       return {
-        file: null,
+        file_uri: null,
+        columns: [],
         rows_selected: 0,
       };
     }
@@ -1145,19 +1140,16 @@ export async function selectAsCsvImplementation(
 
     const text = stringify(result, { columns });
 
-    const file = new File([text], input.file_name, { type: "text/csv" });
+    const file = new Blob([text], { type: "text/csv" });
 
     return {
-      file: {
-        uri: await uploadToStorage(
-          supabaseClient,
-          context.organization.id,
-          file
-        ),
-        size: file.size,
-        mime_type: "text/csv",
-        name: input.file_name,
-      },
+      file_uri: await uploadToStorage(
+        supabaseClient,
+        context.organization.id,
+        file,
+        input.file_name,
+      ),
+      columns,
       rows_selected: result.length,
     };
   } finally {

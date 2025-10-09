@@ -27,8 +27,13 @@ import { HTTPTools } from "./http.ts";
 import { SQLTools } from "./sql.ts";
 import { CalculatorTool } from "./calculator.ts";
 import { TransferToHumanAgentTool } from "./handoff.ts";
+import { AttachFileTool } from "./attachment.ts";
 
-const FunctionTools = [CalculatorTool, TransferToHumanAgentTool];
+const FunctionTools = [
+  CalculatorTool,
+  TransferToHumanAgentTool,
+  AttachFileTool,
+];
 const CustomTools: any[] = [];
 
 export const Toolbox = {

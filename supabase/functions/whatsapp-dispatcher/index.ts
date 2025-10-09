@@ -17,23 +17,33 @@ const DEFAULT_ACCESS_TOKEN =
 /** Uploads media to WA servers
  *
  * Allowed MIME types:
+ *
+ * Audio: up to 16 MB
  * - audio/aac
  * - audio/mp4
  * - audio/mpeg
  * - audio/amr
  * - audio/ogg
  * - audio/opus
+ *
+ * Documents: up to 100 MB
  * - application/vnd.ms-powerpoint
  * - application/msword
  * - application/vnd.openxmlformats-officedocument.wordprocessingml.document
  * - application/vnd.openxmlformats-officedocument.presentationml.presentation
  * - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
  * - application/pdf
- * - text/plain
  * - application/vnd.ms-excel
+ * - text/plain
+ *
+ * Images: up to 5 MB
  * - image/jpeg
  * - image/png
+ *
+ * Sticker: animated 500 KB / static 100 KB
  * - image/webp
+ *
+ * Video: up to 16 MB
  * - video/mp4
  * - video/3gpp
  *
@@ -370,18 +380,17 @@ async function outgoingMessage(
       break;
     case "document":
       message.document = {
-        ...(outMessage.content && { caption: outMessage.content }),
-        ...(outMessage.media?.url
-          ? { link: outMessage.media.url }
-          : { id: uploadedMediaID }),
+        caption: outMessage.content || undefined,
+        link: outMessage.media?.url,
+        id: uploadedMediaID,
+        filename: outMessage.media?.filename,
       };
       break;
     case "image":
       message.image = {
-        ...(outMessage.content && { caption: outMessage.content }),
-        ...(outMessage.media?.url
-          ? { link: outMessage.media.url }
-          : { id: uploadedMediaID }),
+        caption: outMessage.content || undefined,
+        link: outMessage.media?.url,
+        id: uploadedMediaID,
       };
       break;
     case "sticker":
@@ -389,10 +398,9 @@ async function outgoingMessage(
       break;
     case "video":
       message.video = {
-        ...(outMessage.content && { caption: outMessage.content }),
-        ...(outMessage.media?.url
-          ? { link: outMessage.media.url }
-          : { id: uploadedMediaID }),
+        caption: outMessage.content || undefined,
+        link: outMessage.media?.url,
+        id: uploadedMediaID,
       };
       break;
     default:

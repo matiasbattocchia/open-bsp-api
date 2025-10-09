@@ -50,16 +50,24 @@ function verifyToken(request: Request): Response {
   });
 }
 
-async function downloadMediaItem(
-  organization_id: string,
-  media_id: string,
-  access_token: string,
-  messageRecord: MessageInsert,
-  client: SupabaseClient
-): Promise<MessageInsert> {
+async function downloadMediaItem({
+  organization_id,
+  media_id,
+  access_token,
+  messageRecord,
+  client,
+  filename,
+}: {
+  organization_id: string;
+  media_id: string;
+  access_token: string;
+  messageRecord: MessageInsert;
+  client: SupabaseClient;
+  filename?: string;
+}): Promise<MessageInsert> {
   if (!(messageRecord.message as BaseMessage).media) {
     throw new Error(
-      `Message with id ${messageRecord.id} is missing the media property.`
+      `Message with id ${messageRecord.id} is missing the media property.`,
     );
   }
 
@@ -67,9 +75,8 @@ async function downloadMediaItem(
   const response = await fetch(
     `https://graph.facebook.com/${API_VERSION}/${media_id}`,
     {
-      method: "GET",
       headers: { Authorization: `Bearer ${access_token}` },
-    }
+    },
   );
 
   if (!response.ok) {
@@ -90,7 +97,7 @@ async function downloadMediaItem(
   const file = await fetchMedia(mediaMetadata.url, access_token);
 
   // Store the file
-  const uri = await uploadToStorage(client, organization_id, file);
+  const uri = await uploadToStorage(client, organization_id, file, filename);
 
   (messageRecord.message as BaseMessage).media!.id = uri; // Overwrite WA media id with the internal uri
   (messageRecord.message as BaseMessage).media!.file_size =
@@ -106,7 +113,7 @@ async function downloadMediaItem(
  */
 async function downloadMedia(
   mediaMessages: MessageInsert[],
-  client: SupabaseClient
+  client: SupabaseClient,
 ): Promise<MessageInsert[]> {
   if (!mediaMessages.length) return [];
 
@@ -126,23 +133,24 @@ async function downloadMedia(
   });
 
   const number_ids_to_org_ids: Map<string, string> = new Map(
-    addresses.map((a) => [a.address, a.organization_id])
+    addresses.map((a) => [a.address, a.organization_id]),
   );
 
   const number_ids_to_access_tokens: Map<string, string> = new Map(
-    addresses.map((a) => [a.address, a.access_token])
+    addresses.map((a) => [a.address, a.access_token]),
   );
 
   return Promise.all(
     mediaMessages.map((m) =>
-      downloadMediaItem(
-        number_ids_to_org_ids.get(m.organization_address)!,
-        (m.message as BaseMessage).media!.id,
-        number_ids_to_access_tokens.get(m.organization_address)!,
-        m,
-        client
-      )
-    )
+      downloadMediaItem({
+        organization_id: number_ids_to_org_ids.get(m.organization_address)!,
+        media_id: (m.message as BaseMessage).media!.id,
+        access_token: number_ids_to_access_tokens.get(m.organization_address)!,
+        messageRecord: m,
+        client,
+        filename: (m.message as BaseMessage).media!.filename,
+      }),
+    ),
   );
 }
 
@@ -216,7 +224,7 @@ async function processMessage(request: Request): Promise<Response> {
                 if (error) {
                   log.error(
                     `Could not update contact with old whatsapp id ${old_wa_id} during contact number update`,
-                    error
+                    error,
                   );
                   continue;
                 }
@@ -229,7 +237,7 @@ async function processMessage(request: Request): Promise<Response> {
                 for (const error of message.errors) {
                   log.warn(
                     `Incoming message error from contact address ${contact_address} to organization address ${organization_address}`,
-                    error.message
+                    error.message,
                   );
                 }
               }
@@ -383,7 +391,7 @@ async function processMessage(request: Request): Promise<Response> {
         for (const error of value.errors) {
           log.warn(
             `WhatsApp error for organization address (phone number id) ${organization_address}`,
-            error.message
+            error.message,
           );
         }
       }
@@ -478,7 +486,7 @@ async function processMessage(request: Request): Promise<Response> {
         for (const status of value.statuses as WebhookStatus[]) {
           const outStatus: OutgoingStatus = {
             [status.status]: new Date(
-              parseInt(status.timestamp) * 1000
+              parseInt(status.timestamp) * 1000,
             ).toISOString(),
           };
 
@@ -488,7 +496,7 @@ async function processMessage(request: Request): Promise<Response> {
             for (const error of status.errors) {
               log.error(
                 `WhatsApp status error for outgoing message id ${status.id}`,
-                error.message
+                error.message,
               );
             }
           }
@@ -498,7 +506,7 @@ async function processMessage(request: Request): Promise<Response> {
               id: status.conversation.id,
               type: status.conversation.origin.type,
               expiration_timestamp: new Date(
-                parseInt(status.conversation.expiration_timestamp) * 1000
+                parseInt(status.conversation.expiration_timestamp) * 1000,
               ).toISOString(),
             };
           }
@@ -525,7 +533,7 @@ async function processMessage(request: Request): Promise<Response> {
   // This is a kind of a shortcut. Instead of creating contacts separately, the contact name is included
   // in the conversation. The same stored procedure that creates the conversation also creates the contact.
   conversations.forEach(
-    (conv) => (conv.name = contacts.get(conv.contact_address!))
+    (conv) => (conv.name = contacts.get(conv.contact_address!)),
   );
 
   const { error: conversationsError } = await client
@@ -569,7 +577,7 @@ async function validateWebhookSignature(request: Request): Promise<boolean> {
 
   if (ids.length !== secrets.length) {
     log.warn(
-      "META_APP_ID and META_APP_SECRET environment variables must have the same number of elements, separated by '|'"
+      "META_APP_ID and META_APP_SECRET environment variables must have the same number of elements, separated by '|'",
     );
     return false;
   }
@@ -588,7 +596,7 @@ async function validateWebhookSignature(request: Request): Promise<boolean> {
 
     if (idIndex === -1) {
       log.warn(
-        `Could not find app_id '${appId}' in META_APP_ID environment variable`
+        `Could not find app_id '${appId}' in META_APP_ID environment variable`,
       );
       return false;
     }
@@ -618,7 +626,7 @@ async function validateWebhookSignature(request: Request): Promise<boolean> {
       key,
       { name: "HMAC", hash: "SHA-256" },
       false,
-      ["sign"]
+      ["sign"],
     );
 
     const signature = await crypto.subtle.sign("HMAC", cryptoKey, data);
@@ -639,7 +647,7 @@ async function validateWebhookSignature(request: Request): Promise<boolean> {
   } catch (error) {
     log.error(
       "Error validating webhook signature",
-      error instanceof Error ? error.message : String(error)
+      error instanceof Error ? error.message : String(error),
     );
     return false;
   }

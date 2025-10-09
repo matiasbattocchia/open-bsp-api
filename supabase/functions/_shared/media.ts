@@ -25,7 +25,8 @@ export function base64ToBlob(base64: string, mime_type?: string) {
 export async function uploadToStorage(
   client: SupabaseClient,
   organization_id: string,
-  file: Blob
+  file: Blob,
+  name?: string,
 ) {
   // Use a hash of the file contents as the file id to help with deduplication
   const buffer = await file.arrayBuffer();
@@ -36,7 +37,7 @@ export async function uploadToStorage(
 
   const { error } = await client.storage.from("media").upload(key, file, {
     upsert: true,
-    //metadata: {}
+    metadata: { name },
   });
 
   if (error) {
@@ -72,4 +73,27 @@ export async function createSignedUrl(client: SupabaseClient, uri: string) {
   }
 
   return data.signedUrl;
+}
+
+export async function getFileMetadata(client: SupabaseClient, uri: string) {
+  const key = uri.replace(BASE_URI + "/", "");
+
+  const { data, error } = await client
+    .schema("storage")
+    .from("objects")
+    .select("name, metadata, user_metadata")
+    .eq("name", key)
+    .eq("bucket_id", "media")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return {
+    mime_type: data.metadata.mimetype as string,
+    uri,
+    name: data.user_metadata?.name as string | undefined,
+    size: data.metadata.size as number,
+  };
 }

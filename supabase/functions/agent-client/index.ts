@@ -4,6 +4,7 @@ import { corsHeaders } from "../_shared/cors.ts";
 import {
   type AgentRow,
   createClient,
+  DataPart,
   type LocalMCPToolConfig,
   type MessageInsert,
   type MessageRow,
@@ -22,6 +23,8 @@ import Ajv2020 from "ajv";
 import type { Json } from "../_shared/db_types.ts";
 import type { AgentRowWithExtra, ResponseContext } from "./protocols/base.ts";
 import { TransferToHumanAgentTool } from "./tools/handoff.ts";
+import { AttachFileTool } from "./tools/attachment.ts";
+import { getFileMetadata } from "../_shared/media.ts";
 
 export type AgentTool = {
   provider: "local";
@@ -677,6 +680,29 @@ Deno.serve(async (req) => {
                 shouldContinue = false;
               }
 
+              // Special case: attach_file tool
+              if (toolInfo.name === AttachFileTool.name && result.file_uri) {
+                const fileMetadata = await getFileMetadata(
+                  client,
+                  result.file_uri,
+                );
+
+                const mimePrefix = fileMetadata.mime_type.split("/")[0];
+
+                const kind = (
+                  ["audio", "image", "video"].includes(mimePrefix)
+                    ? mimePrefix
+                    : "document"
+                ) as "audio" | "image" | "video" | "document";
+
+                parts.push({
+                  type: "file",
+                  kind,
+                  file: fileMetadata,
+                  //text: result.caption,
+                });
+              }
+
               break;
             }
             case "mcp": {
@@ -699,38 +725,35 @@ Deno.serve(async (req) => {
                 client,
               );
 
-              parts = [
-                {
-                  tool: {
-                    ...toolInfo,
-                    event: "result" as const,
-                  },
-                  type: "data",
-                  kind: "data",
-                  data: result,
+              const part: DataPart & ToolInfo = {
+                tool: {
+                  ...toolInfo,
+                  event: "result" as const,
                 },
-              ];
+                type: "data",
+                kind: "data",
+                data: result,
+              };
 
-              if (result.file) {
-                parts.push({
-                  tool: {
-                    ...toolInfo,
-                    event: "result" as const,
+              parts = [part];
+
+              if (result.file_uri) {
+                part.artifacts = [
+                  {
+                    type: "file",
+                    kind: "document",
+                    file: await getFileMetadata(client, result.file_uri),
                   },
-                  type: "file",
-                  kind: "document",
-                  file: result.file,
-                });
+                ];
               }
 
               break;
             }
           }
         } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : "Unknown error";
+          const errorMessage = (error as Error).message || String(error);
 
-          log.warn("Tool error", { tool: toolInfo, error: errorMessage });
+          log.warn("Tool error", { tool: toolInfo, error });
 
           parts = [
             {
