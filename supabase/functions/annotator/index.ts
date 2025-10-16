@@ -94,8 +94,7 @@ Deno.serve(async (req) => {
   const { data: conv, error: convError } = await client
     .from("conversations")
     .select(`*, organizations (*)`)
-    .eq("organization_address", incoming.organization_address)
-    .eq("contact_address", incoming.contact_address)
+    .eq("id", incoming.conversation_id)
     .single();
 
   if (convError) {

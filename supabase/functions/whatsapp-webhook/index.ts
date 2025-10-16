@@ -215,6 +215,7 @@ async function processMessage(request: Request): Promise<Response> {
                 const old_wa_id = message.system!.customer;
                 const new_wa_id = message.system!.wa_id;
 
+                // TODO: outdated
                 const { error } = await client
                   .from("contacts")
                   .update({ extra: { whatsapp_id: new_wa_id } })

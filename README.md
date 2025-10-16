@@ -227,6 +227,24 @@ Requires Node 🐢 and Docker 🐋.
 npx supabase start
 ```
 
+After editing the schema files, generate a migration
+
+```
+npx supabase db diff -f <migration_name>
+```
+
+Apply the migration to the local database
+
+```
+npx supabase migration up
+```
+
+Finally, update the types
+
+```
+npx supabase gen types typescript --local > supabase/functions/_shared/db_types.ts
+```
+
 ### Edge Functions
 
 ```
