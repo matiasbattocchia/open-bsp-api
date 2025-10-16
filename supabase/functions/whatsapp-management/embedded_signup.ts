@@ -7,8 +7,8 @@ const API_VERSION = "v23.0";
 const APP_ID = Deno.env.get("META_APP_ID");
 const APP_SECRET = Deno.env.get("META_APP_SECRET");
 
-const DEFAULT_ACCESS_TOKEN = Deno.env.get("META_SYSTEM_USER_ACCESS_TOKEN") ||
-  "";
+const DEFAULT_ACCESS_TOKEN =
+  Deno.env.get("META_SYSTEM_USER_ACCESS_TOKEN") || "";
 const system_user_id = Deno.env.get("META_SYSTEM_USER_ID");
 const access_token = Deno.env.get("META_SYSTEM_USER_ACCESS_TOKEN");
 
@@ -24,8 +24,8 @@ export async function getBusinessAccessToken(
 
   if (!response.ok) {
     throw new HTTPException(response.status as ContentfulStatusCode, {
-      message: response.headers.get("www-authenticate") ||
-        await response.text(),
+      message:
+        response.headers.get("www-authenticate") || (await response.text()),
     });
   }
 
@@ -65,7 +65,7 @@ export async function getBusinessAccessToken(
     "user_id" : "10222270944537964"
   }
 }
- */
+
 export async function getWabaId(
   business_access_token: string,
 ): Promise<string> {
@@ -87,6 +87,7 @@ export async function getWabaId(
       scope.scope === "whatsapp_business_management",
   ).target_ids[0];
 }
+*/
 
 /** Sample response
 {
@@ -106,7 +107,7 @@ export async function getWabaId(
     }
   ]
 }
- */
+
 export async function getPhoneNumberId(
   business_access_token: string,
   waba_id: string,
@@ -130,6 +131,32 @@ export async function getPhoneNumberId(
   }
 
   return (await response.json()).data[0];
+}
+*/
+
+// Step 2
+export async function postSubscribeToWebhooks(
+  business_access_token: string,
+  waba_id: string,
+): Promise<boolean> {
+  const response = await fetch(
+    `https://graph.facebook.com/${API_VERSION}/${waba_id}/subscribed_apps`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${business_access_token}`,
+      },
+    },
+  );
+
+  if (!response.ok) {
+    throw new HTTPException(response.status as ContentfulStatusCode, {
+      message:
+        response.headers.get("www-authenticate") || (await response.text()),
+    });
+  }
+
+  return (await response.json()).success;
 }
 
 // Step 3
@@ -155,39 +182,15 @@ export async function postRegisterPhoneNumber(
 
   if (!response.ok) {
     throw new HTTPException(response.status as ContentfulStatusCode, {
-      message: response.headers.get("www-authenticate") ||
-        await response.text(),
+      message:
+        response.headers.get("www-authenticate") || (await response.text()),
     });
   }
 
   return (await response.json()).success;
 }
 
-// Step 2
-export async function postSubscribeToWebhooks(
-  business_access_token: string,
-  waba_id: string,
-): Promise<boolean> {
-  const response = await fetch(
-    `https://graph.facebook.com/${API_VERSION}/${waba_id}/subscribed_apps`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${business_access_token}`,
-      },
-    },
-  );
-
-  if (!response.ok) {
-    throw new HTTPException(response.status as ContentfulStatusCode, {
-      message: response.headers.get("www-authenticate") ||
-        await response.text(),
-    });
-  }
-
-  return (await response.json()).success;
-}
-
+/*
 export async function postAddSystemUserToWaba(waba_id: string) {
   const response = await fetch(
     `https://graph.facebook.com/${API_VERSION}/${waba_id}/assigned_users?user=${system_user_id}&tasks=['MANAGE']&access_token=${access_token}`,
@@ -203,6 +206,7 @@ export async function postAddSystemUserToWaba(waba_id: string) {
 
   return (await response.json()).success;
 }
+*/
 
 export async function getPhoneNumber(
   business_access_token: string,
@@ -223,8 +227,8 @@ export async function getPhoneNumber(
 
   if (!response.ok) {
     throw new HTTPException(response.status as ContentfulStatusCode, {
-      message: response.headers.get("www-authenticate") ||
-        await response.text(),
+      message:
+        response.headers.get("www-authenticate") || (await response.text()),
     });
   }
 
@@ -278,8 +282,7 @@ export async function performEmbeddedSignup(
 
     if (idIndex === -1) {
       throw new HTTPException(500, {
-        message:
-          `Could not find application id '${payload.application_id}' in META_APP_ID environment variable`,
+        message: `Could not find application id '${payload.application_id}' in META_APP_ID environment variable`,
       });
     }
   }
@@ -287,9 +290,7 @@ export async function performEmbeddedSignup(
   const app_id = ids[idIndex];
   const app_secret = secrets[idIndex];
 
-  log.info(
-    "Step 1: Exchange the token code for a business token",
-  );
+  log.info("Step 1: Exchange the token code for a business token");
   const business_access_token = await getBusinessAccessToken(
     app_id,
     app_secret,
@@ -326,17 +327,21 @@ export async function performEmbeddedSignup(
   );
 
   log.info("Persisting phone number data");
-  const { data, error } = await client.from("organizations_addresses").insert({
-    service: "whatsapp",
-    address: payload.phone_number_id,
-    organization_id: payload.organization_id,
-    extra: {
-      waba_id: payload.waba_id,
-      access_token: business_access_token,
-      phone_number: phone_number.display_phone_number,
-      verified_name: phone_number.verified_name,
-    },
-  }).select().single();
+  const { data, error } = await client
+    .from("organizations_addresses")
+    .insert({
+      service: "whatsapp",
+      address: payload.phone_number_id,
+      organization_id: payload.organization_id,
+      extra: {
+        waba_id: payload.waba_id,
+        access_token: business_access_token,
+        phone_number: phone_number.display_phone_number,
+        verified_name: phone_number.verified_name,
+      },
+    })
+    .select()
+    .single();
 
   if (error) {
     throw new HTTPException(500, { message: error.message });

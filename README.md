@@ -17,6 +17,7 @@ Optionally, the platform can include the `agent-client` module, which allows you
 - HTTP client
 - Calculator
 - Transfer to human agent
+- Attach file
 
 Additionally, `annotator` module that can interpret and extract information from media and document files, including:
 
@@ -98,10 +99,10 @@ to not to get lost in the platform.
 
 - **Business profile** - This is the top-level entity, represents a business. Has users and assets.
 - **User** - Real or system users. System users can have access tokens. Users belong to a business portfolio and can have assigned assets.
-- **Asset**. WhatsApp accounts, Instagram accounts, Meta apps, among others. Assets belong to a business portfolio and are assigned to users.
-- **App**. An asset that integrates Meta products such as the WhatsApp Cloud API.
-- **WhatsApp Business Account (WABA)**. A WhatsApp account asset, can have many phone numbers.
-- **Phone number**. A registered phone number within the WhatsApp Cloud API. Belongs to a WABA.
+- **Asset** - WhatsApp accounts, Instagram accounts, Meta apps, among others. Assets belong to a business portfolio and are assigned to users.
+- **App** - An asset that integrates Meta products such as the WhatsApp Cloud API.
+- **WhatsApp Business Account (WABA)** - A WhatsApp account asset, can have many phone numbers.
+- **Phone number** - A registered phone number within the WhatsApp Cloud API. Belongs to a WABA.
 
 > **Note**: For more details, refer to [Cloud API overview](https://developers.facebook.com/docs/whatsapp/cloud-api/overview).
 
@@ -113,10 +114,12 @@ to not to get lost in the platform.
    - **Use case**: Other
    - **App type**: Business
 4. Add the **WhatsApp** product to your app
+5. Click **Add API**
+6. Disregard the screen that appears next and proceed to the next step
 
 ### Step 2: Create a system user
 
-1. Get into the [Meta Business Suite](https://business.facebook.com)
+1. Get into the [Meta Business Suite](https://business.facebook.com). If you have multiple portfolios, select the one associated with your app
 2. Go to Settings > Users > System users (`https://business.facebook.com/latest/settings/system_users`)
 3. Add an **admin system user**
 4. Copy the **ID** → `META_SYSTEM_USER_ID`
@@ -141,23 +144,37 @@ to not to get lost in the platform.
 
 ### Step 4: Configure the `WhatsApp Business Account` webhook
 
+#### Part A
+
 1. Within the App Dashboard
 2. Go to WhatsApp > Configuration (`https://developers.facebook.com/apps/{app_id}/whatsapp-business/wa-settings`)
-3. Set the **Callback URL** to: `https://{SUPABASE_PROJECT_ID}.supabase.co/functions/v1/whatsapp-webhook`.
-4. Create and note your `WHATSAPP_VERIFY_TOKEN` → Set **Verify token**.
-5. Subscribe to the following **Webhook fields**:
+3. Set the **Callback URL** to: `https://{SUPABASE_PROJECT_ID}.supabase.co/functions/v1/whatsapp-webhook`
+4. Choose a secure token for `WHATSAPP_VERIFY_TOKEN` → Set it as the **Verify token**, but do not **Verify and save** yet!
+5. Ensure your Edge Functions environment variables are up-to-date
+   - If you configured secrets directly in your Supabase dashboard, no further action is needed at this point
+   - If you set secrets via GitHub Actions, re-run the _Release_ action now to deploy them to your Edge Functions
+6. Click **Verify and save**
+7. Disregard the screen that appears next and proceed to the next step
+
+> **Note**: Multiple Meta apps are supported by appending the query param `?app_id={META_APP_ID}` to the callback URL. For example: `https://{SUPABASE_PROJECT_ID}.supabase.co/functions/v1/whatsapp-webhook?app_id=app_id_2`.
+
+#### Part B
+
+1. Within the App Dashboard
+2. Go to WhatsApp > Configuration (`https://developers.facebook.com/apps/{app_id}/whatsapp-business/wa-settings`)
+3. Subscribe to the following **Webhook fields**:
    - `messages`
    - `history`
    - `smb_app_state_sync`
    - `smb_message_echoes`
 
-> **Note**: Multiple Meta apps are supported by appending the query param `?app_id={META_APP_ID}` to the callback URL. For example: `https://{SUPABASE_PROJECT_ID}.supabase.co/functions/v1/whatsapp-webhook?app_id=app_id_2`.
-
 Optionally, test the configuration so far. In the `messages` subscription section, click **Test**. You should see the request in Supabase > Project > Edge Functions > Functions > whatsapp-webhook > Logs (`https://supabase.com/dashboard/project/{project_id}/functions/whatsapp-webhook/logs`).
+
+You might observe an error in the logs. This is an expected outcome at this stage; the simple fact that a log entry appears confirms that the webhook is successfully receiving events.
 
 ### Step 5: Add a phone number
 
-If you decide to add the test number,
+If you decide to add the **test number**,
 
 1. Within the App Dashboard
 2. Go to WhatsApp > API Setup (`https://developers.facebook.com/apps/{app_id}/whatsapp-business/wa-dev-console`)
@@ -170,11 +187,15 @@ If you decide to add the test number,
 
 > **Note**: the test number doesn't seem to fully activate to receive messages unless you send a test message at least once.
 
-In order to add a production phone number,
+In order to add a **production number**,
 
 1. Click **Add phone number**
-2. Follow the flow.
+2. Follow the flow
 3. Navigate to [WhatsApp Manager](https://business.facebook.com/latest/whatsapp_manager/overview)
+4. Go to Account tools > Phone numbers (`https://business.facebook.com/latest/whatsapp_manager/phone_numbers`)
+5. Copy these values:
+   - **Phone number ID**
+   - **WhatsApp Business Account ID**
 
 #### For any number you add
 
@@ -186,11 +207,13 @@ insert into public.organizations (name, extra) values
 ;
 ```
 
+Note the **organization ID**.
+
 Register the phone number with your organization in the system.
 
 ```sql
 insert into public.organizations_addresses (address, organization_id, service, extra) values
-  ('<Phone number ID>', '<ORG_ID>', 'whatsapp', '{ "waba_id": "<WhatsApp Business Account ID>", "phone_number": "<Phone number>" }')
+  ('<Phone number ID>', '<Organization ID>', 'whatsapp', '{ "waba_id": "<WhatsApp Business Account ID>", "phone_number": "<Phone number>" }')
 ;
 ```
 
@@ -202,6 +225,24 @@ Requires Node 🐢 and Docker 🐋.
 
 ```
 npx supabase start
+```
+
+After editing the schema files, generate a migration
+
+```
+npx supabase db diff -f <migration_name>
+```
+
+Apply the migration to the local database
+
+```
+npx supabase migration up
+```
+
+Finally, update the types
+
+```
+npx supabase gen types typescript --local > supabase/functions/_shared/db_types.ts
 ```
 
 ### Edge Functions

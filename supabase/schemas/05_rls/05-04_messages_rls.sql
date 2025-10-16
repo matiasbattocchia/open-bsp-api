@@ -5,12 +5,8 @@ on public.messages
 for select
 to authenticated
 using (
-  organization_address in (
-    select organizations_addresses.address
-    from public.organizations_addresses
-    where organizations_addresses.organization_id in (
-      select public.get_authorized_orgs()
-    )
+  organization_id in (
+    select public.get_authorized_orgs()
   )
 );
 
@@ -19,12 +15,8 @@ on public.messages
 for insert
 to authenticated
 with check (
-  organization_address in (
-    select organizations_addresses.address
-    from public.organizations_addresses
-    where organizations_addresses.organization_id in (
-      select public.get_authorized_orgs()
-    )
+  organization_id in (
+    select public.get_authorized_orgs()
   )
 );
 
@@ -33,12 +25,8 @@ on public.messages
 for select
 to anon
 using (
-  organization_address in (
-    select organizations_addresses.address
-    from public.organizations_addresses
-    where organizations_addresses.organization_id = (
-      select public.get_authorized_org_by_api_key()
-    )
+  organization_id in (
+    select public.get_authorized_org_by_api_key()
   )
 );
 
@@ -47,11 +35,7 @@ on public.messages
 for insert
 to anon
 with check (
-  organization_address in (
-    select organizations_addresses.address
-    from public.organizations_addresses
-    where organizations_addresses.organization_id = (
-      select public.get_authorized_org_by_api_key()
-    )
+  organization_id in (
+    select public.get_authorized_org_by_api_key()
   )
 );

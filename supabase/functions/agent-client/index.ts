@@ -108,8 +108,7 @@ Deno.serve(async (req) => {
   const { data: conv, error: convError } = await client
     .from("conversations")
     .select(`*, organizations (*, agents (*)), contacts (*)`)
-    .eq("organization_address", incoming.organization_address)
-    .eq("contact_address", incoming.contact_address)
+    .eq("id", incoming.conversation_id)
     .single();
 
   if (convError) {
@@ -177,10 +176,9 @@ Deno.serve(async (req) => {
   const { data: messages_v0, error: messagesError } = await client
     .from("messages")
     .select()
-    .eq("organization_address", conv.organization_address)
+    .eq("conversation_id", incoming.conversation_id)
     .gt("timestamp", new Date(+new Date() - MESSAGES_TIME_LIMIT).toISOString()) // Time constraint for the conversation.
     .lte("timestamp", new Date().toISOString()) // Scheduled messages have a future timestamp.
-    .eq("contact_address", conv.contact_address)
     .order("timestamp", { ascending: false })
     .limit(MESSAGES_QUANTITY_LIMIT); // Size constraint for the conversation.
 
@@ -228,8 +226,7 @@ Deno.serve(async (req) => {
       const { error } = await client
         .from("conversations")
         .update({ extra: conv.extra })
-        .eq("organization_address", conv.organization_address)
-        .eq("contact_address", conv.contact_address);
+        .eq("id", incoming.conversation_id);
 
       if (error) {
         throw error;
@@ -248,6 +245,8 @@ Deno.serve(async (req) => {
     messages.every((m) => m.direction !== "outgoing")
   ) {
     const outgoing: MessageInsert = {
+      organization_id: conv.organization_id,
+      conversation_id: conv.id,
       service: conv.service,
       organization_address: conv.organization_address,
       contact_address: conv.contact_address,
@@ -449,9 +448,8 @@ Deno.serve(async (req) => {
       const { data: new_messages_v0, error: newMessagesError } = await client
         .from("messages")
         .select()
-        .eq("organization_address", conv.organization_address)
+        .eq("conversation_id", incoming.conversation_id)
         .gt("created_at", incoming.created_at) // Time constraint for the conversation.
-        .eq("contact_address", conv.contact_address)
         .lte("timestamp", new Date().toISOString()) // Scheduled messages have a future timestamp.
         .neq("agent_id", agent.id) // Messages from the same agent are not considered.
         .limit(1);
@@ -826,6 +824,8 @@ Deno.serve(async (req) => {
       const output_messages = response.messages.map((message, index) => ({
         ...message,
         // Make sure the messages have the correct organization_address and contact_address
+        organization_id: conv.organization_id,
+        conversation_id: conv.id,
         organization_address: conv.organization_address,
         contact_address: conv.contact_address,
         // Disambiguate by milliseconds to ensure the insertion order.
@@ -866,8 +866,7 @@ Deno.serve(async (req) => {
       .update({
         extra: response.conversation.extra,
       })
-      .eq("organization_address", conv.organization_address)
-      .eq("contact_address", conv.contact_address);
+      .eq("id", incoming.conversation_id)
 
     if (error) {
       log.error("Failed to update conversation extra field.", error);

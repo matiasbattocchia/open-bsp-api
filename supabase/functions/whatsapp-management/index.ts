@@ -12,7 +12,8 @@ import {
   fetchTemplates,
   getBusinessCredentials,
 } from "./templates.ts";
-import { performEmbeddedSignup } from "./embedded_signup.ts";
+import { performEmbeddedSignup, SignupPayload } from "./embedded_signup.ts";
+import { decodeBase64Url } from "jsr:@std/encoding/base64url";
 
 const app = new Hono<{ Variables: { supabase: SupabaseClient } }>();
 
@@ -104,14 +105,49 @@ app.delete("/whatsapp-management/templates", async (c) => {
 app.post("/whatsapp-management/signup", async (c) => {
   const client = c.get("supabase");
 
-  const { data } = await client.auth.getUser();
+  const payload = await c.req.json<SignupPayload>();
+  log.info("Embedded signup payload", payload);
 
-  if (!data.user) {
-    throw new HTTPException(401, { message: "Unauthorized" });
+  const authHeader = c.req.header("Authorization");
+
+  if (!authHeader?.startsWith("Bearer ")) {
+    throw new HTTPException(401, {
+      message: "Missing or invalid Authorization header",
+    });
   }
 
-  const payload = await c.req.json();
-  log.info("Embedded signup payload", payload);
+  const jwt = authHeader.replace("Bearer ", "");
+  const parts = jwt.split(".");
+
+  if (parts.length !== 3) {
+    throw new HTTPException(401, { message: "Invalid JWT format" });
+  }
+
+  let claims: { sub?: string };
+
+  try {
+    const decodedPayload = new TextDecoder().decode(decodeBase64Url(parts[1]));
+    claims = JSON.parse(decodedPayload);
+  } catch {
+    throw new HTTPException(401, { message: "Invalid JWT" });
+  }
+
+  if (!claims?.sub) {
+    throw new HTTPException(401, { message: "Missing sub claim" });
+  }
+
+  const { error: agentError } = await client
+    .from("agents")
+    .select()
+    .eq("organization_id", payload.organization_id)
+    .eq("user_id", claims.sub)
+    .single();
+
+  if (agentError) {
+    throw new HTTPException(403, {
+      message: "User not authorized for this organization",
+    });
+  }
 
   const address = await performEmbeddedSignup(client, payload);
 
