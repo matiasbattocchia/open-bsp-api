@@ -99,10 +99,10 @@ to not to get lost in the platform.
 
 - **Business profile** - This is the top-level entity, represents a business. Has users and assets.
 - **User** - Real or system users. System users can have access tokens. Users belong to a business portfolio and can have assigned assets.
-- **Asset**. WhatsApp accounts, Instagram accounts, Meta apps, among others. Assets belong to a business portfolio and are assigned to users.
-- **App**. An asset that integrates Meta products such as the WhatsApp Cloud API.
-- **WhatsApp Business Account (WABA)**. A WhatsApp account asset, can have many phone numbers.
-- **Phone number**. A registered phone number within the WhatsApp Cloud API. Belongs to a WABA.
+- **Asset** - WhatsApp accounts, Instagram accounts, Meta apps, among others. Assets belong to a business portfolio and are assigned to users.
+- **App** - An asset that integrates Meta products such as the WhatsApp Cloud API.
+- **WhatsApp Business Account (WABA)** - A WhatsApp account asset, can have many phone numbers.
+- **Phone number** - A registered phone number within the WhatsApp Cloud API. Belongs to a WABA.
 
 > **Note**: For more details, refer to [Cloud API overview](https://developers.facebook.com/docs/whatsapp/cloud-api/overview).
 

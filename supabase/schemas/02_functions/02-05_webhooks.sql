@@ -9,10 +9,9 @@ begin
   for webhook_record in
     select w.url, w.token
     from public.webhooks w
-    join public.organizations_addresses oa on oa.organization_id = w.organization_id
-    where oa.address = new.organization_address
-    and w.table_name = tg_table_name::public.webhook_table
-    and lower(tg_op)::public.webhook_operation = any(w.operations)
+    where new.organization_id = w.organization_id
+      and w.table_name = tg_table_name::public.webhook_table
+      and lower(tg_op)::public.webhook_operation = any(w.operations)
     limit 3
   loop
     -- prepare headers
@@ -42,4 +41,4 @@ begin
 
   return new;
 end;
-$$; 
+$$;

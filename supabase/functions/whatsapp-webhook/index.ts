@@ -530,17 +530,14 @@ async function processMessage(request: Request): Promise<Response> {
     records: statuses,
   });
 
-  // This is a kind of a shortcut. Instead of creating contacts separately, the contact name is included
-  // in the conversation. The same stored procedure that creates the conversation also creates the contact.
   conversations.forEach(
     (conv) => (conv.name = contacts.get(conv.contact_address!)),
   );
 
   const { error: conversationsError } = await client
     .from("conversations")
-    .upsert(Array.from(conversations) as ConversationInsert[], {
-      ignoreDuplicates: true,
-    });
+    .insert(Array.from(conversations) as ConversationInsert[]);
+
   if (conversationsError) throw conversationsError;
 
   // Download media before upserting incoming messages
@@ -553,9 +550,11 @@ async function processMessage(request: Request): Promise<Response> {
       ignoreDuplicates: true,
       onConflict: "external_id",
     });
+
   if (incomingError) throw incomingError;
 
   const { error: statusesError } = await statusesPromise;
+
   if (statusesError) throw statusesError;
 
   return new Response();
