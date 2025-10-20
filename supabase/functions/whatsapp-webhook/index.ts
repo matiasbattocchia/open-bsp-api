@@ -181,7 +181,7 @@ async function processMessage(request: Request): Promise<Response> {
   const messages: MessageInsert[] = [];
   const mediaMessages: MessageInsert[] = [];
   const contacts: Map<string, string> = new Map(); // key: WA ID, value: name
-  const conversations: Set<Partial<ConversationInsert>> = new Set();
+  const conversations: Set<ConversationInsert> = new Set();
   const statuses: MessageUpdate[] = [];
 
   for (const entry of payload.entry) {
