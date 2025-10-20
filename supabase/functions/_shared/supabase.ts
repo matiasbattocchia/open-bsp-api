@@ -1008,6 +1008,9 @@ export type Database = MergeDeep<
           Row: {
             extra: ConversationExtra | null;
           };
+          Insert: {
+            organization_id?: string;
+          };
         };
         messages: {
           Row:
@@ -1037,21 +1040,29 @@ export type Database = MergeDeep<
               };
           Insert:
             | {
+                organization_id?: string;
+                conversation_id?: string;
                 type: "incoming" | "internal";
                 message: IncomingMessage;
                 status?: IncomingStatus;
               }
             | {
+                organization_id?: string;
+                conversation_id?: string;
                 type: "outgoing" | "draft";
                 message: OutgoingMessage | IncomingMessage;
                 status?: OutgoingStatus;
               }
             | {
+                organization_id?: string;
+                conversation_id?: string;
                 type: "function_call"; // TODO: deprecate
                 message: FunctionCallMessage;
                 status?: IncomingStatus;
               }
             | {
+                organization_id?: string;
+                conversation_id?: string;
                 type: "function_response"; // TODO: deprecate
                 message: FunctionResponseMessage;
                 status?: IncomingStatus;

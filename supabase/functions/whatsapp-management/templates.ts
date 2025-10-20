@@ -4,7 +4,7 @@ import * as log from "../_shared/logger.ts";
 import { HTTPException } from "jsr:@hono/hono/http-exception";
 import { ContentfulStatusCode } from "@hono/hono/utils/http-status";
 
-const API_VERSION = "v23.0";
+const API_VERSION = "v24.0";
 
 export async function getBusinessCredentials(
   client: SupabaseClient,
@@ -18,7 +18,10 @@ export async function getBusinessCredentials(
     .single();
 
   if (error) {
-    throw new HTTPException(500, { message: error.message });
+    throw new HTTPException(403, {
+      message: "Could not fetch business access token",
+      cause: error,
+    });
   }
 
   return data;
@@ -38,8 +41,11 @@ export async function fetchTemplates(
 
   if (!response.ok) {
     throw new HTTPException(response.status as ContentfulStatusCode, {
-      message: response.headers.get("www-authenticate") ||
-        await response.text(),
+      message: "Could not fetch templates",
+      cause: {
+        header: response.headers.get("www-authenticate"),
+        body: await response.json(),
+      },
     });
   }
 
@@ -80,8 +86,11 @@ export async function createTemplate(
 
   if (!response.ok) {
     throw new HTTPException(response.status as ContentfulStatusCode, {
-      message: response.headers.get("www-authenticate") ||
-        await response.text(),
+      message: "Could not create template",
+      cause: {
+        header: response.headers.get("www-authenticate"),
+        body: await response.json(),
+      },
     });
   }
 
@@ -111,8 +120,11 @@ export async function editTemplate(
 
   if (!response.ok) {
     throw new HTTPException(response.status as ContentfulStatusCode, {
-      message: response.headers.get("www-authenticate") ||
-        await response.text(),
+      message: "Could not update template",
+      cause: {
+        header: response.headers.get("www-authenticate"),
+        body: await response.json(),
+      },
     });
   }
 
@@ -138,8 +150,11 @@ export async function deleteTemplate(
 
   if (!response.ok) {
     throw new HTTPException(response.status as ContentfulStatusCode, {
-      message: response.headers.get("www-authenticate") ||
-        await response.text(),
+      message: "Could not delete template",
+      cause: {
+        header: response.headers.get("www-authenticate"),
+        body: await response.json(),
+      },
     });
   }
 

@@ -3,14 +3,9 @@ import { HTTPException } from "jsr:@hono/hono/http-exception";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ContentfulStatusCode } from "@hono/hono/utils/http-status";
 
-const API_VERSION = "v23.0";
+const API_VERSION = "v24.0";
 const APP_ID = Deno.env.get("META_APP_ID");
 const APP_SECRET = Deno.env.get("META_APP_SECRET");
-
-const DEFAULT_ACCESS_TOKEN =
-  Deno.env.get("META_SYSTEM_USER_ACCESS_TOKEN") || "";
-const system_user_id = Deno.env.get("META_SYSTEM_USER_ID");
-const access_token = Deno.env.get("META_SYSTEM_USER_ACCESS_TOKEN");
 
 // Step 1
 export async function getBusinessAccessToken(
@@ -24,8 +19,11 @@ export async function getBusinessAccessToken(
 
   if (!response.ok) {
     throw new HTTPException(response.status as ContentfulStatusCode, {
-      message:
-        response.headers.get("www-authenticate") || (await response.text()),
+      message: "Could not get business access token",
+      cause: {
+        header: response.headers.get("www-authenticate"),
+        body: await response.json(),
+      },
     });
   }
 
@@ -151,8 +149,11 @@ export async function postSubscribeToWebhooks(
 
   if (!response.ok) {
     throw new HTTPException(response.status as ContentfulStatusCode, {
-      message:
-        response.headers.get("www-authenticate") || (await response.text()),
+      message: "Could not subscribe to webhooks",
+      cause: {
+        header: response.headers.get("www-authenticate"),
+        body: await response.json(),
+      },
     });
   }
 
@@ -182,8 +183,11 @@ export async function postRegisterPhoneNumber(
 
   if (!response.ok) {
     throw new HTTPException(response.status as ContentfulStatusCode, {
-      message:
-        response.headers.get("www-authenticate") || (await response.text()),
+      message: "Could not register phone number",
+      cause: {
+        header: response.headers.get("www-authenticate"),
+        body: await response.json(),
+      },
     });
   }
 
@@ -227,8 +231,11 @@ export async function getPhoneNumber(
 
   if (!response.ok) {
     throw new HTTPException(response.status as ContentfulStatusCode, {
-      message:
-        response.headers.get("www-authenticate") || (await response.text()),
+      message: "Could not get phone number data",
+      cause: {
+        header: response.headers.get("www-authenticate"),
+        body: await response.json(),
+      },
     });
   }
 
@@ -256,6 +263,18 @@ export async function performEmbeddedSignup(
   if (!payload.organization_id) {
     throw new HTTPException(400, {
       message: "Missing 'organization_id' body param!",
+    });
+  }
+
+  if (!payload.waba_id) {
+    throw new HTTPException(400, {
+      message: "Missing 'waba_id' body param!",
+    });
+  }
+
+  if (!payload.phone_number_id) {
+    throw new HTTPException(400, {
+      message: "Missing 'phone_number_id' body param!",
     });
   }
 
@@ -297,20 +316,8 @@ export async function performEmbeddedSignup(
     payload.code,
   );
 
-  if (!payload.waba_id) {
-    throw new HTTPException(400, {
-      message: "Missing 'waba_id' body param!",
-    });
-  }
-
   log.info("Step 2: Subscribe to webhooks on the customer's WABA");
   await postSubscribeToWebhooks(business_access_token, payload.waba_id);
-
-  if (!payload.phone_number_id) {
-    throw new HTTPException(400, {
-      message: "Missing 'phone_number_id' body param!",
-    });
-  }
 
   log.info("Step 3: Register the customer's phone number");
   const pin = "123456";
@@ -344,7 +351,10 @@ export async function performEmbeddedSignup(
     .single();
 
   if (error) {
-    throw new HTTPException(500, { message: error.message });
+    throw new HTTPException(500, {
+      message: "Could not persist phone number data",
+      cause: error,
+    });
   }
 
   return data;

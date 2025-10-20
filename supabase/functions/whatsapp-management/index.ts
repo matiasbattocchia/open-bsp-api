@@ -3,7 +3,11 @@ import { Hono } from "@hono/hono";
 import { cors } from "@hono/hono/cors";
 import { HTTPException } from "jsr:@hono/hono/http-exception";
 import * as log from "../_shared/logger.ts";
-import { createClient, type TemplateData } from "../_shared/supabase.ts";
+import {
+  createClient,
+  createUnsecureClient,
+  type TemplateData,
+} from "../_shared/supabase.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   createTemplate,
@@ -146,10 +150,15 @@ app.post("/whatsapp-management/signup", async (c) => {
   if (agentError) {
     throw new HTTPException(403, {
       message: "User not authorized for this organization",
+      cause: agentError,
     });
   }
 
-  const address = await performEmbeddedSignup(client, payload);
+  // Once the user has been authorized, use the unsecure client to
+  // avoid row-level security
+  const unsecureClient = createUnsecureClient();
+
+  const address = await performEmbeddedSignup(unsecureClient, payload);
 
   return c.json(address);
 });
