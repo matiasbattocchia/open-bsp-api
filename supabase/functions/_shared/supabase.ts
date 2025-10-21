@@ -19,6 +19,150 @@ export type WebhookPayload<Record> = {
 };
 
 //===================================
+// Meta Webhook Payload Types
+//===================================
+
+/**
+ * Errors
+ *
+ * Errors in messages webhooks can be surfaced in four places:
+ *
+ * - System-, app-, and account-level errors appear as a value object property (entry.changes.value.errors). See the errors reference.
+ * - Incoming message errors appear in the messages array (entry.changes.value.messages[].errors). These webhooks have type set to unsupported. See the unsupported reference.
+ * - Outgoing message errors appear in the statuses array (entry.changes.value.statuses[].errors). See the status reference.
+ * - History error, when history is declined (entry.changes.value.history[].errors).
+ *
+ */
+
+// Base metadata that appears in all webhook values
+export type WebhookMetadata = {
+  display_phone_number: string;
+  phone_number_id: string;
+};
+
+// Contact profile information
+export type WebhookContact = {
+  profile: {
+    name: string;
+  };
+  wa_id: string;
+  identity_key_hash?: string; // only included if identity change check enabled
+};
+
+export type WebhookIncomingMessage = WebhookMessageBase & IncomingContextInfo;
+
+export type WebhookValueMessages = {
+  messaging_product: "whatsapp";
+  metadata: WebhookMetadata;
+  contacts: WebhookContact[];
+  messages: WebhookIncomingMessage[];
+};
+
+// System/app/account-level, statuses and history error structure
+export type WebhookError = {
+  code: number;
+  title: string;
+  message: string;
+  error_data: {
+    details: string;
+  };
+  href: string;
+};
+
+export type WebhookValueMessagesError = {
+  messaging_product: "whatsapp";
+  metadata: WebhookMetadata;
+  errors: WebhookError[]; // System/app/account-level errors
+};
+
+// Value type for message statuses (sent/delivered/read/failed)
+export type WebhookValueStatuses = {
+  messaging_product: "whatsapp";
+  metadata: WebhookMetadata;
+  statuses: WebhookStatus[];
+};
+
+export type WebhookEchoMessage = WebhookMessageBase & {
+  to: string;
+};
+
+// Value type for SMB message echoes
+export type WebhookValueMessageEchoes = {
+  messaging_product: "whatsapp";
+  metadata: WebhookMetadata;
+  message_echoes: WebhookEchoMessage[];
+};
+
+// History metadata
+export type WebhookHistoryMetadata = {
+  phase: 0 | 1 | 2;
+  chunk_order: number;
+  progress: number;
+};
+
+export type WebhookHistoryMessage = WebhookMessageBase & {
+  to?: string; // only included if SMB message echo,
+  history_context: {
+    status: "DELIVERED" | "ERROR" | "PENDING" | "PLAYED" | "READ" | "SENT";
+  };
+};
+
+// History thread containing messages
+export type WebhookHistoryThread = {
+  id: string; // WhatsApp user phone number
+  messages: WebhookHistoryMessage[];
+};
+
+// Value type for history webhooks
+export type WebhookValueHistory = {
+  messaging_product: "whatsapp";
+  metadata: WebhookMetadata;
+  history: Array<{
+    metadata: WebhookHistoryMetadata;
+    threads: WebhookHistoryThread[];
+  }>;
+};
+
+export type WebhookValueHistoryError = {
+  messaging_product: "whatsapp";
+  metadata: WebhookMetadata;
+  history: Array<{
+    errors: Omit<WebhookError, "href">[];
+  }>;
+};
+
+// Change object that discriminates based on field value
+export type WebhookChange =
+  | {
+      field: "messages";
+      value:
+        | WebhookValueMessages // incoming
+        | WebhookValueStatuses // outgoing
+        | WebhookValueMessagesError; // error
+    }
+  | {
+      field: "smb_message_echoes";
+      value: WebhookValueMessageEchoes; // outgoing messages from connected devices
+    }
+  | {
+      field: "history";
+      value: WebhookValueHistory | WebhookValueHistoryError; // when history is declined
+    };
+
+// Entry object that contains one or more changes
+export type WebhookEntry = {
+  id: string; // WhatsApp Business Account ID
+  time: number; // Unix timestamp
+  changes: WebhookChange[];
+};
+
+// Complete Meta Webhook Payload
+export type MetaWebhookPayload = {
+  object: "whatsapp_business_account";
+  entry: WebhookEntry[];
+};
+
+//===================================
 // Webhook Message, as received from WhatsApp
 //===================================
 
@@ -39,13 +183,8 @@ export type SystemMessage = {
 };
 
 export type UnsupportedMessage = {
-  type: "unsupported" | "unknown";
-  errors: {
-    code: number;
-    error_data: { details: string };
-    message: string;
-    title: string;
-  }[];
+  type: "unsupported";
+  errors: Omit<WebhookError, "href">[];
 };
 
 // Shared types
@@ -178,6 +317,8 @@ export type StickerMessage = {
   };
 } & ReferralInfo;
 
+export type MediaPlaceholder = { type: "media_placeholder" };
+
 // Data based
 
 // This message type is produced when the user interacts with a template message button.
@@ -262,29 +403,28 @@ export type HistoryContext = {
   status: WebhookStatus["status"];
 };
 
-export type WebhookMessage = {
+export type WebhookMessageBase = {
   from: string;
-  to: string;
+  group_id?: string;
   id: string;
   timestamp: number;
-  history_context?: HistoryContext;
-} & IncomingContextInfo &
-  (
-    | AudioMessage
-    | ButtonMessage
-    | ContactsMessage
-    | DocumentMessage
-    | ImageMessage
-    | InteractiveMessage
-    | LocationMessage
-    | OrderMessage
-    | ReactionMessage
-    | StickerMessage
-    | SystemMessage
-    | TextMessage
-    | UnsupportedMessage
-    | VideoMessage
-  );
+} & (
+  | AudioMessage
+  | ButtonMessage
+  | ContactsMessage
+  | DocumentMessage
+  | ImageMessage
+  | InteractiveMessage
+  | LocationMessage
+  | OrderMessage
+  | ReactionMessage
+  | StickerMessage
+  | SystemMessage
+  | TextMessage
+  | UnsupportedMessage
+  | VideoMessage
+  | MediaPlaceholder
+);
 
 //===================================
 // Incoming Message v0, as stored in the database
@@ -325,6 +465,7 @@ export type IncomingMessage = { version?: "0" } & BaseMessage &
     | Omit<StickerMessage, "sticker">
     | Omit<TextMessage, "text">
     | Omit<VideoMessage, "video">
+    | MediaPlaceholder
   );
 
 //===================================
@@ -631,16 +772,21 @@ export type DataPart<Kind = "data", T = Json> = {
 };
 
 type ContactsPart = DataPart<"contacts", Contact[]>;
+
 type LocationPart = DataPart<"location", Location>;
 
 type OrderPart = DataPart<"order", Order>;
+
 type InteractivePart = DataPart<
   "interactive",
   InteractiveMessage["interactive"]
 >;
+
 type ButtonPart = DataPart<"button", ButtonMessage["button"]>;
 
 type TemplatePart = DataPart<"template", Template>;
+
+type MediaPlaceholderPart = DataPart<"media_placeholder", null>;
 
 // Multi-part messages
 
@@ -665,7 +811,7 @@ export type Parts = {
  * Excepting Reaction, Contacts and Location, all other types differ depending on the direction (incoming or outgoing)
  */
 
-type IncomingMessageV1 = {
+export type IncomingMessageV1 = {
   version: "1";
   re_message_id?: string; // replied, reacted or forwarded message id
   forwarded?: boolean;
@@ -678,6 +824,7 @@ type IncomingMessageV1 = {
     | OrderPart
     | InteractivePart
     | ButtonPart
+    | MediaPlaceholderPart
   );
 
 export type InternalMessageV1 = {
@@ -688,7 +835,7 @@ export type InternalMessageV1 = {
   ToolInfo &
   Part;
 
-type OutgoingMessageV1 = {
+export type OutgoingMessageV1 = {
   version: "1";
   re_message_id?: string; // replied, reacted or forwarded message id
   forwarded?: boolean;
@@ -772,12 +919,16 @@ export type EndpointMessage = {
 // Statuses
 //===================================
 
-type ConversationType =
+type PricingCategory =
   | "authentication"
+  | "authentication-international"
   | "marketing"
-  | "utility"
+  | "marketing_lite"
+  | "referral_conversion"
   | "service"
-  | "referral_conversion";
+  | "utility";
+
+type PricingType = "regular" | "free_customer_service" | "free_entry_point";
 
 /** STATUS
  *
@@ -789,53 +940,22 @@ type ConversationType =
  */
 
 export type WebhookStatus = {
-  biz_opaque_callback_data?: string;
-  id: string;
-  recipient_id: string;
+  id: string; // WhatsApp message ID
+  status: "sent" | "delivered" | "read" | "failed";
   timestamp: string;
-} & (
-  | {
-      status: "sent";
-      conversation: {
-        id: string;
-        origin: {
-          type: ConversationType;
-        };
-        expiration_timestamp: string;
-      };
-      pricing: {
-        billable: boolean;
-        category: ConversationType;
-        pricing_model: "CBP";
-      };
-    }
-  | {
-      status: "delivered";
-      conversation: {
-        id: string;
-        origin: {
-          type: ConversationType;
-        };
-      };
-      pricing: {
-        billable: boolean;
-        category: ConversationType;
-        pricing_model: "CBP";
-      };
-    }
-  | {
-      status: "read";
-    }
-  | {
-      status: "failed";
-      errors: {
-        code: number;
-        error_data: { details: string };
-        message: string;
-        title: string;
-      }[];
-    }
-);
+  recipient_id: string; // User phone number or group ID
+  recipient_type?: "group"; // Only included if message sent to a group
+  recipient_participant_id?: string; // Only included if message sent to a group
+  recipient_identity_key_hash?: string; // Only included if identity change check enabled
+  biz_opaque_callback_data?: string; // Only included if message sent with biz_opaque_callback_data
+  pricing?: {
+    // Only included with sent status, and one of either delivered or read status
+    pricing_model: "PMP";
+    category: PricingCategory;
+    type: PricingType;
+  };
+  errors?: WebhookError[]; // Only included if failure to send or deliver message
+};
 
 export type IncomingStatus = {
   pending?: string; // new Date().toISOString()
@@ -855,12 +975,7 @@ export type OutgoingStatus = {
   failed?: string;
   annotating?: string;
   annotated?: string;
-  conversation?: {
-    id: string;
-    type: ConversationType;
-    expiration_timestamp: string;
-  };
-  errors?: string[];
+  errors?: WebhookError[];
 };
 
 export type EndpointStatus = {
@@ -1140,12 +1255,16 @@ export type DatabaseV1 = MergeDeep<
               };
           Insert:
             | {
+                organization_id?: string;
+                conversation_id?: string;
                 direction: "incoming";
                 type: "incoming";
                 message: IncomingMessageV1;
                 status?: IncomingStatus;
               }
             | {
+                organization_id?: string;
+                conversation_id?: string;
                 direction: "internal";
                 type:
                   | "internal"
@@ -1156,6 +1275,8 @@ export type DatabaseV1 = MergeDeep<
                 status?: IncomingStatus;
               }
             | {
+                organization_id?: string;
+                conversation_id?: string;
                 direction: "outgoing";
                 type: "outgoing";
                 message: OutgoingMessageV1;
