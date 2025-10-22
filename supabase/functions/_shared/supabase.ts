@@ -131,6 +131,28 @@ export type WebhookValueHistoryError = {
   }>;
 };
 
+// State sync types (contact sync)
+export type WebhookStateSyncContact = {
+  full_name: string; // not included when removed
+  first_name: string; // not included when removed
+  phone_number: string;
+};
+
+export type WebhookStateSyncItem = {
+  type: "contact";
+  contact: WebhookStateSyncContact;
+  action: "add" | "remove";
+  metadata: {
+    timestamp: string;
+  };
+};
+
+export type WebhookValueStateSync = {
+  messaging_product: "whatsapp";
+  metadata: WebhookMetadata;
+  state_sync: WebhookStateSyncItem[];
+};
+
 // Change object that discriminates based on field value
 export type WebhookChange =
   | {
@@ -147,6 +169,10 @@ export type WebhookChange =
   | {
       field: "history";
       value: WebhookValueHistory | WebhookValueHistoryError; // when history is declined
+    }
+  | {
+      field: "smb_app_state_sync";
+      value: WebhookValueStateSync; // contact sync events
     };
 
 // Entry object that contains one or more changes

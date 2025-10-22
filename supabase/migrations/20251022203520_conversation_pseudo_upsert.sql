@@ -1,20 +1,11 @@
-create function public.create_organization() returns trigger
-language plpgsql
-as $$
-declare
-  org_id uuid := new.id;
-  org_address text := org_id::text;
-begin
-  insert into public.organizations_addresses (organization_id, service, address)
-    values (org_id, 'local', org_address);
+drop function if exists "public"."bulk_update_messages_status"(records jsonb);
 
-  return new;
-end;
-$$;
+set check_function_bodies = off;
 
-create function public.create_conversation() returns trigger
-language plpgsql
-as $$
+CREATE OR REPLACE FUNCTION public.create_conversation()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
 declare
   recent_conv record;
 begin
@@ -66,32 +57,5 @@ begin
 
   return new;
 end;
-$$;
-
-create function public.create_message() returns trigger
-language plpgsql
-as $$
-begin
-  -- If both organization_id and conversation_id already provided, proceed as is
-  if new.organization_id is not null and new.conversation_id is not null then
-    return new;
-  end if;
-
-  -- Look up both organization_id and conversation_id from conversation table
-  select organization_id, id into new.organization_id, new.conversation_id
-  from public.conversations
-  where organization_address = new.organization_address
-    and contact_address = new.contact_address
-    and status = 'active'
-  order by created_at desc
-  limit 1;
-
-  -- Raise error if conversation does not exist
-  if new.conversation_id is null then
-    raise exception 'Active conversation not found for organization_address % and contact_address %',
-      new.organization_address, new.contact_address;
-  end if;
-
-  return new;
-end;
-$$;
+$function$
+;

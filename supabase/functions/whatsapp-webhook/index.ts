@@ -5,7 +5,8 @@ import {
   type OutgoingMessageV1,
   type MessageInsertV1,
   type ConversationInsert,
-  type MessageUpdate,
+  type MessageInsert,
+  type OutgoingMessage,
   type MetaWebhookPayload,
   type WebhookIncomingMessage,
   type WebhookEchoMessage,
@@ -51,6 +52,98 @@ function verifyToken(request: Request): Response {
   return new Response("Verification failed, tokens do not match", {
     status: 403,
   });
+}
+
+/**
+ * Validates the WhatsApp webhook signature to ensure the request comes from Meta
+ * @param request The incoming request
+ * @returns Promise<boolean> true if signature is valid, false otherwise
+ */
+async function validateWebhookSignature(request: Request): Promise<boolean> {
+  if (!APP_ID || !APP_SECRET) {
+    log.warn("META_APP_ID or META_APP_SECRET environment variable not set");
+    return false;
+  }
+
+  const ids = APP_ID.split("|");
+  const secrets = APP_SECRET.split("|");
+
+  if (ids.length !== secrets.length) {
+    log.warn(
+      "META_APP_ID and META_APP_SECRET environment variables must have the same number of elements, separated by '|'",
+    );
+    return false;
+  }
+
+  let idIndex = 0;
+
+  const url = new URL(request.url);
+  const appId = url.searchParams.get("app_id");
+
+  if (appId === "no-verify") {
+    return true;
+  }
+
+  if (appId) {
+    idIndex = ids.indexOf(appId);
+
+    if (idIndex === -1) {
+      log.warn(
+        `Could not find app_id '${appId}' in META_APP_ID environment variable`,
+      );
+      return false;
+    }
+  }
+
+  const signature = request.headers.get("X-Hub-Signature-256");
+
+  if (!signature) {
+    log.warn("Missing X-Hub-Signature-256 header");
+    return false;
+  }
+
+  const signatureValue = signature.replace("sha256=", "");
+
+  try {
+    // Clone the request to read the body without consuming it
+    const clonedRequest = request.clone();
+    const body = await clonedRequest.text();
+
+    // Create HMAC-SHA256 signature
+    const encoder = new TextEncoder();
+    const key = encoder.encode(secrets[idIndex]);
+    const data = encoder.encode(body);
+
+    const cryptoKey = await crypto.subtle.importKey(
+      "raw",
+      key,
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"],
+    );
+
+    const signature = await crypto.subtle.sign("HMAC", cryptoKey, data);
+    const expectedSignature = Array.from(new Uint8Array(signature))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+
+    const isValid = signatureValue === expectedSignature;
+
+    if (!isValid) {
+      log.warn("Invalid webhook signature", {
+        expected: expectedSignature,
+        received: signatureValue,
+      });
+    }
+
+    return isValid;
+  } catch (error) {
+    log.error(
+      "Error validating webhook signature",
+      error instanceof Error ? error.message : String(error),
+    );
+    return false;
+  }
 }
 
 async function downloadMediaItem({
@@ -384,9 +477,8 @@ async function processMessage(request: Request): Promise<Response> {
   }
 
   const messages: MessageInsertV1[] = [];
-  const contacts: Map<string, string> = new Map(); // key: WA ID, value: name
   const conversations: Set<ConversationInsert> = new Set();
-  const statuses: MessageUpdate[] = [];
+  const statuses: MessageInsert[] = [];
 
   for (const entry of payload.entry) {
     const _waba_id = entry.id; // WhatsApp business account ID (WABA ID)
@@ -397,7 +489,12 @@ async function processMessage(request: Request): Promise<Response> {
 
       if (field === "messages" && "contacts" in value) {
         for (const contact of value.contacts) {
-          contacts.set(contact.wa_id, contact.profile.name);
+          conversations.add({
+            service: "whatsapp",
+            organization_address,
+            contact_address: contact.wa_id,
+            name: contact.profile.name,
+          });
         }
       }
 
@@ -424,12 +521,6 @@ async function processMessage(request: Request): Promise<Response> {
           };
 
           messages.push(message);
-
-          conversations.add({
-            service: "whatsapp",
-            organization_address,
-            contact_address,
-          });
         }
       }
 
@@ -437,6 +528,12 @@ async function processMessage(request: Request): Promise<Response> {
         for (const status of value.statuses) {
           statuses.push({
             external_id: status.id,
+            service: "whatsapp",
+            organization_address,
+            contact_address: status.recipient_id,
+            type: "outgoing",
+            direction: "outgoing",
+            message: {} as OutgoingMessage, // this will get merged (it won't overwrite)
             status: {
               [status.status]: new Date(
                 parseInt(status.timestamp) * 1000,
@@ -453,12 +550,35 @@ async function processMessage(request: Request): Promise<Response> {
             `WhatsApp error for organization address (phone number id) ${organization_address}`,
             error,
           );
+
+          client
+            .from("organizations_addresses")
+            .update({
+              extra: {
+                logs: [
+                  {
+                    webhook: "messages",
+                    timestamp: new Date().toISOString(),
+                    level: "error",
+                    message: error,
+                  },
+                ],
+              },
+            })
+            .eq("address", organization_address);
         }
       }
 
       if (field === "smb_message_echoes") {
         for (const webhookMessage of value.message_echoes) {
           const contact_address = webhookMessage.to;
+
+          conversations.add({
+            service: "whatsapp",
+            organization_address,
+            contact_address,
+          });
+
           const content = webhookMessageToIncomingMessageV1(webhookMessage);
 
           if (!content) {
@@ -488,74 +608,136 @@ async function processMessage(request: Request): Promise<Response> {
       if (field === "history") {
         for (const history of value.history) {
           if ("threads" in history) {
-            for (const webhookMessage of history.threads
-              .map((t) => t.messages)
-              .flat()) {
-              const isEcho = "to" in webhookMessage;
+            // fire and forget
+            client
+              .from("organizations_addresses")
+              .update({
+                extra: {
+                  logs: [
+                    {
+                      webhook: "history",
+                      timestamp: new Date().toISOString(),
+                      level: "info",
+                      message: history.metadata,
+                    },
+                  ],
+                },
+              })
+              .eq("address", organization_address);
 
-              const contact_address = isEcho
-                ? webhookMessage.to!
-                : webhookMessage.from;
+            for (const thread of history.threads) {
+              conversations.add({
+                service: "whatsapp",
+                organization_address,
+                contact_address: thread.id,
+              });
 
-              const content = webhookMessageToIncomingMessageV1(webhookMessage);
+              for (const webhookMessage of thread.messages) {
+                const isEcho = "to" in webhookMessage;
 
-              if (!content) {
-                continue;
+                const contact_address = isEcho
+                  ? webhookMessage.to!
+                  : webhookMessage.from;
+
+                const content =
+                  webhookMessageToIncomingMessageV1(webhookMessage);
+
+                if (!content) {
+                  continue;
+                }
+
+                const historyStatusMap = {
+                  READ: "read",
+                  DELIVERED: "delivered",
+                  SENT: "sent",
+                  ERROR: "failed",
+                  PLAYED: "read",
+                  PENDING: "pending",
+                };
+
+                const message = isEcho
+                  ? {
+                      // id is the internal (aka surrogate) identifier given by the DB, while
+                      // external_id is the one given by the service, such as the WhatsApp message id (WAMID)
+                      external_id: webhookMessage.id,
+                      service: "whatsapp" as const,
+                      organization_address,
+                      contact_address,
+                      type: "outgoing" as const, // TODO: deprecate with v0
+                      direction: "outgoing" as const,
+                      message: content as OutgoingMessageV1, // Incoming are a superset of outgoing, except for templates
+                      status: {
+                        [historyStatusMap[
+                          webhookMessage.history_context.status
+                        ]]: new Date(
+                          webhookMessage.timestamp * 1000,
+                        ).toISOString(),
+                      },
+                      timestamp: new Date(
+                        webhookMessage.timestamp * 1000,
+                      ).toISOString(),
+                    }
+                  : {
+                      // id is the internal (aka surrogate) identifier given by the DB, while
+                      // external_id is the one given by the service, such as the WhatsApp message id (WAMID)
+                      external_id: webhookMessage.id,
+                      service: "whatsapp" as const,
+                      organization_address,
+                      contact_address,
+                      type: "incoming" as const, // TODO: deprecate with v0
+                      direction: "incoming" as const,
+                      message: content, // Incoming are a superset of outgoing, except for templates
+                      status: {
+                        [historyStatusMap[
+                          webhookMessage.history_context.status
+                        ]]: new Date(
+                          webhookMessage.timestamp * 1000,
+                        ).toISOString(),
+                      },
+                      timestamp: new Date(
+                        webhookMessage.timestamp * 1000,
+                      ).toISOString(),
+                    };
+
+                messages.push(message);
               }
-
-              const historyStatusMap = {
-                READ: "read",
-                DELIVERED: "delivered",
-                SENT: "sent",
-                ERROR: "failed",
-                PLAYED: "read",
-                PENDING: "pending",
-              };
-
-              const message = isEcho
-                ? {
-                    // id is the internal (aka surrogate) identifier given by the DB, while
-                    // external_id is the one given by the service, such as the WhatsApp message id (WAMID)
-                    external_id: webhookMessage.id,
-                    service: "whatsapp" as const,
-                    organization_address,
-                    contact_address,
-                    type: "outgoing" as const, // TODO: deprecate with v0
-                    direction: "outgoing" as const,
-                    message: content as OutgoingMessageV1, // Incoming are a superset of outgoing, except for templates
-                    status: {
-                      [historyStatusMap[webhookMessage.history_context.status]]:
-                        new Date(webhookMessage.timestamp * 1000).toISOString(),
-                    },
-                    timestamp: new Date(
-                      webhookMessage.timestamp * 1000,
-                    ).toISOString(),
-                  }
-                : {
-                    // id is the internal (aka surrogate) identifier given by the DB, while
-                    // external_id is the one given by the service, such as the WhatsApp message id (WAMID)
-                    external_id: webhookMessage.id,
-                    service: "whatsapp" as const,
-                    organization_address,
-                    contact_address,
-                    type: "incoming" as const, // TODO: deprecate with v0
-                    direction: "incoming" as const,
-                    message: content, // Incoming are a superset of outgoing, except for templates
-                    status: {
-                      [historyStatusMap[webhookMessage.history_context.status]]:
-                        new Date(webhookMessage.timestamp * 1000).toISOString(),
-                    },
-                    timestamp: new Date(
-                      webhookMessage.timestamp * 1000,
-                    ).toISOString(),
-                  };
-
-              messages.push(message);
             }
           }
 
           if ("errors" in history) {
-            // TODO
+            for (const error of history.errors) {
+              client
+                .from("organizations_addresses")
+                .update({
+                  extra: {
+                    logs: [
+                      {
+                        webhook: "history",
+                        timestamp: new Date().toISOString(),
+                        level: "error",
+                        message: error,
+                      },
+                    ],
+                  },
+                })
+                .eq("address", organization_address);
+            }
+          }
+        }
+      }
+
+      if (field === "smb_app_state_sync") {
+        for (const syncItem of value.state_sync) {
+          if (syncItem.type === "contact" && syncItem.action === "add") {
+            conversations.add({
+              service: "whatsapp",
+              organization_address,
+              contact_address: syncItem.contact.phone_number,
+              name: syncItem.contact.full_name,
+              extra: {
+                smb_contact: true,
+              },
+            });
           }
         }
       }
@@ -564,23 +746,33 @@ async function processMessage(request: Request): Promise<Response> {
 
   const downloadMediaPromise = downloadMedia(messages, client);
 
-  // Note: Tried with bulk upsert. It did not work. It expects values in all fields even for update.
-  // Hence, using a custom RCP to perform bulk update.
-  // Note 2: The order of these notifications may not reflect the actual timing of the message status.
-  // Worry not, we took care of it.
-  const statusesPromise = client.rpc("bulk_update_messages_status", {
-    records: statuses,
-  });
+  // Notes:
+  // 1. Upsert is needed because there is no bulk update
+  // 2. Insert operation is not expected, statuses come
+  //    after outgoing messages are inserted
+  // 3. Only the status field should be updated based on external_id,
+  //    but upsert requires records to be prepared for insertion (which won't happen)
+  // 4. message field is present at {}, it will be merged during update (inocuous)
+  const { error: statusesError } = await client
+    .from("messages")
+    .upsert(statuses, {
+      onConflict: "external_id",
+    });
 
-  conversations.forEach(
-    (conv) => (conv.name = contacts.get(conv.contact_address!)),
-  );
+  if (statusesError) {
+    throw statusesError;
+  }
 
+  // Conversations table has a before insert trigger which acts as an upsert.
+  // It won't create a new conversation if an active one exists.
+  // It updates the name if provided.
   const { error: conversationsError } = await client
     .from("conversations")
-    .insert(Array.from(conversations) as ConversationInsert[]);
+    .insert(Array.from(conversations));
 
-  if (conversationsError) throw conversationsError;
+  if (conversationsError) {
+    throw conversationsError;
+  }
 
   // Download media before upserting incoming messages
   // Patched messages include media local id and file size
@@ -590,110 +782,15 @@ async function processMessage(request: Request): Promise<Response> {
     .map(fromV1)
     .filter(Boolean) as MessageRow[];
 
-  const { error: incomingError } = await client
+  const { error: messagesError } = await client
     .from("messages")
     .upsert(messagesV0, {
-      ignoreDuplicates: true,
       onConflict: "external_id",
     });
 
-  if (incomingError) throw incomingError;
-
-  const { error: statusesError } = await statusesPromise;
-
-  if (statusesError) throw statusesError;
+  if (messagesError) {
+    throw messagesError;
+  }
 
   return new Response();
-}
-
-/**
- * Validates the WhatsApp webhook signature to ensure the request comes from Meta
- * @param request The incoming request
- * @returns Promise<boolean> true if signature is valid, false otherwise
- */
-async function validateWebhookSignature(request: Request): Promise<boolean> {
-  if (!APP_ID || !APP_SECRET) {
-    log.warn("META_APP_ID or META_APP_SECRET environment variable not set");
-    return false;
-  }
-
-  const ids = APP_ID.split("|");
-  const secrets = APP_SECRET.split("|");
-
-  if (ids.length !== secrets.length) {
-    log.warn(
-      "META_APP_ID and META_APP_SECRET environment variables must have the same number of elements, separated by '|'",
-    );
-    return false;
-  }
-
-  let idIndex = 0;
-
-  const url = new URL(request.url);
-  const appId = url.searchParams.get("app_id");
-
-  if (appId === "no-verify") {
-    return true;
-  }
-
-  if (appId) {
-    idIndex = ids.indexOf(appId);
-
-    if (idIndex === -1) {
-      log.warn(
-        `Could not find app_id '${appId}' in META_APP_ID environment variable`,
-      );
-      return false;
-    }
-  }
-
-  const signature = request.headers.get("X-Hub-Signature-256");
-
-  if (!signature) {
-    log.warn("Missing X-Hub-Signature-256 header");
-    return false;
-  }
-
-  const signatureValue = signature.replace("sha256=", "");
-
-  try {
-    // Clone the request to read the body without consuming it
-    const clonedRequest = request.clone();
-    const body = await clonedRequest.text();
-
-    // Create HMAC-SHA256 signature
-    const encoder = new TextEncoder();
-    const key = encoder.encode(secrets[idIndex]);
-    const data = encoder.encode(body);
-
-    const cryptoKey = await crypto.subtle.importKey(
-      "raw",
-      key,
-      { name: "HMAC", hash: "SHA-256" },
-      false,
-      ["sign"],
-    );
-
-    const signature = await crypto.subtle.sign("HMAC", cryptoKey, data);
-    const expectedSignature = Array.from(new Uint8Array(signature))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-
-    const isValid = signatureValue === expectedSignature;
-
-    if (!isValid) {
-      log.warn("Invalid webhook signature", {
-        expected: expectedSignature,
-        received: signatureValue,
-      });
-    }
-
-    return isValid;
-  } catch (error) {
-    log.error(
-      "Error validating webhook signature",
-      error instanceof Error ? error.message : String(error),
-    );
-    return false;
-  }
 }

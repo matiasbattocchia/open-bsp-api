@@ -315,6 +315,41 @@ export type Database = {
           },
         ]
       }
+      quick_replies: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          name: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          name: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          name?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quick_replies_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       webhooks: {
         Row: {
           created_at: string
@@ -361,18 +396,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      bulk_update_messages_status: {
-        Args: { records: Json }
-        Returns: undefined
-      }
-      get_authorized_org_by_api_key: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      get_authorized_orgs: {
-        Args: Record<PropertyKey, never> | { role: string }
-        Returns: string[]
-      }
+      get_authorized_org_by_api_key: { Args: never; Returns: string }
+      get_authorized_orgs:
+        | { Args: never; Returns: string[] }
+        | { Args: { role: string }; Returns: string[] }
       merge_update_jsonb: {
         Args: { object: Json; path: string[]; target: Json }
         Returns: Json
@@ -765,32 +792,14 @@ export type Database = {
         Args: { _bucket_id: string; _name: string }
         Returns: boolean
       }
-      extension: {
-        Args: { name: string }
-        Returns: string
-      }
-      filename: {
-        Args: { name: string }
-        Returns: string
-      }
-      foldername: {
-        Args: { name: string }
-        Returns: string[]
-      }
-      get_level: {
-        Args: { name: string }
-        Returns: number
-      }
-      get_prefix: {
-        Args: { name: string }
-        Returns: string
-      }
-      get_prefixes: {
-        Args: { name: string }
-        Returns: string[]
-      }
+      extension: { Args: { name: string }; Returns: string }
+      filename: { Args: { name: string }; Returns: string }
+      foldername: { Args: { name: string }; Returns: string[] }
+      get_level: { Args: { name: string }; Returns: number }
+      get_prefix: { Args: { name: string }; Returns: string }
+      get_prefixes: { Args: { name: string }; Returns: string[] }
       get_size_by_bucket: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           bucket_id: string
           size: number
@@ -827,10 +836,7 @@ export type Database = {
           updated_at: string
         }[]
       }
-      operation: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
+      operation: { Args: never; Returns: string }
       search: {
         Args: {
           bucketname: string
