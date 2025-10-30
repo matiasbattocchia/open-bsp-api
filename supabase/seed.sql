@@ -6,7 +6,7 @@ select vault.create_secret(
   'Edge Functions base URL'
 );
 
--- The service role key is the same for every local project.
+-- The service role key is the same for every local project
 select vault.create_secret(
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU',
   'edge_functions_token',

@@ -1219,11 +1219,99 @@ export const SelectAsCsvTool: ToolDefinition<
   implementation: selectAsCsvImplementation,
 };
 
+// -----------------------------------------------------------------------
+//  Sample Table Rows
+// -----------------------------------------------------------------------
+
+const SampleTableRowsInputSchema = z.object({
+  schemas: z
+    .array(z.string())
+    .optional()
+    .describe("Optional: schema names to include."),
+  limit: z
+    .number()
+    .min(1)
+    .max(10)
+    .default(3)
+    .describe(
+      "Number of rows to sample from each table (default: 3, max: 10).",
+    ),
+});
+
+const SampleTableRowsOutputSchema = z.object({
+  tables: z.array(
+    z.object({
+      schema: z.string(),
+      name: z.string(),
+      sample_size: z.number(),
+      columns: z.array(z.string()),
+      rows: z.array(z.record(z.string(), z.any())),
+    }),
+  ),
+});
+
+export async function sampleTableRowsImplementation(
+  input: z.infer<typeof SampleTableRowsInputSchema>,
+  config: SQLToolConfig,
+  _context: RequestContext,
+): Promise<z.infer<typeof SampleTableRowsOutputSchema>> {
+  const client = createDBClient(config);
+
+  client.setSchemas(input.schemas);
+
+  try {
+    const tableRows = await client.tables();
+
+    const result: z.infer<typeof SampleTableRowsOutputSchema> = {
+      tables: [],
+    };
+
+    for (const table of tableRows) {
+      const fullTableName = [table.schema, table.name]
+        .map((s) => client.quoteIdentifier(s))
+        .join(".");
+
+      const sampleQuery = `SELECT * FROM ${fullTableName} LIMIT ${input.limit}`;
+
+      const rows = await client.execute(sampleQuery);
+
+      const columns =
+        rows.length > 0 ? Object.keys(rows[0] as Record<string, unknown>) : [];
+
+      result.tables.push({
+        schema: table.schema,
+        name: table.name,
+        sample_size: rows.length,
+        columns,
+        rows: rows as Record<string, unknown>[],
+      });
+    }
+
+    return result;
+  } finally {
+    await client.close();
+  }
+}
+
+export const SampleTableRowsTool: ToolDefinition<
+  typeof SampleTableRowsInputSchema,
+  typeof SampleTableRowsOutputSchema,
+  SQLToolConfig
+> = {
+  provider: "local",
+  type: "sql",
+  name: "sampleTableRows",
+  description:
+    "Sample N rows from each table in the database to preview actual data.",
+  inputSchema: z.toJSONSchema(SampleTableRowsInputSchema),
+  outputSchema: z.toJSONSchema(SampleTableRowsOutputSchema),
+  implementation: sampleTableRowsImplementation,
+};
+
 export const SQLTools = [
   GetDbSchemaTool,
   ExecuteSqlTool,
   BulkInsertTool,
   SelectAsCsvTool,
+  SampleTableRowsTool,
 ];
-
-// TODO: add a tool to sample N rows from each table
