@@ -1,21 +1,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import * as log from "../_shared/logger.ts";
 import {
-  type IncomingMessageV1,
-  type OutgoingMessageV1,
-  type MessageInsertV1,
+  type IncomingMessage,
+  type OutgoingMessage,
   type ConversationInsert,
   type MessageInsert,
-  type OutgoingMessage,
   type MetaWebhookPayload,
   type WebhookIncomingMessage,
   type WebhookEchoMessage,
   type WebhookHistoryMessage,
-  type MessageRow,
   createUnsecureClient,
 } from "../_shared/supabase.ts";
 import { fetchMedia, uploadToStorage } from "../_shared/media.ts";
-import { fromV1 } from "../_shared/messages-v0.ts";
 
 const API_VERSION = "v24.0";
 const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN");
@@ -154,9 +150,9 @@ async function downloadMediaItem({
 }: {
   organization_id: string;
   access_token: string;
-  message: MessageInsertV1;
+  message: MessageInsert;
   client: SupabaseClient;
-}): Promise<MessageInsertV1> {
+}): Promise<MessageInsert> {
   if (message.message.type !== "file") {
     return message;
   }
@@ -204,9 +200,9 @@ async function downloadMediaItem({
  * @returns modified messages
  */
 async function downloadMedia(
-  mediaMessages: MessageInsertV1[],
+  mediaMessages: MessageInsert[],
   client: SupabaseClient,
-): Promise<MessageInsertV1[]> {
+): Promise<MessageInsert[]> {
   if (!mediaMessages.length) {
     return [];
   }
@@ -254,7 +250,7 @@ async function downloadMedia(
 
 function webhookMessageToIncomingMessageV1(
   message: WebhookIncomingMessage | WebhookEchoMessage | WebhookHistoryMessage,
-): IncomingMessageV1 | undefined {
+): IncomingMessage | undefined {
   let re_message_id: string | undefined;
   let forwarded: boolean | undefined;
 
@@ -476,7 +472,7 @@ async function processMessage(request: Request): Promise<Response> {
     return new Response("Unexpected object", { status: 400 });
   }
 
-  const messages: MessageInsertV1[] = [];
+  const messages: MessageInsert[] = [];
   const conversations: Set<ConversationInsert> = new Set();
   const statuses: MessageInsert[] = [];
 
@@ -531,7 +527,6 @@ async function processMessage(request: Request): Promise<Response> {
             service: "whatsapp",
             organization_address,
             contact_address: status.recipient_id,
-            type: "outgoing",
             direction: "outgoing",
             message: {} as OutgoingMessage, // this will get merged (it won't overwrite)
             status: {
@@ -592,9 +587,8 @@ async function processMessage(request: Request): Promise<Response> {
             service: "whatsapp" as const,
             organization_address,
             contact_address,
-            type: "outgoing" as const, // TODO: deprecate with v0
             direction: "outgoing" as const,
-            message: content as OutgoingMessageV1, // Incoming are a superset of outgoing, except for templates
+            message: content as OutgoingMessage, // Incoming are a superset of outgoing, except for templates
             status: {
               sent: new Date(webhookMessage.timestamp * 1000).toISOString(),
             },
@@ -665,7 +659,7 @@ async function processMessage(request: Request): Promise<Response> {
                       contact_address,
                       type: "outgoing" as const, // TODO: deprecate with v0
                       direction: "outgoing" as const,
-                      message: content as OutgoingMessageV1, // Incoming are a superset of outgoing, except for templates
+                      message: content as OutgoingMessage, // Incoming are a superset of outgoing, except for templates
                       status: {
                         [historyStatusMap[
                           webhookMessage.history_context.status
@@ -778,13 +772,9 @@ async function processMessage(request: Request): Promise<Response> {
   // Patched messages include media local id and file size
   const patchedMessages = await downloadMediaPromise;
 
-  const messagesV0 = patchedMessages
-    .map(fromV1)
-    .filter(Boolean) as MessageRow[];
-
   const { error: messagesError } = await client
     .from("messages")
-    .upsert(messagesV0, {
+    .upsert(patchedMessages, {
       onConflict: "external_id",
     });
 
