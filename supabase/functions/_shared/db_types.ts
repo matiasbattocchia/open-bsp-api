@@ -188,12 +188,12 @@ export type Database = {
         Row: {
           agent_id: string | null
           contact_address: string
+          content: Json
           conversation_id: string
           created_at: string
           direction: Database["public"]["Enums"]["direction"]
           external_id: string | null
           id: string
-          message: Json
           organization_address: string
           organization_id: string
           service: Database["public"]["Enums"]["service"]
@@ -204,12 +204,12 @@ export type Database = {
         Insert: {
           agent_id?: string | null
           contact_address: string
+          content: Json
           conversation_id: string
           created_at?: string
           direction: Database["public"]["Enums"]["direction"]
           external_id?: string | null
           id?: string
-          message: Json
           organization_address: string
           organization_id: string
           service: Database["public"]["Enums"]["service"]
@@ -220,12 +220,12 @@ export type Database = {
         Update: {
           agent_id?: string | null
           contact_address?: string
+          content?: Json
           conversation_id?: string
           created_at?: string
           direction?: Database["public"]["Enums"]["direction"]
           external_id?: string | null
           id?: string
-          message?: Json
           organization_address?: string
           organization_id?: string
           service?: Database["public"]["Enums"]["service"]

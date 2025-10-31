@@ -11,7 +11,7 @@ begin
   if target is null then
     target := '{}'::jsonb;
   end if;
-  
+
   case jsonb_typeof(object) -- object, array, string, number, boolean, and null
     when null then
       target := null;
@@ -24,7 +24,7 @@ begin
         end if;
 
         for key, value in select * from jsonb_each(object) loop
-            target := merge_update_jsonb(target, array_append(path, key), value); 
+            target := public.merge_update_jsonb(target, array_append(path, key), value);
         end loop;
       end if;
     -- when 'array' then
@@ -34,43 +34,48 @@ begin
 
     --   i := 0;
     --   for value in select * from jsonb_array_elements(object) loop
-    --     target := merge_update_jsonb(target, array_append(path, i::text), value);
+    --     target := public.merge_update_jsonb(target, array_append(path, i::text), value);
     --     i := i + 1;
     --   end loop;
     else
       target := jsonb_set(target, path, object, true);
   end case;
-  
+
   return target;
 end;
 $$;
 
-create function public.merge_update_extra() returns trigger
+create function public.merge_update() returns trigger
 language plpgsql
 as $$
+declare
+  column_name text := tg_argv[0]::text;
+  old_jsonb jsonb;
+  new_jsonb jsonb;
+  merged_value jsonb;
 begin
-  new.extra := merge_update_jsonb(old.extra, '{}', new.extra);
+  -- Get the column name from trigger argument
+  if column_name is null or column_name = 'null' then
+    raise exception 'column_name argument is missing';
+  end if;
 
-  return new;
+  -- Convert records to jsonb
+  old_jsonb := to_jsonb(OLD);
+  new_jsonb := to_jsonb(NEW);
+
+  -- Get the column values and perform the merge
+  merged_value := merge_update_jsonb(
+    old_jsonb -> column_name,
+    '{}',
+    new_jsonb -> column_name
+  );
+
+  -- Update NEW with the merged value
+  new_jsonb := jsonb_set(new_jsonb, array[column_name], merged_value);
+
+  -- Convert back to record
+  NEW := jsonb_populate_record(NEW, new_jsonb);
+
+  return NEW;
 end;
 $$;
-
-create function public.merge_update_message() returns trigger
-language plpgsql
-as $$
-begin
-  new.message := merge_update_jsonb(old.message, '{}', new.message);
-
-  return new;
-end;
-$$;
-
-create function public.merge_update_status() returns trigger
-language plpgsql
-as $$
-begin
-  new.status := merge_update_jsonb(old.status, '{}', new.status);
-
-  return new;
-end;
-$$; 

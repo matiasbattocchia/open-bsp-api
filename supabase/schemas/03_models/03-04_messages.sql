@@ -9,7 +9,7 @@ create table public.messages (
   organization_address text not null,
   contact_address text not null,
   direction public.direction not null,
-  message jsonb not null, -- TODO: rename to content during v0 -> v1 migration
+  content jsonb not null,
   agent_id text,
   status jsonb default jsonb_build_object('pending', now()) not null,
   timestamp timestamp with time zone default now() not null,
@@ -59,7 +59,7 @@ on public.messages
 for each row
 when (
   new.direction = 'incoming'::public.direction
-  and (new.status ->> 'pending'::text) is not null
+  and (new.status ->> 'pending') is not null
 )
 execute function public.edge_function('/agent-client', 'post');
 
@@ -71,8 +71,8 @@ when (
   new.direction = 'incoming'::public.direction
   and new.service <> 'local'::public.service
   and (
-    (old.status ->> 'read'::text) <> (new.status ->> 'read'::text)
-    or (old.status ->> 'typing'::text) <> (new.status ->> 'typing'::text)
+    (old.status ->> 'read') <> (new.status ->> 'read')
+    or (old.status ->> 'typing') <> (new.status ->> 'typing')
   )
 )
 execute function public.dispatcher_edge_function();
@@ -84,7 +84,7 @@ for each row
 when (
   new.direction = 'outgoing'::public.direction
   and new.timestamp <= now()
-  and (new.status ->> 'pending'::text) is not null
+  and (new.status ->> 'pending') is not null
 )
 execute function public.dispatcher_edge_function();
 
@@ -97,11 +97,8 @@ when (
     new.direction = 'outgoing'::public.direction
     or new.direction = 'incoming'::public.direction
   )
-  and (new.status ->> 'pending'::text) is not null
-  and (
-    (new.message ->> 'media') is not null -- message v0 - TODO: deprecate
-    or (new.message ->> 'type') = 'file' -- message v1
-  )
+  and (new.status ->> 'pending') is not null
+  and (new.content ->> 'type') = 'file'
 )
 execute function public.edge_function('/annotator', 'post');
 
@@ -116,9 +113,9 @@ before update
 on public.messages
 for each row
 when (
-  new.message is not null
+  new.content is not null
 )
-execute function public.merge_update_message();
+execute function public.merge_update('content');
 
 create trigger set_status
 before update
@@ -127,7 +124,7 @@ for each row
 when (
   new.status is not null
 )
-execute function public.merge_update_status();
+execute function public.merge_update('status');
 
 create trigger set_updated_at
 before update

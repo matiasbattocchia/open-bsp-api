@@ -23,7 +23,7 @@ for each row
 when (
   new.extra is not null
 )
-execute function public.merge_update_extra();
+execute function public.merge_update('extra');
 
 create trigger set_updated_at
 before update
