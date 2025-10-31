@@ -199,7 +199,6 @@ export type Database = {
           service: Database["public"]["Enums"]["service"]
           status: Json
           timestamp: string
-          type: Database["public"]["Enums"]["type"]
           updated_at: string
         }
         Insert: {
@@ -216,7 +215,6 @@ export type Database = {
           service: Database["public"]["Enums"]["service"]
           status?: Json
           timestamp?: string
-          type: Database["public"]["Enums"]["type"]
           updated_at?: string
         }
         Update: {
@@ -233,7 +231,6 @@ export type Database = {
           service?: Database["public"]["Enums"]["service"]
           status?: Json
           timestamp?: string
-          type?: Database["public"]["Enums"]["type"]
           updated_at?: string
         }
         Relationships: [
@@ -408,14 +405,6 @@ export type Database = {
     Enums: {
       direction: "incoming" | "outgoing" | "internal"
       service: "whatsapp" | "instagram" | "local"
-      type:
-        | "incoming"
-        | "outgoing"
-        | "draft"
-        | "notification"
-        | "function_call"
-        | "function_response"
-        | "internal"
       webhook_operation: "insert" | "update"
       webhook_table: "messages" | "conversations"
     }
@@ -1046,15 +1035,6 @@ export const Constants = {
     Enums: {
       direction: ["incoming", "outgoing", "internal"],
       service: ["whatsapp", "instagram", "local"],
-      type: [
-        "incoming",
-        "outgoing",
-        "draft",
-        "notification",
-        "function_call",
-        "function_response",
-        "internal",
-      ],
       webhook_operation: ["insert", "update"],
       webhook_table: ["messages", "conversations"],
     },

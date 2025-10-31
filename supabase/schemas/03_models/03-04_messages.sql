@@ -9,7 +9,6 @@ create table public.messages (
   organization_address text not null,
   contact_address text not null,
   direction public.direction not null,
-  type public.type not null,
   message jsonb not null, -- TODO: rename to content during v0 -> v1 migration
   agent_id text,
   status jsonb default jsonb_build_object('pending', now()) not null,
