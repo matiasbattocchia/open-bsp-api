@@ -153,12 +153,12 @@ async function downloadMediaItem({
   message: MessageInsert;
   client: SupabaseClient;
 }): Promise<MessageInsert> {
-  if (message.message.type !== "file") {
+  if (message.content.type !== "file") {
     return message;
   }
 
-  const media_id = message.message.file.uri;
-  const filename = message.message.file.name;
+  const media_id = message.content.file.uri;
+  const filename = message.content.file.name;
 
   // Fetch part 1: Get the download url using the media id
   const response = await fetch(
@@ -188,8 +188,8 @@ async function downloadMediaItem({
   // Store the file
   const uri = await uploadToStorage(client, organization_id, file, filename);
 
-  message.message.file.uri = uri; // Overwrite WA media id with the internal uri
-  message.message.file.size = mediaMetadata.file_size;
+  message.content.file.uri = uri; // Overwrite WA media id with the internal uri
+  message.content.file.size = mediaMetadata.file_size;
 
   return message;
 }
@@ -248,7 +248,7 @@ async function downloadMedia(
   );
 }
 
-function webhookMessageToIncomingMessageV1(
+function webhookMessageToIncomingMessage(
   message: WebhookIncomingMessage | WebhookEchoMessage | WebhookHistoryMessage,
 ): IncomingMessage | undefined {
   let re_message_id: string | undefined;
@@ -497,7 +497,7 @@ async function processMessage(request: Request): Promise<Response> {
       if (field === "messages" && "messages" in value) {
         for (const webhookMessage of value.messages) {
           const contact_address = webhookMessage.from;
-          const content = webhookMessageToIncomingMessageV1(webhookMessage);
+          const content = webhookMessageToIncomingMessage(webhookMessage);
 
           if (!content) {
             continue;
@@ -510,9 +510,8 @@ async function processMessage(request: Request): Promise<Response> {
             service: "whatsapp" as const,
             organization_address,
             contact_address,
-            type: "incoming" as const, // TODO: deprecate with v0
             direction: "incoming" as const,
-            message: content,
+            content,
             timestamp: new Date(webhookMessage.timestamp * 1000).toISOString(),
           };
 
@@ -528,7 +527,7 @@ async function processMessage(request: Request): Promise<Response> {
             organization_address,
             contact_address: status.recipient_id,
             direction: "outgoing",
-            message: {} as OutgoingMessage, // this will get merged (it won't overwrite)
+            content: {} as OutgoingMessage, // this will get merged (it won't overwrite)
             status: {
               [status.status]: new Date(
                 parseInt(status.timestamp) * 1000,
@@ -574,7 +573,7 @@ async function processMessage(request: Request): Promise<Response> {
             contact_address,
           });
 
-          const content = webhookMessageToIncomingMessageV1(webhookMessage);
+          const content = webhookMessageToIncomingMessage(webhookMessage);
 
           if (!content) {
             continue;
@@ -588,7 +587,7 @@ async function processMessage(request: Request): Promise<Response> {
             organization_address,
             contact_address,
             direction: "outgoing" as const,
-            message: content as OutgoingMessage, // Incoming are a superset of outgoing, except for templates
+            content: content as OutgoingMessage, // Incoming are a superset of outgoing, except for templates
             status: {
               sent: new Date(webhookMessage.timestamp * 1000).toISOString(),
             },
@@ -633,8 +632,7 @@ async function processMessage(request: Request): Promise<Response> {
                   ? webhookMessage.to!
                   : webhookMessage.from;
 
-                const content =
-                  webhookMessageToIncomingMessageV1(webhookMessage);
+                const content = webhookMessageToIncomingMessage(webhookMessage);
 
                 if (!content) {
                   continue;
@@ -657,9 +655,8 @@ async function processMessage(request: Request): Promise<Response> {
                       service: "whatsapp" as const,
                       organization_address,
                       contact_address,
-                      type: "outgoing" as const, // TODO: deprecate with v0
                       direction: "outgoing" as const,
-                      message: content as OutgoingMessage, // Incoming are a superset of outgoing, except for templates
+                      content: content as OutgoingMessage, // Incoming are a superset of outgoing, except for templates
                       status: {
                         [historyStatusMap[
                           webhookMessage.history_context.status
@@ -678,9 +675,8 @@ async function processMessage(request: Request): Promise<Response> {
                       service: "whatsapp" as const,
                       organization_address,
                       contact_address,
-                      type: "incoming" as const, // TODO: deprecate with v0
                       direction: "incoming" as const,
-                      message: content, // Incoming are a superset of outgoing, except for templates
+                      content, // Incoming are a superset of outgoing, except for templates
                       status: {
                         [historyStatusMap[
                           webhookMessage.history_context.status

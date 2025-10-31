@@ -1068,17 +1068,17 @@ export type Database = MergeDeep<
           Row:
             | {
                 direction: "incoming";
-                message: IncomingMessage;
+                content: IncomingMessage;
                 status: IncomingStatus;
               }
             | {
                 direction: "internal";
-                message: InternalMessage;
+                content: InternalMessage;
                 status: IncomingStatus;
               }
             | {
                 direction: "outgoing";
-                message: OutgoingMessage;
+                content: OutgoingMessage;
                 status: OutgoingStatus;
               };
           Insert:
@@ -1086,21 +1086,21 @@ export type Database = MergeDeep<
                 organization_id?: string;
                 conversation_id?: string;
                 direction: "incoming";
-                message: IncomingMessage;
+                content: IncomingMessage;
                 status?: IncomingStatus;
               }
             | {
                 organization_id?: string;
                 conversation_id?: string;
                 direction: "internal";
-                message: InternalMessage;
+                content: InternalMessage;
                 status?: IncomingStatus;
               }
             | {
                 organization_id?: string;
                 conversation_id?: string;
                 direction: "outgoing";
-                message: OutgoingMessage;
+                content: OutgoingMessage;
                 status?: OutgoingStatus;
               };
         };
