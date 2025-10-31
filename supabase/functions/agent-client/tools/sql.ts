@@ -1243,8 +1243,6 @@ const SampleTableRowsOutputSchema = z.object({
     z.object({
       schema: z.string(),
       name: z.string(),
-      sample_size: z.number(),
-      columns: z.array(z.string()),
       rows: z.array(z.record(z.string(), z.any())),
     }),
   ),
@@ -1275,15 +1273,10 @@ export async function sampleTableRowsImplementation(
 
       const rows = await client.execute(sampleQuery);
 
-      const columns =
-        rows.length > 0 ? Object.keys(rows[0] as Record<string, unknown>) : [];
-
       result.tables.push({
         schema: table.schema,
         name: table.name,
-        sample_size: rows.length,
-        columns,
-        rows: rows as Record<string, unknown>[],
+        rows,
       });
     }
 
