@@ -1,7 +1,7 @@
 import type {
   AgentRow,
-  MessageRowV1,
-  MessageInsertV1,
+  MessageRow,
+  MessageInsert,
   ConversationRow,
   OrganizationRow,
   ContactRow,
@@ -15,7 +15,7 @@ export type AgentRowWithExtra = Omit<AgentRow, "extra"> & {
 export interface RequestContext {
   organization: OrganizationRow;
   conversation: ConversationRow;
-  messages: MessageRowV1[];
+  messages: MessageRow[];
   contact: ContactRow | null;
   agent: AgentRowWithExtra;
 }
@@ -23,7 +23,7 @@ export interface RequestContext {
 export interface ResponseContext {
   organization?: OrganizationRow;
   conversation?: ConversationRow;
-  messages?: MessageInsertV1[];
+  messages?: MessageInsert[];
   contact?: ContactRow;
   agent?: AgentRowWithExtra;
 }
