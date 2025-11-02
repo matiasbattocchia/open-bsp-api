@@ -169,8 +169,12 @@ async function downloadMediaItem({
   );
 
   if (!response.ok) {
-    log.error(response.headers.get("www-authenticate")!);
-    throw response;
+    throw Error("Could not download media item from WhatsApp servers", {
+      cause: {
+        header: response.headers.get("www-authenticate"),
+        body: await response.json(),
+      },
+    });
   }
 
   const mediaMetadata = (await response.json()) as {
