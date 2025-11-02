@@ -10,7 +10,7 @@ import type {
 } from "openai/resources/chat/completions";
 import type {
   LocalToolInfo,
-  MessageRowV1,
+  MessageRow,
   Part,
   ToolEventInfo,
   ToolInfo,
@@ -61,20 +61,20 @@ export class ChatCompletionsHandler
    *
    * The problem is that the tool messages order is not guaranteed.
    */
-  private sortToolMessages(messages: MessageRowV1[]): MessageRowV1[] {
+  private sortToolMessages(messages: MessageRow[]): MessageRow[] {
     const taskMap = new Map<
       string,
       {
-        uses: MessageRowV1[];
-        results: MessageRowV1[];
+        uses: MessageRow[];
+        results: MessageRow[];
       }
     >();
 
-    const withoutTools: MessageRowV1[] = [];
+    const withoutTools: MessageRow[] = [];
 
     for (const row of messages) {
-      if (row.direction === "internal" && row.message.tool) {
-        const taskId = row.message.task?.id;
+      if (row.direction === "internal" && row.content.tool) {
+        const taskId = row.content.task?.id;
 
         if (!taskId) {
           throw new Error("Task id is required");
@@ -91,7 +91,7 @@ export class ChatCompletionsHandler
           taskMap.set(taskId, task);
         }
 
-        if (row.message.tool.event === "use") {
+        if (row.content.tool.event === "use") {
           if (!task.uses.length) {
             // Use the first appeareance of a tool use within a task as a placeholder.
             withoutTools.push(row);
@@ -108,11 +108,11 @@ export class ChatCompletionsHandler
       withoutTools.push(row);
     }
 
-    const sorted: MessageRowV1[] = [];
+    const sorted: MessageRow[] = [];
 
     for (const row of withoutTools) {
-      if (row.direction === "internal" && row.message.tool) {
-        const taskId = row.message.task!.id;
+      if (row.direction === "internal" && row.content.tool) {
+        const taskId = row.content.task!.id;
 
         const task = taskMap.get(taskId)!;
 
@@ -127,11 +127,9 @@ export class ChatCompletionsHandler
     return sorted;
   }
 
-  private removeOtherAgentsToolMessages(
-    messages: MessageRowV1[],
-  ): MessageRowV1[] {
+  private removeOtherAgentsToolMessages(messages: MessageRow[]): MessageRow[] {
     return messages.filter((message) => {
-      if (message.direction === "internal" && message.message.tool) {
+      if (message.direction === "internal" && message.content.tool) {
         return message.agent_id === this.context.agent.id;
       }
 
@@ -139,13 +137,13 @@ export class ChatCompletionsHandler
     });
   }
 
-  private removeUnpairedToolMessages(messages: MessageRowV1[]): MessageRowV1[] {
+  private removeUnpairedToolMessages(messages: MessageRow[]): MessageRow[] {
     const toolUseSet = new Set<string>();
     const pairedToolUseSet = new Set<string>();
 
     for (const message of messages) {
-      if (message.direction === "internal" && message.message.tool) {
-        const toolUseId = message.message.tool.use_id;
+      if (message.direction === "internal" && message.content.tool) {
+        const toolUseId = message.content.tool.use_id;
 
         if (toolUseSet.has(toolUseId)) {
           pairedToolUseSet.add(toolUseId);
@@ -156,8 +154,8 @@ export class ChatCompletionsHandler
     }
 
     return messages.filter((message) => {
-      if (message.direction === "internal" && message.message.tool) {
-        return pairedToolUseSet.has(message.message.tool.use_id);
+      if (message.direction === "internal" && message.content.tool) {
+        return pairedToolUseSet.has(message.content.tool.use_id);
       }
 
       return true;
@@ -168,7 +166,7 @@ export class ChatCompletionsHandler
    * Expects tool messages to be sorted.
    */
   private mergeToolUseMessages(
-    messages: MessageRowV1[],
+    messages: MessageRow[],
   ): ChatCompletionMessageParam[] {
     const messageParams: ChatCompletionMessageParam[] = [];
 
@@ -177,7 +175,7 @@ export class ChatCompletionsHandler
 
       const param = this.toChatCompletion(
         row.agent_id,
-        row.message as Part & ToolInfo,
+        row.content as Part & ToolInfo,
       );
 
       if (
@@ -454,7 +452,7 @@ export class ChatCompletionsHandler
           direction: "internal" as const,
           type: "function_call" as const,
           agent_id: agent.id,
-          message: {
+          content: {
             version: "1" as const,
             task: {
               // This id will be used to merge all the tool calls together
@@ -486,9 +484,8 @@ export class ChatCompletionsHandler
             organization_address: conversation.organization_address,
             contact_address: conversation.contact_address,
             direction: "outgoing",
-            type: "outgoing",
             agent_id: agent.id,
-            message: {
+            content: {
               version: "1",
               type: "text",
               kind: "text",

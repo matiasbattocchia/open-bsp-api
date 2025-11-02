@@ -901,4 +901,5 @@ Deno.serve(async (req) => {
  * - Improved error handling
  *   https://modelcontextprotocol.io/specification/2025-03-26/server/tools#error-handling
  * - Timestamp precision (JS milliseconds vs PostgreSQL microseconds)
+ * - split supabase.ts into different types files
  */

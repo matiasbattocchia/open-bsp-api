@@ -188,7 +188,7 @@ export class A2AHandler
     // Multiple messages are merged into a single A2A message.
     const parts = (
       await Promise.all(
-        currentTurnMessages.map(({ message }) => this.toA2a(message as Part)),
+        currentTurnMessages.map(({ content }) => this.toA2a(content as Part)),
       )
     ).flat();
 
@@ -202,12 +202,12 @@ export class A2AHandler
     const lastAgentTask = messages.findLast((m) => m.agent_id === agent.id);
 
     const taskId =
-      (lastAgentTask?.message.task?.status === "input-required" &&
-        lastAgentTask.message.task.id) ||
+      (lastAgentTask?.content.task?.status === "input-required" &&
+        lastAgentTask.content.task.id) ||
       crypto.randomUUID();
 
     const sessionId =
-      lastAgentTask?.message.task?.session_id || crypto.randomUUID();
+      lastAgentTask?.content.task?.session_id || crypto.randomUUID();
 
     return {
       jsonrpc: "2.0",
