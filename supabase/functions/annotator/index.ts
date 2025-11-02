@@ -9,11 +9,9 @@ import {
   type ApiError,
   type GenerateContentResponse,
   GoogleGenAI,
-  Type,
 } from "@google/genai";
 import { downloadFromStorage, uploadToStorage } from "../_shared/media.ts";
 import { encodeBase64 } from "jsr:@std/encoding/base64";
-import { fromV1, toV1 } from "../_shared/messages-v0.ts";
 import * as log from "../_shared/logger.ts";
 import { stringify } from "jsr:@std/csv/stringify";
 
@@ -140,26 +138,17 @@ Deno.serve(async (req) => {
     apiKey,
   });
 
-  const row_v1 = toV1(incoming);
+  const { content, status } = incoming;
 
-  if (!row_v1) {
-    return log_update_and_respond(
-      "error",
-      "Failed to convert incoming message row from v0 to v1. Skipping annotation.",
-    );
-  }
-
-  const { message, status } = row_v1;
-
-  if (message.type !== "file") {
+  if (content.type !== "file") {
     return log_update_and_respond(
       "error",
       "Incoming message is not a file. Skipping annotation.",
     );
   }
 
-  const mimeType = message.file.mime_type;
-  const mediaType = message.kind === "sticker" ? "image" : message.kind;
+  const mimeType = content.file.mime_type;
+  const mediaType = content.kind === "sticker" ? "image" : content.kind;
 
   const allowedMimeTypes: Record<string, string[]> = {
     audio: [
@@ -221,7 +210,7 @@ Deno.serve(async (req) => {
   // Check if we need to use File API vs inline data. Max payload size is 20MB.
   // Use 19MB limit to leave space for prompt and other request data.
   // We multiply by 1.33 to account for the base64 encoding overhead.
-  const shouldUseFileAPI = message.file.size * 1.33 > INLINE_DATA_SIZE_LIMIT;
+  const shouldUseFileAPI = content.file.size * 1.33 > INLINE_DATA_SIZE_LIMIT;
 
   if (shouldUseFileAPI) {
     return log_update_and_respond(
@@ -239,7 +228,7 @@ Deno.serve(async (req) => {
     throw annotatingError;
   }
 
-  const file = await downloadFromStorage(client, message.file.uri);
+  const file = await downloadFromStorage(client, content.file.uri);
   const base64File = encodeBase64(await file.arrayBuffer());
 
   let prompt = "";
@@ -380,7 +369,7 @@ Deno.serve(async (req) => {
     result.transcription.length > MAX_SMALL_DOCUMENT_SIZE
   ) {
     // Store enriched documents (PDF) transcription as llm.txt
-    const name = [message.file.name, "llm.txt"].join(".");
+    const name = [content.file.name, "llm.txt"].join(".");
 
     const file = new Blob([result.transcription], {
       type: "text/markdown",
@@ -413,7 +402,7 @@ Deno.serve(async (req) => {
   if (result.table?.length && mimeType !== "text/csv") {
     const csv = stringify(result.table);
 
-    const name = [message.file.name, "csv"].join(".");
+    const name = [content.file.name, "csv"].join(".");
 
     const file = new Blob([csv], {
       type: "text/csv",
@@ -428,10 +417,10 @@ Deno.serve(async (req) => {
     });
   }
 
-  const annotated_v1 = {
-    ...row_v1,
-    message: {
-      ...message,
+  const annotated = {
+    ...incoming,
+    content: {
+      ...content,
       artifacts,
     },
     status: {
@@ -440,19 +429,9 @@ Deno.serve(async (req) => {
     },
   };
 
-  const annotated_v0 = fromV1(annotated_v1);
-
-  if (!annotated_v0) {
-    return log_update_and_respond(
-      "error",
-      "Failed to convert annotated message row from v1 to v0. Skipping annotation.",
-    );
-  }
-
   const { error: annotatedError } = await client
     .from("messages")
-    // @ts-expect-error it fears to update an incoming message as outgoing and viceversa
-    .update(annotated_v0)
+    .update(annotated)
     .eq("id", incoming.id);
 
   if (annotatedError) {
