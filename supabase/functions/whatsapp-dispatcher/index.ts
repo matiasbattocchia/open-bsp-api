@@ -3,16 +3,30 @@ import * as log from "../_shared/logger.ts";
 import {
   createClient,
   type EndpointMessage,
+  type EndpointMessageResponse,
   type EndpointStatus,
-  MediaTypes,
+  type EndpointStatusResponse,
   type MessageRow,
+  type OutgoingMessage,
   type WebhookPayload,
 } from "../_shared/supabase.ts";
 import { downloadFromStorage } from "../_shared/media.ts";
+import { Json } from "../_shared/db_types.ts";
 
-const API_VERSION = "v23.0";
+const API_VERSION = "v24.0";
 const DEFAULT_ACCESS_TOKEN =
   Deno.env.get("META_SYSTEM_USER_ACCESS_TOKEN") || "";
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+class WhatsAppError extends Error {
+  constructor(
+    message: string,
+    options?: { cause?: { header: string | null; body: unknown } },
+  ) {
+    super(message, options);
+    this.name = "WhatsAppError";
+  }
+}
 
 /** Uploads media to WA servers
  *
@@ -53,14 +67,22 @@ const DEFAULT_ACCESS_TOKEN =
  * @param access_token
  * @returns WA media id
  */
-async function uploadMediaItem(
-  phone_number_id: string,
-  uri: string,
-  mime_type: string,
-  access_token: string,
-  client: SupabaseClient,
-): Promise<string> {
-  let file = await downloadFromStorage(client, uri);
+async function uploadMediaItem({
+  message,
+  access_token,
+  client,
+}: {
+  message: MessageRow;
+  access_token: string;
+  client: SupabaseClient;
+}): Promise<MessageRow> {
+  if (message.content.type !== "file") {
+    return message;
+  }
+
+  let file = await downloadFromStorage(client, message.content.file.uri);
+
+  let mime_type = message.content.file.mime_type;
 
   // make WA accept text/csv
   if (mime_type.startsWith("text/")) {
@@ -73,6 +95,8 @@ async function uploadMediaItem(
   formData.append("type", mime_type);
   formData.append("messaging_product", "whatsapp");
 
+  const phone_number_id = message.organization_address;
+
   const response = await fetch(
     `https://graph.facebook.com/${API_VERSION}/${phone_number_id}/media`,
     {
@@ -83,14 +107,171 @@ async function uploadMediaItem(
   );
 
   if (!response.ok) {
-    log.error(response.headers.get("www-authenticate")!);
-    throw response;
+    throw new WhatsAppError("Could not upload media item to WhatsApp servers", {
+      cause: {
+        header: response.headers.get("www-authenticate"),
+        body: await response.json(),
+      },
+    });
   }
 
-  return (await response.json()).id as string;
+  const mediaMetadata = (await response.json()) as { id: string };
+
+  message.content.file.uri = mediaMetadata.id;
+
+  return message;
 }
 
-const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+async function outgoingMessageToEndpointMessage({
+  content,
+  to,
+}: {
+  content: OutgoingMessage;
+  to: string;
+}): Promise<EndpointMessage> {
+  const baseMessage = {
+    messaging_product: "whatsapp" as const,
+    recipient_type: "individual" as const,
+    to,
+    ...(content.kind !== "reaction" && // From the docs: You cannot send a reaction message as a contextual reply.
+    content.re_message_id &&
+    !content.forwarded
+      ? { context: { message_id: content.re_message_id } }
+      : {}),
+  };
+
+  switch (content.kind) {
+    case "text": {
+      return {
+        ...baseMessage,
+        type: "text",
+        text: {
+          body: content.text,
+        },
+      };
+    }
+    case "reaction": {
+      return {
+        ...baseMessage,
+        type: "reaction",
+        reaction: {
+          emoji: content.text,
+          message_id: content.re_message_id!,
+        },
+      };
+    }
+    case "audio": {
+      return {
+        ...baseMessage,
+        type: "audio",
+        audio: { id: content.file.uri },
+      };
+    }
+    case "image": {
+      return {
+        ...baseMessage,
+        type: "image",
+        image: { id: content.file.uri, caption: content.text },
+      };
+    }
+    case "video": {
+      return {
+        ...baseMessage,
+        type: "video",
+        video: { id: content.file.uri, caption: content.text },
+      };
+    }
+    case "sticker": {
+      return {
+        ...baseMessage,
+        type: "sticker",
+        sticker: { id: content.file.uri },
+      };
+    }
+    case "document": {
+      return {
+        ...baseMessage,
+        type: "document",
+        document: {
+          id: content.file.uri,
+          caption: content.text,
+          filename: content.file.name,
+        },
+      };
+    }
+    case "contacts": {
+      return {
+        ...baseMessage,
+        type: "contacts",
+        contacts: content.data,
+      };
+    }
+    case "location": {
+      return {
+        ...baseMessage,
+        type: "location",
+        location: content.data,
+      };
+    }
+    case "template": {
+      return {
+        ...baseMessage,
+        type: "template",
+        template: content.data,
+      };
+    }
+    default: {
+      throw new Error(
+        `Cannot convert outgoing message of type ${content.type} and kind ${content.kind}`,
+      );
+    }
+  }
+}
+
+// Overload signatures
+async function postPayloadToWhatsAppEndpoint(params: {
+  payload: EndpointMessage;
+  phone_number_id: string;
+  access_token: string;
+}): Promise<EndpointMessageResponse>;
+async function postPayloadToWhatsAppEndpoint(params: {
+  payload: EndpointStatus;
+  phone_number_id: string;
+  access_token: string;
+}): Promise<EndpointStatusResponse>;
+
+async function postPayloadToWhatsAppEndpoint({
+  payload,
+  phone_number_id,
+  access_token,
+}: {
+  payload: EndpointMessage | EndpointStatus;
+  phone_number_id: string;
+  access_token: string;
+}): Promise<EndpointMessageResponse | EndpointStatusResponse> {
+  const response = await fetch(
+    `https://graph.facebook.com/${API_VERSION}/${phone_number_id}/messages`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${access_token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+
+  if (!response.ok) {
+    throw new WhatsAppError("Could not post payload to WhatsApp servers", {
+      cause: {
+        header: response.headers.get("www-authenticate"),
+        body: await response.json(),
+      },
+    });
+  }
+
+  return await response.json();
+}
 
 Deno.serve(async (req) => {
   const authHeader = req.headers.get("Authorization");
@@ -102,312 +283,123 @@ Deno.serve(async (req) => {
 
   const client = createClient(req);
 
-  const record = ((await req.json()) as WebhookPayload<MessageRow>).record!;
-
-  if (!["internal", "whatsapp"].includes(record.service)) {
-    throw new Error(
-      `Dispatch for '${record.service}' service is not implemented!`,
-    );
-  }
-
-  if (record.service === "local" && record.type === "outgoing") {
-    await client
-      .from("messages")
-      .update({
-        status: {
-          delivered: new Date().toISOString(),
-        },
-      })
-      .eq("id", record.id);
-
-    return new Response();
-  }
-
-  if (Deno.env.get("ENV") === "DEV") {
-    log.info("Dispatcher function skipped because ENV env var is set to DEV.");
-
-    if (record.type === "outgoing") {
-      await client
-        .from("messages")
-        .update({
-          status: {
-            sent: new Date().toISOString(),
-          },
-        })
-        .eq("id", record.id);
-    }
-
-    return new Response();
-  }
+  const message = ((await req.json()) as WebhookPayload<MessageRow>).record!;
 
   const { data: account, error: queryError } = await client
     .from("organizations_addresses")
     .select("extra->>access_token")
-    .eq("address", record.organization_address)
+    .eq("address", message.organization_address)
     .single();
 
-  if (queryError) throw queryError;
+  if (queryError) {
+    throw queryError;
+  }
 
-  account.access_token ||= DEFAULT_ACCESS_TOKEN;
+  const access_token = account.access_token || DEFAULT_ACCESS_TOKEN;
 
-  let message: EndpointMessage | EndpointStatus;
+  if (message.direction === "outgoing") {
+    const patchedMessage = await uploadMediaItem({
+      message,
+      access_token,
+      client,
+    });
 
-  if (record.direction === "outgoing") {
-    message = await outgoingMessage(record, account.access_token, client);
-  } else if (record.direction === "incoming") {
+    const payload = await outgoingMessageToEndpointMessage({
+      content: patchedMessage.content as OutgoingMessage,
+      to: message.contact_address,
+    });
+
+    try {
+      const response = await postPayloadToWhatsAppEndpoint({
+        payload,
+        phone_number_id: message.organization_address,
+        access_token,
+      });
+
+      const { error: updateError } = await client
+        .from("messages")
+        .update({
+          external_id: response.messages[0].id,
+          status: {
+            [response.messages[0].message_status || "accepted"]:
+              new Date().toISOString(),
+          },
+        })
+        .eq("id", message.id);
+
+      if (updateError) {
+        throw updateError;
+      }
+    } catch (error) {
+      if (!(error instanceof WhatsAppError)) {
+        throw error;
+      }
+
+      const { error: updateError } = await client
+        .from("messages")
+        .update({
+          status: {
+            failed: new Date().toISOString(),
+            errors: [error.cause as Json],
+          },
+        })
+        .eq("id", message.id);
+
+      if (updateError) {
+        throw updateError;
+      }
+    }
+  } else if (message.direction === "incoming") {
     let readReceipt = false;
     let typingIndicator = false;
 
-    if (record.status.read) {
-      if (Date.now() - +new Date(record.status.read) <= 60 * 1000) {
-        readReceipt = true;
-      }
+    if (
+      message.status.read &&
+      Date.now() - +new Date(message.status.read) <= 60 * 1000
+    ) {
+      readReceipt = true;
+      log.info("Read receipt");
     }
 
-    if (record.status.typing) {
-      if (Date.now() - +new Date(record.status.typing) <= 60 * 1000) {
-        typingIndicator = true;
-      }
+    if (
+      message.status.typing &&
+      Date.now() - +new Date(message.status.typing) <= 60 * 1000
+    ) {
+      typingIndicator = true;
+      log.info("Typing indicator");
     }
 
     if (!readReceipt && !typingIndicator) {
       return new Response();
     }
 
-    if (!record.external_id) {
+    if (!message.external_id) {
       throw new Error(
-        `Cannot mark message with id ${record.id} as read because its external_id is missing.`,
+        `Cannot mark message with id ${message.id} as read because its external_id is missing.`,
       );
     }
 
-    message = {
+    const payload: EndpointStatus = {
       messaging_product: "whatsapp",
       status: "read",
-      message_id: record.external_id,
+      message_id: message.external_id,
       ...(typingIndicator && {
         typing_indicator: {
           type: "text",
         },
       }),
     };
+
+    await postPayloadToWhatsAppEndpoint({
+      payload,
+      phone_number_id: message.organization_address,
+      access_token,
+    });
   } else {
     throw new Error(
-      `Cannot dispatch message with id ${record.id} because its direction is not 'outgoing' or 'incoming'.`,
+      `Cannot dispatch message with id ${message.id} because its direction is not 'outgoing' nor 'incoming'.`,
     );
-  }
-
-  const response = await fetch(
-    `https://graph.facebook.com/${API_VERSION}/${record.organization_address}/messages`, // org address is the WA phone_number_id
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${account.access_token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(message),
-    },
-  );
-
-  if (!response.ok) {
-    const errorMessage = response.headers.get("www-authenticate") || "";
-
-    log.error(errorMessage);
-
-    if (record.type === "outgoing") {
-      const { error: updateError } = await client
-        .from("messages")
-        .update({
-          status: {
-            failed: new Date().toISOString(),
-            errors: [errorMessage],
-          },
-        })
-        .eq("id", record.id);
-
-      if (updateError) {
-        log.error(
-          `Could not update status of outgoing message with id ${record.id}`,
-          updateError,
-        );
-      }
-    }
-
-    throw response;
-  }
-
-  /** Mark as read / Read receipt successful response
-   * {
-   *   "success": true
-   * }
-   */
-
-  // TODO: a successful response has this payload
-  // {
-  //   "messaging_product": "whatsapp",
-  //   "contacts": [
-  //     {
-  //       "input": "16505076520",
-  //       "wa_id": "16505076520"
-  //     }
-  //   ],
-  //   "messages": [
-  //     {
-  //       "id": "wamid.HBgLMTY1MDUwNzY1MjAVAgARGBI5QTNDQTVCM0Q0Q0Q2RTY3RTcA".
-  //       "message_status": "accepted",
-  //     }
-  //   ]
-  // }
-  // where `input` is the real receiver's phone number; `wa_id` might differ.
-  // 1. [ ] Save the input as user phone number.
-  // 2. [x] Replace (update) outgoing message UUID with WAMID.
-  // 3. [ ] User identity hash might be present in the response as well.
-  // 4. [x] "message_status":"held_for_quality_assessment": means the message send was delayed until quality can be validated and it will either be sent or dropped at this point
-  const endpointPayload = await response.json();
-
-  if (endpointPayload.messages) {
-    const { error: updateError } = await client
-      .from("messages")
-      .update({
-        external_id: endpointPayload.messages[0].id,
-        status: {
-          [endpointPayload.messages[0].message_status || "accepted"]:
-            new Date().toISOString(),
-        },
-      })
-      .eq("id", record.id);
-
-    if (updateError) {
-      log.error(
-        `Could not update status of outgoing message with id ${record.id}`,
-        updateError,
-      );
-    }
   }
 
   return new Response();
 });
-
-async function outgoingMessage(
-  record: MessageRow,
-  access_token: string,
-  client: SupabaseClient,
-) {
-  if (record.direction !== "outgoing") {
-    throw new Error(
-      `Cannot dispatch outgoing message with id ${record.id} because its direction is not 'outgoing'!`,
-    );
-  }
-
-  const outMessage = record.message;
-  let uploadedMediaID = "";
-
-  // @ts-expect-error Argument of type 'string' is not assignable to parameter of type "audio" | "document" | "image" | "video" | "sticker"
-  if (MediaTypes.includes(outMessage.type)) {
-    if (outMessage.media?.url) {
-      // Do nothing
-    } else {
-      if (!outMessage.media?.id || !outMessage.media?.mime_type) {
-        throw new Error(
-          `Could not upload media for message with id ${record.id}. Missing media_id or mime_type.`,
-        );
-      }
-
-      uploadedMediaID = await uploadMediaItem(
-        record.organization_address,
-        outMessage.media.id,
-        outMessage.media.mime_type,
-        access_token,
-        client,
-      );
-    }
-  }
-
-  const message: Partial<EndpointMessage> = {
-    messaging_product: "whatsapp",
-    recipient_type: "individual",
-    to: record.contact_address,
-    type: outMessage.type,
-  };
-
-  if (
-    outMessage.type !== "reaction" && // From the docs: You cannot send a reaction message as a contextual reply.
-    outMessage.re_message_id &&
-    !outMessage.forwarded
-  ) {
-    message.context = { message_id: outMessage.re_message_id };
-  }
-
-  switch (message.type) {
-    case "text":
-      if (!outMessage.content) {
-        throw new Error(
-          `Cannot dispatch outgoing message with id ${record.id} of type 'text' because its content is missing!`,
-        );
-      }
-
-      message.text = { body: outMessage.content };
-      break;
-    case "reaction":
-      if (!outMessage.re_message_id) {
-        throw new Error(
-          `Cannot dispatch outgoing message with id ${record.id} of type 'reaction' because its re_message_id is missing!`,
-        );
-      }
-
-      message.reaction = {
-        emoji: outMessage.content || "",
-        message_id: outMessage.re_message_id,
-      };
-      break;
-    case "contacts":
-      // @ts-expect-error Property does not exist
-      message.contacts = outMessage.contacts;
-      break;
-    /*case "interactive":
-      // @ts-expect-error Property does not exist
-      message.interactive = outMessage.interactive;
-      break;*/
-    case "location":
-      // @ts-expect-error Property does not exist
-      message.location = outMessage.location;
-      break;
-    case "template":
-      // @ts-expect-error Property does not exist
-      message.template = outMessage.template;
-      break;
-    case "audio":
-      message.audio = { id: uploadedMediaID };
-      break;
-    case "document":
-      message.document = {
-        caption: outMessage.content || undefined,
-        link: outMessage.media?.url,
-        id: uploadedMediaID,
-        filename: outMessage.media?.filename,
-      };
-      break;
-    case "image":
-      message.image = {
-        caption: outMessage.content || undefined,
-        link: outMessage.media?.url,
-        id: uploadedMediaID,
-      };
-      break;
-    case "sticker":
-      message.sticker = { id: uploadedMediaID };
-      break;
-    case "video":
-      message.video = {
-        caption: outMessage.content || undefined,
-        link: outMessage.media?.url,
-        id: uploadedMediaID,
-      };
-      break;
-    default:
-      throw new Error(
-        `Dispatch for '${record.service}' service does not know how to handle message of type ${outMessage.type}!`,
-      );
-  }
-
-  return message as EndpointMessage;
-}

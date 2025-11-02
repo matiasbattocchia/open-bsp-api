@@ -857,6 +857,23 @@ export type EndpointMessage = {
     | OutgoingVideo
   );
 
+export type EndpointMessageResponse = {
+  messaging_product: "whatsapp";
+  contacts: [
+    {
+      input: string;
+      wa_id: string;
+    },
+  ];
+  messages: [
+    {
+      id: string;
+      group_id?: string;
+      message_status?: "accepted" | "held_for_quality_assessment";
+    },
+  ];
+};
+
 //===================================
 // Statuses
 //===================================
@@ -927,6 +944,10 @@ export type EndpointStatus = {
   typing_indicator?: {
     type: "text";
   };
+};
+
+export type EndpointStatusResponse = {
+  success: true;
 };
 
 //===================================
