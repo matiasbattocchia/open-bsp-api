@@ -71,7 +71,7 @@ export const RequestToolOutputSchema = z.union([
 export async function requestToolImplementation(
   input: z.infer<typeof RequestToolInputSchema>,
   config: LocalHTTPToolConfig["config"],
-  _context: RequestContext
+  _context: RequestContext,
 ): Promise<z.infer<typeof RequestToolOutputSchema>> {
   // TODO: $context.conversation.contact_address value-like replacement
 

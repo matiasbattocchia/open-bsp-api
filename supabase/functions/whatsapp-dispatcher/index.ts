@@ -21,7 +21,7 @@ const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 class WhatsAppError extends Error {
   constructor(
     message: string,
-    options?: { cause?: { header: string | null; body: unknown } },
+    options?: { cause?: { headers: unknown; body: unknown } },
   ) {
     super(message, options);
     this.name = "WhatsAppError";
@@ -109,8 +109,8 @@ async function uploadMediaItem({
   if (!response.ok) {
     throw new WhatsAppError("Could not upload media item to WhatsApp servers", {
       cause: {
-        header: response.headers.get("www-authenticate"),
-        body: await response.json(),
+        headers: Object.fromEntries(response.headers.entries()),
+        body: await response.json().catch(() => ({})),
       },
     });
   }
@@ -264,8 +264,8 @@ async function postPayloadToWhatsAppEndpoint({
   if (!response.ok) {
     throw new WhatsAppError("Could not post payload to WhatsApp servers", {
       cause: {
-        header: response.headers.get("www-authenticate"),
-        body: await response.json(),
+        headers: Object.fromEntries(response.headers.entries()),
+        body: await response.json().catch(() => ({})),
       },
     });
   }

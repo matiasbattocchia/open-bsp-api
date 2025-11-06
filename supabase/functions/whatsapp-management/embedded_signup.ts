@@ -8,7 +8,7 @@ const APP_ID = Deno.env.get("META_APP_ID");
 const APP_SECRET = Deno.env.get("META_APP_SECRET");
 
 // Step 1
-export async function getBusinessAccessToken(
+async function getBusinessAccessToken(
   app_id: string,
   app_secret: string,
   code: string,
@@ -21,8 +21,8 @@ export async function getBusinessAccessToken(
     throw new HTTPException(response.status as ContentfulStatusCode, {
       message: "Could not get business access token",
       cause: {
-        header: response.headers.get("www-authenticate"),
-        body: await response.json(),
+        headers: Object.fromEntries(response.headers.entries()),
+        body: await response.json().catch(() => ({})),
       },
     });
   }
@@ -133,7 +133,7 @@ export async function getPhoneNumberId(
 */
 
 // Step 2
-export async function postSubscribeToWebhooks(
+async function postSubscribeToWebhooks(
   business_access_token: string,
   waba_id: string,
 ): Promise<boolean> {
@@ -151,8 +151,8 @@ export async function postSubscribeToWebhooks(
     throw new HTTPException(response.status as ContentfulStatusCode, {
       message: "Could not subscribe to webhooks",
       cause: {
-        header: response.headers.get("www-authenticate"),
-        body: await response.json(),
+        headers: Object.fromEntries(response.headers.entries()),
+        body: await response.json().catch(() => ({})),
       },
     });
   }
@@ -161,7 +161,7 @@ export async function postSubscribeToWebhooks(
 }
 
 // Step 3
-export async function postRegisterPhoneNumber(
+async function postRegisterPhoneNumber(
   business_access_token: string,
   phone_number_id: string,
   pin: string,
@@ -185,8 +185,8 @@ export async function postRegisterPhoneNumber(
     throw new HTTPException(response.status as ContentfulStatusCode, {
       message: "Could not register phone number",
       cause: {
-        header: response.headers.get("www-authenticate"),
-        body: await response.json(),
+        headers: Object.fromEntries(response.headers.entries()),
+        body: await response.json().catch(() => ({})),
       },
     });
   }
@@ -212,7 +212,7 @@ export async function postAddSystemUserToWaba(waba_id: string) {
 }
 */
 
-export async function getPhoneNumber(
+async function getPhoneNumber(
   business_access_token: string,
   phone_number_id: string,
 ): Promise<{
@@ -233,8 +233,51 @@ export async function getPhoneNumber(
     throw new HTTPException(response.status as ContentfulStatusCode, {
       message: "Could not get phone number data",
       cause: {
-        header: response.headers.get("www-authenticate"),
-        body: await response.json(),
+        headers: Object.fromEntries(response.headers.entries()),
+        body: await response.json().catch(() => ({})),
+      },
+    });
+  }
+
+  return await response.json();
+}
+
+async function postInitDataSync(
+  business_access_token: string,
+  phone_number_id: string,
+  type: "contacts" | "messages",
+): Promise<{
+  messaging_product: "whatsapp";
+  request_id: string;
+}> {
+  log.info(`Initiating app data sync for ${phone_number_id} ${type}`);
+
+  const syncTypeMap = {
+    contacts: "smb_app_state_sync",
+    messages: "history",
+  };
+
+  const response = await fetch(
+    `https://graph.facebook.com/${API_VERSION}/${phone_number_id}/smb_app_data`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${business_access_token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        sync_type: syncTypeMap[type],
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    throw new HTTPException(response.status as ContentfulStatusCode, {
+      message: `Could not initiate ${type} app data synchronization`,
+      cause: {
+        headers: Object.fromEntries(response.headers.entries()),
+        body: await response.json().catch(() => ({})),
       },
     });
   }
@@ -319,13 +362,17 @@ export async function performEmbeddedSignup(
   log.info("Step 2: Subscribe to webhooks on the customer's WABA");
   await postSubscribeToWebhooks(business_access_token, payload.waba_id);
 
-  log.info("Step 3: Register the customer's phone number");
-  const pin = "123456";
-  await postRegisterPhoneNumber(
-    business_access_token,
-    payload.phone_number_id,
-    pin,
-  );
+  if (payload.flow_type === "existing_phone_number") {
+    log.info("Coexistence flow: Skipping step 3");
+  } else {
+    log.info("Step 3: Register the customer's phone number");
+    const pin = "123456";
+    await postRegisterPhoneNumber(
+      business_access_token,
+      payload.phone_number_id,
+      pin,
+    );
+  }
 
   log.info("Getting phone number data");
   const phone_number = await getPhoneNumber(
@@ -355,6 +402,23 @@ export async function performEmbeddedSignup(
       message: "Could not persist phone number data",
       cause: error,
     });
+  }
+
+  // App data sync is a coexistence only feature
+  if (payload.flow_type === "existing_phone_number") {
+    log.info("Step 4: Initiating contacts sync");
+    await postInitDataSync(
+      business_access_token,
+      payload.phone_number_id,
+      "contacts",
+    );
+
+    log.info("Step 5: Initiating messages sync");
+    await postInitDataSync(
+      business_access_token,
+      payload.phone_number_id,
+      "messages",
+    );
   }
 
   return data;

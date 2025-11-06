@@ -43,8 +43,8 @@ export async function fetchTemplates(
     throw new HTTPException(response.status as ContentfulStatusCode, {
       message: "Could not fetch templates",
       cause: {
-        header: response.headers.get("www-authenticate"),
-        body: await response.json(),
+        headers: Object.fromEntries(response.headers.entries()),
+        body: await response.json().catch(() => ({})),
       },
     });
   }
@@ -88,8 +88,8 @@ export async function createTemplate(
     throw new HTTPException(response.status as ContentfulStatusCode, {
       message: "Could not create template",
       cause: {
-        header: response.headers.get("www-authenticate"),
-        body: await response.json(),
+        headers: Object.fromEntries(response.headers.entries()),
+        body: await response.json().catch(() => ({})),
       },
     });
   }
@@ -122,8 +122,8 @@ export async function editTemplate(
     throw new HTTPException(response.status as ContentfulStatusCode, {
       message: "Could not update template",
       cause: {
-        header: response.headers.get("www-authenticate"),
-        body: await response.json(),
+        headers: Object.fromEntries(response.headers.entries()),
+        body: await response.json().catch(() => ({})),
       },
     });
   }
@@ -152,8 +152,8 @@ export async function deleteTemplate(
     throw new HTTPException(response.status as ContentfulStatusCode, {
       message: "Could not delete template",
       cause: {
-        header: response.headers.get("www-authenticate"),
-        body: await response.json(),
+        headers: Object.fromEntries(response.headers.entries()),
+        body: await response.json().catch(() => ({})),
       },
     });
   }
