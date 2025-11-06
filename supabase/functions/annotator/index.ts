@@ -122,10 +122,7 @@ Deno.serve(async (req) => {
 
   const language = config.language || "English";
 
-  const apiKey =
-    config.api_key ||
-    Deno.env.get("GOOGLE_API_KEY") ||
-    Deno.env.get("GEMINI_API_KEY");
+  const apiKey = config.api_key || Deno.env.get("GEMINI_API_KEY");
 
   if (!apiKey) {
     return log_update_and_respond(

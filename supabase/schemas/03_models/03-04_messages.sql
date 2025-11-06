@@ -74,6 +74,7 @@ when (
     (old.status ->> 'read') <> (new.status ->> 'read')
     or (old.status ->> 'typing') <> (new.status ->> 'typing')
   )
+  and (new.status ->> 'pending') is not null
 )
 execute function public.dispatcher_edge_function();
 

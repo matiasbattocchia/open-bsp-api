@@ -354,8 +354,7 @@ export class ChatCompletionsHandler
         break;
       case "google":
         baseURL = "https://generativelanguage.googleapis.com/v1beta/openai";
-        apiKey ||=
-          Deno.env.get("GOOGLE_API_KEY") || Deno.env.get("GEMINI_API_KEY");
+        apiKey ||= Deno.env.get("GEMINI_API_KEY");
         model ||= "gemini-2.5-flash";
         break;
       default:

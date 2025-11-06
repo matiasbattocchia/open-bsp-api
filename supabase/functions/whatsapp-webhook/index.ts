@@ -448,10 +448,10 @@ function webhookMessageToIncomingMessage(
     */
     case "unsupported":
     default: {
-      // System and unsupported messages are not converted to IncomingMessageV1
+      // System and unsupported messages are not converted to IncomingMessage
       // They should be handled separately or filtered out before calling this function
       log.error(
-        `Message type "${message.type}" cannot be converted to IncomingMessageV1`,
+        `Message type "${message.type}" cannot be converted to IncomingMessage`,
         message,
       );
     }
