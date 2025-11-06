@@ -173,7 +173,7 @@ Deno.serve(async (req) => {
 
   // RETRIEVE MESSAGES
 
-  const { data: messages, error: messagesError } = await client
+  const { data: messagesMixedVersions, error: messagesError } = await client
     .from("messages")
     .select()
     .eq("conversation_id", incoming.conversation_id)
@@ -185,6 +185,10 @@ Deno.serve(async (req) => {
   if (messagesError) {
     throw messagesError;
   }
+
+  const messages = messagesMixedVersions
+    .map((m) => (m.content.version === "1" ? m : toV1(m)))
+    .filter(Boolean) as MessageRow[];
 
   // Query was done in descending order to apply the limit.
   // We need the messages in chronological order, though.
