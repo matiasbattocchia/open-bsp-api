@@ -3,7 +3,7 @@ import { Database as DatabaseGenerated, Json } from "../_shared/db_types.ts";
 
 // MINIMAL VERSION of supabase.ts for MessageRowV0
 
-export type TaskInfo = {
+type TaskInfo = {
   task?: {
     id: string;
     status?: unknown; // TaskState not imported
@@ -11,7 +11,7 @@ export type TaskInfo = {
   };
 };
 
-export type ToolEventInfo =
+type ToolEventInfo =
   | { use_id: string; event: "use" }
   | { use_id: string; event: "result"; is_error?: boolean };
 
@@ -28,7 +28,7 @@ type LocalSpecialToolInfo = {
   name: string;
 };
 
-export type LocalToolInfo = LocalSimpleToolInfo | LocalSpecialToolInfo;
+type LocalToolInfo = LocalSimpleToolInfo | LocalSpecialToolInfo;
 
 type GoogleToolInfo = {
   provider: "google";
@@ -57,27 +57,21 @@ type AnthropicToolInfo = {
     | "web_search";
 };
 
-export type ToolInfo = {
+type ToolInfo = {
   tool?: ToolEventInfo &
     (LocalToolInfo | GoogleToolInfo | OpenAIToolInfo | AnthropicToolInfo);
 };
 
-export type TextPart = {
+type TextPart = {
   type: "text";
   kind: "text" | "reaction" | "caption" | "transcription" | "description";
   text: string;
   artifacts?: Part[];
 };
 
-export const MediaTypes = [
-  "audio",
-  "image",
-  "video",
-  "document",
-  "sticker",
-] as const;
+const MediaTypes = ["audio", "image", "video", "document", "sticker"] as const;
 
-export type FilePart = {
+type FilePart = {
   type: "file";
   kind: (typeof MediaTypes)[number];
   file: {
@@ -90,16 +84,16 @@ export type FilePart = {
   artifacts?: Part[];
 };
 
-export type DataPart<Kind = "data", T = Json> = {
+type DataPart<Kind = "data", T = Json> = {
   type: "data";
   kind: Kind;
   data: T;
   artifacts?: Part[];
 };
 
-export type Part = TextPart | DataPart | FilePart;
+type Part = TextPart | DataPart | FilePart;
 
-export type IncomingContextInfo = {
+type IncomingContextInfo = {
   context?: {
     forwarded?: boolean;
     frequently_forwarded?: boolean;
@@ -112,7 +106,7 @@ export type IncomingContextInfo = {
   };
 };
 
-export type ReferralInfo = {
+type ReferralInfo = {
   referral?: {
     source_url: string;
     source_type: "ad" | "post";
@@ -133,14 +127,14 @@ export type ReferralInfo = {
   );
 };
 
-export type TextMessage = {
+type TextMessage = {
   type: "text";
   text: {
     body: string;
   };
 } & ReferralInfo;
 
-export type ReactionMessage = {
+type ReactionMessage = {
   type: "reaction";
   reaction: {
     message_id: string;
@@ -148,7 +142,7 @@ export type ReactionMessage = {
   };
 };
 
-export type AudioMessage = {
+type AudioMessage = {
   type: "audio";
   audio: {
     id: string;
@@ -162,7 +156,7 @@ export type AudioMessage = {
   };
 } & ReferralInfo;
 
-export type ImageMessage = {
+type ImageMessage = {
   type: "image";
   image: {
     id: string;
@@ -172,7 +166,7 @@ export type ImageMessage = {
   };
 } & ReferralInfo;
 
-export type VideoMessage = {
+type VideoMessage = {
   type: "video";
   video: {
     id: string;
@@ -183,7 +177,7 @@ export type VideoMessage = {
   };
 } & ReferralInfo;
 
-export type DocumentMessage = {
+type DocumentMessage = {
   type: "document";
   document: {
     caption?: string;
@@ -202,7 +196,7 @@ export type DocumentMessage = {
   };
 } & ReferralInfo;
 
-export type StickerMessage = {
+type StickerMessage = {
   type: "sticker";
   sticker: {
     id: string;
@@ -212,9 +206,9 @@ export type StickerMessage = {
   };
 } & ReferralInfo;
 
-export type MediaPlaceholder = { type: "media_placeholder" };
+type MediaPlaceholder = { type: "media_placeholder" };
 
-export type ButtonMessage = {
+type ButtonMessage = {
   type: "button";
   button: {
     text: string;
@@ -222,7 +216,7 @@ export type ButtonMessage = {
   };
 };
 
-export type InteractiveMessage = {
+type InteractiveMessage = {
   type: "interactive";
   interactive:
     | { type: "button_reply"; button_reply: { id: string; title: string } }
@@ -232,7 +226,7 @@ export type InteractiveMessage = {
       };
 };
 
-export type Order = {
+type Order = {
   catalog_id: string;
   product_items: {
     product_retailer_id: string;
@@ -243,12 +237,12 @@ export type Order = {
   text: string;
 };
 
-export type OrderMessage = {
+type OrderMessage = {
   type: "order";
   order: Order;
 };
 
-export type Contact = {
+type Contact = {
   name: {
     first_name?: string;
     formatted_name: string;
@@ -264,12 +258,12 @@ export type Contact = {
   }[];
 };
 
-export type ContactsMessage = {
+type ContactsMessage = {
   type: "contacts";
   contacts: Contact[];
 } & ReferralInfo;
 
-export type Location = {
+type Location = {
   address: string;
   latitude: number;
   longitude: number;
@@ -277,12 +271,12 @@ export type Location = {
   url?: string;
 };
 
-export type LocationMessage = {
+type LocationMessage = {
   type: "location";
   location: Location;
 } & ReferralInfo;
 
-export type BaseMessage = {
+type BaseMessage = {
   content?: string;
   re_message_id?: string; // replied, reacted or forwarded message id
   forwarded?: boolean;
@@ -301,7 +295,7 @@ export type BaseMessage = {
 };
 
 // Function messages (deprecated v0 format, still in DB)
-export type FunctionCallMessage = {
+type FunctionCallMessage = {
   version?: "0";
   type: "function";
   v1_type: "text" | "data";
@@ -314,7 +308,7 @@ export type FunctionCallMessage = {
 } & TaskInfo &
   ToolInfo;
 
-export type FunctionResponseMessage = {
+type FunctionResponseMessage = {
   version?: "0";
   type: "text";
   v1_type: "text" | "data";
@@ -325,7 +319,7 @@ export type FunctionResponseMessage = {
 } & TaskInfo &
   ToolInfo;
 
-export type IncomingMessageV0 = { version?: "0" } & BaseMessage &
+type IncomingMessageV0 = { version?: "0" } & BaseMessage &
   IncomingContextInfo &
   TaskInfo &
   (
@@ -344,7 +338,7 @@ export type IncomingMessageV0 = { version?: "0" } & BaseMessage &
     | MediaPlaceholder
   );
 
-export type OutgoingContextInfo = {
+type OutgoingContextInfo = {
   context?: { message_id: string };
 };
 
@@ -369,17 +363,17 @@ type TextParameter = {
   text: string;
 };
 
-export type OutgoingImage = {
+type OutgoingImage = {
   type: "image";
   image: ({ id: string } | { link: string }) & { caption?: string };
 };
 
-export type OutgoingVideo = {
+type OutgoingVideo = {
   type: "video";
   video: ({ id: string } | { link: string }) & { caption?: string };
 };
 
-export type OutgoingDocument = {
+type OutgoingDocument = {
   type: "document";
   document: ({ id: string } | { link: string }) & {
     caption?: string;
@@ -425,7 +419,7 @@ type TemplateButton = {
     }
 );
 
-export type Template = {
+type Template = {
   components?: (TemplateHeader | TemplateBody | TemplateButton)[];
   language: {
     code: string;
@@ -434,12 +428,12 @@ export type Template = {
   name: string;
 };
 
-export type TemplateMessage = {
+type TemplateMessage = {
   type: "template";
   template: Template;
 };
 
-export type OutgoingMessageV0 = { version?: "0" } & BaseMessage &
+type OutgoingMessageV0 = { version?: "0" } & BaseMessage &
   OutgoingContextInfo &
   TaskInfo &
   (
@@ -469,7 +463,7 @@ type MergeDeep<T, U> = {
       : never;
 };
 
-export type Database = MergeDeep<
+type Database = MergeDeep<
   DatabaseGenerated,
   {
     public: {

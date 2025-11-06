@@ -25,6 +25,7 @@ import type { AgentRowWithExtra, ResponseContext } from "./protocols/base.ts";
 import { TransferToHumanAgentTool } from "./tools/handoff.ts";
 import { AttachFileTool } from "./tools/attachment.ts";
 import { getFileMetadata } from "../_shared/media.ts";
+import { toV1, type MessageRowV0 } from "../_shared/messages-v0.ts";
 
 export type AgentTool = {
   provider: "local";
@@ -187,7 +188,9 @@ Deno.serve(async (req) => {
   }
 
   const messages = messagesMixedVersions
-    .map((m) => (m.content.version === "1" ? m : toV1(m)))
+    .map((m) =>
+      m.content.version === "1" ? m : toV1(m as unknown as MessageRowV0),
+    )
     .filter(Boolean) as MessageRow[];
 
   // Query was done in descending order to apply the limit.
