@@ -41,10 +41,10 @@ for each row
 when (
   new.extra is not null
 )
-execute function public.merge_update_extra();
+execute function public.merge_update('extra');
 
 create trigger set_updated_at
 before update
 on public.agents
 for each row
-execute function public.moddatetime('updated_at'); 
+execute function public.moddatetime('updated_at');

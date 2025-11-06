@@ -8,13 +8,13 @@ import {
   type LocalMCPToolConfig,
   type MessageInsert,
   type MessageRow,
-  type MessageRowV1,
   type Part,
   type TextPart,
   type ToolInfo,
   type WebhookPayload,
+  type OutgoingMessage,
+  type InternalMessage,
 } from "../_shared/supabase.ts";
-import { fromV1, toV1 } from "../_shared/messages-v0.ts";
 import { ProtocolFactory } from "./protocols/index.ts";
 import { callTool, initMCP, type MCPServer } from "./tools/mcp.ts";
 import { Toolbox } from "./tools/index.ts";
@@ -61,7 +61,7 @@ const ANNOTATION_POLLING_INTERVAL = 5 * 1000; // 5 seconds
  *  agent will get the conversation history in the correct order.
  */
 
-function isNewestMessage(incoming: MessageRow, messages: MessageRowV1[]) {
+function isNewestMessage(incoming: MessageRow, messages: MessageRow[]) {
   const incomingCreatedAt = new Date(incoming.created_at);
 
   const sortedMessages = messages
@@ -173,7 +173,7 @@ Deno.serve(async (req) => {
 
   // RETRIEVE MESSAGES
 
-  const { data: messages_v0, error: messagesError } = await client
+  const { data: messagesMixedVersions, error: messagesError } = await client
     .from("messages")
     .select()
     .eq("conversation_id", incoming.conversation_id)
@@ -186,7 +186,9 @@ Deno.serve(async (req) => {
     throw messagesError;
   }
 
-  const messages = messages_v0.map(toV1).filter(Boolean) as MessageRowV1[];
+  const messages = messagesMixedVersions
+    .map((m) => (m.content.version === "1" ? m : toV1(m)))
+    .filter(Boolean) as MessageRow[];
 
   // Query was done in descending order to apply the limit.
   // We need the messages in chronological order, though.
@@ -206,14 +208,14 @@ Deno.serve(async (req) => {
   // SESSION RESTART if /new is found — USEFUL FOR WHATSAPP TESTING
 
   const firstMessageIndex = messages.findLastIndex(
-    ({ direction, message }) =>
+    ({ direction, content }) =>
       direction === "incoming" &&
-      message.type === "text" &&
-      message.text.startsWith("/new"),
+      content.type === "text" &&
+      content.text.startsWith("/new"),
   );
 
   if (firstMessageIndex > -1) {
-    const firstMessage = messages[firstMessageIndex].message as TextPart;
+    const firstMessage = messages[firstMessageIndex].content as TextPart;
 
     firstMessage.text = firstMessage.text.replace("/new", "");
 
@@ -234,7 +236,7 @@ Deno.serve(async (req) => {
     }
   }
 
-  log.info("Contact request", messages.at(-1)?.message);
+  log.info("Contact request", messages.at(-1)?.content);
 
   // WELCOME MESSAGE
   // Note: The welcome message is affected by allowed contacts. This behavior
@@ -251,14 +253,15 @@ Deno.serve(async (req) => {
       organization_address: conv.organization_address,
       contact_address: conv.contact_address,
       direction: "outgoing",
-      type: "outgoing", // TODO: Deprecate
-      message: {
+      content: {
+        version: "1",
         type: "text",
-        content: org.extra.welcome_message.replaceAll("**", "*"), // TODO: Deprecate
+        kind: "text",
+        text: org.extra.welcome_message.replaceAll("**", "*"), // TODO: Deprecate
       },
     };
 
-    log.info("Welcome message", outgoing.message.content);
+    log.info("Welcome message", (outgoing.content as TextPart).text);
 
     const { error: insertError } = await client
       .from("messages")
@@ -393,7 +396,7 @@ Deno.serve(async (req) => {
       while (org.extra.annotations?.mode === "active") {
         const pendingAnnotations = messages.filter(
           (m) =>
-            m.message.type === "file" &&
+            m.content.type === "file" &&
             m.status.pending && // Note: not using status.annotating to avoid race conditions with the annotator Edge Function.
             !m.status.annotated &&
             +new Date(m.status.pending) > +new Date() - ANNOTATION_TIMEOUT,
@@ -417,7 +420,7 @@ Deno.serve(async (req) => {
 
         // RETRIEVE ANNOTATIONS
 
-        const { data: pending_messages_v0, error: messagesError } = await client
+        const { data: pending_messages, error: messagesError } = await client
           .from("messages")
           .select()
           .in(
@@ -428,10 +431,6 @@ Deno.serve(async (req) => {
         if (messagesError) {
           throw messagesError;
         }
-
-        const pending_messages = pending_messages_v0
-          .map(toV1)
-          .filter(Boolean) as MessageRowV1[];
 
         // Update the messages with the pending annotations.
         for (const pm of pending_messages) {
@@ -586,18 +585,18 @@ Deno.serve(async (req) => {
         response.messages.filter(
           (m) =>
             m.direction === "internal" &&
-            m.message.type === "text" &&
-            m.message.tool &&
-            m.message.tool.provider === "local",
+            m.content.type === "text" &&
+            m.content.tool &&
+            m.content.tool.provider === "local",
         ) || [];
 
       for (const row of toolUses) {
         // Only needed to please the TypeScript compiler
         if (
           row.direction !== "internal" ||
-          row.message.type !== "text" ||
-          !row.message.tool ||
-          row.message.tool.provider !== "local"
+          row.content.type !== "text" ||
+          !row.content.tool ||
+          row.content.tool.provider !== "local"
         ) {
           continue;
         }
@@ -617,7 +616,7 @@ Deno.serve(async (req) => {
 
         let parts: (Part & ToolInfo)[] = [];
 
-        const toolInfo = row.message.tool;
+        const toolInfo = row.content.tool;
 
         const agentTool = tools.find(
           (t) =>
@@ -634,7 +633,7 @@ Deno.serve(async (req) => {
             );
           }
 
-          let input: string | Json = row.message.text;
+          let input: string | Json = row.content.text;
 
           const ajv = new Ajv2020();
           const schema = agentTool.inputSchema;
@@ -642,9 +641,9 @@ Deno.serve(async (req) => {
           input = JSON.parse(input);
 
           // When JSON parsing is done, the message is converted to a data part.
-          row.message = {
+          row.content = {
             version: "1",
-            task: row.message.task,
+            task: row.content.task,
             tool: toolInfo,
             type: "data",
             kind: "data",
@@ -710,7 +709,7 @@ Deno.serve(async (req) => {
                 throw new Error(`MCP server ${agentTool.label} not found.`);
               }
 
-              parts = await callTool(mcp, row.message, context, client);
+              parts = await callTool(mcp, row.content, context, client);
 
               break;
             }
@@ -769,24 +768,38 @@ Deno.serve(async (req) => {
 
         // TODO: Mutating the response object is not the most recommended way to do this
         // but it will be improved soon.
-        const taskId = row.message.task?.id || crypto.randomUUID();
+        const taskId = row.content.task?.id || crypto.randomUUID();
 
-        response.messages.push(
-          // @ts-expect-error TODO: file messages are outgoing
-          ...parts.map((part) => ({
-            service: conv.service,
-            organization_address: conv.organization_address,
-            contact_address: conv.contact_address,
-            direction: part.type === "file" ? "outgoing" : "internal",
-            type: part.type === "file" ? "outgoing" : "function_response",
-            agent_id: agent.id,
-            message: {
-              version: "1" as const,
-              task: { id: taskId },
-              ...part,
-            },
-          })),
-        );
+        for (const part of parts) {
+          const message =
+            part.type === "file"
+              ? {
+                  service: conv.service,
+                  organization_address: conv.organization_address,
+                  contact_address: conv.contact_address,
+                  direction: "internal" as const,
+                  agent_id: agent.id,
+                  content: {
+                    version: "1" as const,
+                    task: { id: taskId },
+                    ...part,
+                  } as InternalMessage,
+                }
+              : {
+                  service: conv.service,
+                  organization_address: conv.organization_address,
+                  contact_address: conv.contact_address,
+                  direction: "outgoing" as const,
+                  agent_id: agent.id,
+                  content: {
+                    version: "1" as const,
+                    task: { id: taskId },
+                    ...part,
+                  } as OutgoingMessage,
+                };
+
+          response.messages.push(message);
+        }
       }
 
       if (!toolUses.length) {
@@ -798,15 +811,13 @@ Deno.serve(async (req) => {
       log.error("Error in agent client", error as Error);
 
       response.messages = [
-        // @ts-expect-error
         {
           service: conv.service,
           organization_address: conv.organization_address,
           contact_address: conv.contact_address,
           direction: org.extra.error_messages_direction || "internal",
-          type: org.extra.error_messages_direction || "internal",
           agent_id: agent.id,
-          message: {
+          content: {
             version: "1" as const,
             type: "text",
             kind: "text",
@@ -819,7 +830,7 @@ Deno.serve(async (req) => {
     // STORE CURRENT ITERATION MESSAGES
 
     if (response.messages?.length) {
-      log.info("Agent response", response.messages.at(-1)?.message);
+      log.info("Agent response", response.messages.at(-1)?.content);
 
       const output_messages = response.messages.map((message, index) => ({
         ...message,
@@ -832,14 +843,10 @@ Deno.serve(async (req) => {
         timestamp: new Date(+new Date() + index).toISOString(),
       }));
 
-      const output_messages_v0 = output_messages
-        .map(fromV1)
-        .filter(Boolean) as MessageRow[];
-
       // Insert and select the inserted messages
-      const { data: messages_v0, error: messagesError } = await client
+      const { data: inserted_messages, error: messagesError } = await client
         .from("messages")
-        .insert(output_messages_v0)
+        .insert(output_messages)
         .select()
         .order("timestamp");
 
@@ -848,9 +855,7 @@ Deno.serve(async (req) => {
       }
 
       // Append generated messages to the context
-      messages.push(
-        ...(messages_v0.map(toV1).filter(Boolean) as MessageRowV1[]),
-      );
+      messages.push(...inserted_messages);
     }
   }
 
@@ -900,4 +905,5 @@ Deno.serve(async (req) => {
  * - Improved error handling
  *   https://modelcontextprotocol.io/specification/2025-03-26/server/tools#error-handling
  * - Timestamp precision (JS milliseconds vs PostgreSQL microseconds)
+ * - split supabase.ts into different types files
  */

@@ -1,21 +1,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import * as log from "../_shared/logger.ts";
 import {
-  type IncomingMessageV1,
-  type OutgoingMessageV1,
-  type MessageInsertV1,
+  type IncomingMessage,
+  type OutgoingMessage,
   type ConversationInsert,
   type MessageInsert,
-  type OutgoingMessage,
   type MetaWebhookPayload,
   type WebhookIncomingMessage,
   type WebhookEchoMessage,
   type WebhookHistoryMessage,
-  type MessageRow,
   createUnsecureClient,
 } from "../_shared/supabase.ts";
 import { fetchMedia, uploadToStorage } from "../_shared/media.ts";
-import { fromV1 } from "../_shared/messages-v0.ts";
 
 const API_VERSION = "v24.0";
 const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN");
@@ -154,15 +150,15 @@ async function downloadMediaItem({
 }: {
   organization_id: string;
   access_token: string;
-  message: MessageInsertV1;
+  message: MessageInsert;
   client: SupabaseClient;
-}): Promise<MessageInsertV1> {
-  if (message.message.type !== "file") {
+}): Promise<MessageInsert> {
+  if (message.content.type !== "file") {
     return message;
   }
 
-  const media_id = message.message.file.uri;
-  const filename = message.message.file.name;
+  const media_id = message.content.file.uri;
+  const filename = message.content.file.name;
 
   // Fetch part 1: Get the download url using the media id
   const response = await fetch(
@@ -173,8 +169,12 @@ async function downloadMediaItem({
   );
 
   if (!response.ok) {
-    log.error(response.headers.get("www-authenticate")!);
-    throw response;
+    throw Error("Could not download media item from WhatsApp servers", {
+      cause: {
+        header: response.headers.get("www-authenticate"),
+        body: await response.json(),
+      },
+    });
   }
 
   const mediaMetadata = (await response.json()) as {
@@ -192,8 +192,8 @@ async function downloadMediaItem({
   // Store the file
   const uri = await uploadToStorage(client, organization_id, file, filename);
 
-  message.message.file.uri = uri; // Overwrite WA media id with the internal uri
-  message.message.file.size = mediaMetadata.file_size;
+  message.content.file.uri = uri; // Overwrite WA media id with the internal uri
+  message.content.file.size = mediaMetadata.file_size;
 
   return message;
 }
@@ -204,9 +204,9 @@ async function downloadMediaItem({
  * @returns modified messages
  */
 async function downloadMedia(
-  mediaMessages: MessageInsertV1[],
+  mediaMessages: MessageInsert[],
   client: SupabaseClient,
-): Promise<MessageInsertV1[]> {
+): Promise<MessageInsert[]> {
   if (!mediaMessages.length) {
     return [];
   }
@@ -252,9 +252,9 @@ async function downloadMedia(
   );
 }
 
-function webhookMessageToIncomingMessageV1(
+function webhookMessageToIncomingMessage(
   message: WebhookIncomingMessage | WebhookEchoMessage | WebhookHistoryMessage,
-): IncomingMessageV1 | undefined {
+): IncomingMessage | undefined {
   let re_message_id: string | undefined;
   let forwarded: boolean | undefined;
 
@@ -448,10 +448,10 @@ function webhookMessageToIncomingMessageV1(
     */
     case "unsupported":
     default: {
-      // System and unsupported messages are not converted to IncomingMessageV1
+      // System and unsupported messages are not converted to IncomingMessage
       // They should be handled separately or filtered out before calling this function
       log.error(
-        `Message type "${message.type}" cannot be converted to IncomingMessageV1`,
+        `Message type "${message.type}" cannot be converted to IncomingMessage`,
         message,
       );
     }
@@ -476,7 +476,7 @@ async function processMessage(request: Request): Promise<Response> {
     return new Response("Unexpected object", { status: 400 });
   }
 
-  const messages: MessageInsertV1[] = [];
+  const messages: MessageInsert[] = [];
   const conversations: Set<ConversationInsert> = new Set();
   const statuses: MessageInsert[] = [];
 
@@ -501,7 +501,7 @@ async function processMessage(request: Request): Promise<Response> {
       if (field === "messages" && "messages" in value) {
         for (const webhookMessage of value.messages) {
           const contact_address = webhookMessage.from;
-          const content = webhookMessageToIncomingMessageV1(webhookMessage);
+          const content = webhookMessageToIncomingMessage(webhookMessage);
 
           if (!content) {
             continue;
@@ -514,9 +514,8 @@ async function processMessage(request: Request): Promise<Response> {
             service: "whatsapp" as const,
             organization_address,
             contact_address,
-            type: "incoming" as const, // TODO: deprecate with v0
             direction: "incoming" as const,
-            message: content,
+            content,
             timestamp: new Date(webhookMessage.timestamp * 1000).toISOString(),
           };
 
@@ -531,9 +530,8 @@ async function processMessage(request: Request): Promise<Response> {
             service: "whatsapp",
             organization_address,
             contact_address: status.recipient_id,
-            type: "outgoing",
             direction: "outgoing",
-            message: {} as OutgoingMessage, // this will get merged (it won't overwrite)
+            content: {} as OutgoingMessage, // this will get merged (it won't overwrite)
             status: {
               [status.status]: new Date(
                 parseInt(status.timestamp) * 1000,
@@ -579,7 +577,7 @@ async function processMessage(request: Request): Promise<Response> {
             contact_address,
           });
 
-          const content = webhookMessageToIncomingMessageV1(webhookMessage);
+          const content = webhookMessageToIncomingMessage(webhookMessage);
 
           if (!content) {
             continue;
@@ -592,9 +590,8 @@ async function processMessage(request: Request): Promise<Response> {
             service: "whatsapp" as const,
             organization_address,
             contact_address,
-            type: "outgoing" as const, // TODO: deprecate with v0
             direction: "outgoing" as const,
-            message: content as OutgoingMessageV1, // Incoming are a superset of outgoing, except for templates
+            content: content as OutgoingMessage, // Incoming are a superset of outgoing, except for templates
             status: {
               sent: new Date(webhookMessage.timestamp * 1000).toISOString(),
             },
@@ -639,8 +636,7 @@ async function processMessage(request: Request): Promise<Response> {
                   ? webhookMessage.to!
                   : webhookMessage.from;
 
-                const content =
-                  webhookMessageToIncomingMessageV1(webhookMessage);
+                const content = webhookMessageToIncomingMessage(webhookMessage);
 
                 if (!content) {
                   continue;
@@ -663,9 +659,8 @@ async function processMessage(request: Request): Promise<Response> {
                       service: "whatsapp" as const,
                       organization_address,
                       contact_address,
-                      type: "outgoing" as const, // TODO: deprecate with v0
                       direction: "outgoing" as const,
-                      message: content as OutgoingMessageV1, // Incoming are a superset of outgoing, except for templates
+                      content: content as OutgoingMessage, // Incoming are a superset of outgoing, except for templates
                       status: {
                         [historyStatusMap[
                           webhookMessage.history_context.status
@@ -684,9 +679,8 @@ async function processMessage(request: Request): Promise<Response> {
                       service: "whatsapp" as const,
                       organization_address,
                       contact_address,
-                      type: "incoming" as const, // TODO: deprecate with v0
                       direction: "incoming" as const,
-                      message: content, // Incoming are a superset of outgoing, except for templates
+                      content, // Incoming are a superset of outgoing, except for templates
                       status: {
                         [historyStatusMap[
                           webhookMessage.history_context.status
@@ -778,13 +772,9 @@ async function processMessage(request: Request): Promise<Response> {
   // Patched messages include media local id and file size
   const patchedMessages = await downloadMediaPromise;
 
-  const messagesV0 = patchedMessages
-    .map(fromV1)
-    .filter(Boolean) as MessageRow[];
-
   const { error: messagesError } = await client
     .from("messages")
-    .upsert(messagesV0, {
+    .upsert(patchedMessages, {
       onConflict: "external_id",
     });
 

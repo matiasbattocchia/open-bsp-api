@@ -188,52 +188,49 @@ export type Database = {
         Row: {
           agent_id: string | null
           contact_address: string
+          content: Json
           conversation_id: string
           created_at: string
           direction: Database["public"]["Enums"]["direction"]
           external_id: string | null
           id: string
-          message: Json
           organization_address: string
           organization_id: string
           service: Database["public"]["Enums"]["service"]
           status: Json
           timestamp: string
-          type: Database["public"]["Enums"]["type"]
           updated_at: string
         }
         Insert: {
           agent_id?: string | null
           contact_address: string
+          content: Json
           conversation_id: string
           created_at?: string
           direction: Database["public"]["Enums"]["direction"]
           external_id?: string | null
           id?: string
-          message: Json
           organization_address: string
           organization_id: string
           service: Database["public"]["Enums"]["service"]
           status?: Json
           timestamp?: string
-          type: Database["public"]["Enums"]["type"]
           updated_at?: string
         }
         Update: {
           agent_id?: string | null
           contact_address?: string
+          content?: Json
           conversation_id?: string
           created_at?: string
           direction?: Database["public"]["Enums"]["direction"]
           external_id?: string | null
           id?: string
-          message?: Json
           organization_address?: string
           organization_id?: string
           service?: Database["public"]["Enums"]["service"]
           status?: Json
           timestamp?: string
-          type?: Database["public"]["Enums"]["type"]
           updated_at?: string
         }
         Relationships: [
@@ -408,14 +405,6 @@ export type Database = {
     Enums: {
       direction: "incoming" | "outgoing" | "internal"
       service: "whatsapp" | "instagram" | "local"
-      type:
-        | "incoming"
-        | "outgoing"
-        | "draft"
-        | "notification"
-        | "function_call"
-        | "function_response"
-        | "internal"
       webhook_operation: "insert" | "update"
       webhook_table: "messages" | "conversations"
     }
@@ -1046,15 +1035,6 @@ export const Constants = {
     Enums: {
       direction: ["incoming", "outgoing", "internal"],
       service: ["whatsapp", "instagram", "local"],
-      type: [
-        "incoming",
-        "outgoing",
-        "draft",
-        "notification",
-        "function_call",
-        "function_response",
-        "internal",
-      ],
       webhook_operation: ["insert", "update"],
       webhook_table: ["messages", "conversations"],
     },

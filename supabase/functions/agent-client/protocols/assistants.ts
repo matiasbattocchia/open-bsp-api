@@ -150,17 +150,17 @@ export class AssistantsHandler
     const currentTurnMessages = messages.slice(lastPreviousTurnMessageIdx + 1);
 
     const assistantsMessages = await Promise.all(
-      currentTurnMessages.map(({ message, agent_id }) =>
+      currentTurnMessages.map(({ content, agent_id }) =>
         this.toAssistants(
           agent_id === agent.id ? "assistant" : "user",
-          message as Part & ToolInfo,
+          content as Part & ToolInfo,
         ),
       ),
     );
 
     const lastAgentTask = messages.findLast((m) => m.agent_id === agent.id);
 
-    const thread_id = lastAgentTask?.message.task?.session_id;
+    const thread_id = lastAgentTask?.content.task?.session_id;
 
     return {
       thread_id,

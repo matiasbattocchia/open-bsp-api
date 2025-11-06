@@ -307,7 +307,7 @@ export type OrganizationExtra = {
   annotations?: {
     mode?: "active" | "inactive";
     model?: "gemini-2.5-pro" | "gemini-2.5-flash"; // default: gemini-2.5-flash
-    api_key: string; // default GOOGLE_API_KEY env var
+    api_key: string; // default GEMINI_API_KEY env var
     language?: string;
     extra_prompt?: string;
   };
