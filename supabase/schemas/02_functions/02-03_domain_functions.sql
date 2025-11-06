@@ -86,10 +86,18 @@ begin
   order by created_at desc
   limit 1;
 
-  -- Raise error if conversation does not exist
+  -- Create conversation if it doesn't exist (create_conversation trigger will handle organization_id lookup)
   if new.conversation_id is null then
-    raise exception 'Active conversation not found for organization_address % and contact_address %',
-      new.organization_address, new.contact_address;
+    insert into public.conversations (
+      organization_address,
+      contact_address,
+      service
+    ) values (
+      new.organization_address,
+      new.contact_address,
+      new.service
+    )
+    returning id, organization_id into new.conversation_id, new.organization_id;
   end if;
 
   return new;
