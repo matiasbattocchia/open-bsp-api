@@ -4,15 +4,19 @@ The Open Business Service Provider API integrates with the [WhatsApp Business Pl
 
 Open BSP is designed for both individual businesses and service providers. You can use it to manage your own WhatsApp messaging, or leverage its features to become a [Meta Business Partner](https://developers.facebook.com/docs/whatsapp/solution-providers) and offer WhatsApp messaging services to other organizations.
 
+---
+
 ## User Interface
 
 <p align="center">
-  <img src="./ui.png" alt="Open BSP UI Screenshot" width="800">
+  <img src="./screenshot.png" alt="Open BSP UI Screenshot" width="800">
 </p>
 
 For a complete web-based interface to manage conversations, contacts, and organizations, check out the companion project:
 
 **🖥️ [Open BSP UI](https://github.com/matiasbattocchia/open-bsp-ui)** - A modern, responsive web interface built with React and TypeScript.
+
+---
 
 ## Description
 
@@ -41,63 +45,102 @@ The `mcp` module utilizes an MCP server to provide agentic access to the API. Fo
 
 ## Deployment
 
-1. Create a [Supabase](https://supabase.com) project
-2. [Fork me](https://github.com/matiasbattocchia/open-bsp-api/fork)
-3. Configure the following secrets and variables for GitHub Actions in your repository settings
-4. Re-run the _Release_ action
+- [ ] 1. Create a [Supabase](https://supabase.com) project
+- [ ] 2. [Fork me](https://github.com/matiasbattocchia/open-bsp-api/fork)
+- [ ] 3. Configure the following secrets and variables for GitHub Actions in your repository settings
+- [ ] 4. Re-run the _Release_ action
+
+---
 
 #### Secrets
 
-- `SUPABASE_ACCESS_TOKEN`: A [personal access token](https://supabase.com/dashboard/account/tokens)
-- `SUPABASE_DB_PASSWORD`: Get it at Supabase > Project > Database > Settings > Database password (`https://supabase.com/dashboard/project/{project_id}/database/settings`)
-- `SUPABASE_SERVICE_ROLE_KEY`: Get it at Supabase > Project > Project Settings > API keys > Legacy API Keys (`https://supabase.com/dashboard/project/{project_id}/settings/api-keys`)
+| Secret                      | Description                                                              | Where to Find                                                                                                                                    |
+| --------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `SUPABASE_ACCESS_TOKEN`     | A [personal access token](https://supabase.com/dashboard/account/tokens) | Supabase Account Settings                                                                                                                        |
+| `SUPABASE_DB_PASSWORD`      | Your database password                                                   | Supabase > Project > Database > Settings > Database password<br/>(`https://supabase.com/dashboard/project/{project_id}/database/settings`)       |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role key for backend operations                                  | Supabase > Project > Project Settings > API keys > Legacy API Keys<br/>(`https://supabase.com/dashboard/project/{project_id}/settings/api-keys`) |
 
-> Create the secrets at GitHub > Repository > Settings ⚙️ > Secrets and variables \*️⃣ > Actions > Secrets (`https://github.com/{github_account}/open-bsp-api/settings/secrets/actions`).
+> [!NOTE]
+> 🔑 Create the secrets at GitHub > Repository > Settings ⚙️ > Secrets and variables > Actions > Secrets<br/>
+> 🔗 (`https://github.com/{github_account}/open-bsp-api/settings/secrets/actions`)
+
+---
 
 #### Variables
 
-- `SUPABASE_PROJECT_ID`: the `{project_id}` in `https://supabase.com/dashboard/project/{project_id}`
-- `SUPABASE_SESSION_POOLER_HOST`: Found at Supabase > Project > Connect 🔌 > Session pooler > View parameters > Host (`https://supabase.com/dashboard/project/{project_id}/database/schemas?showConnect=true`)
+| Variable                       | Description                     | Where to Find                                                                                                                                                           |
+| ------------------------------ | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SUPABASE_PROJECT_ID`          | Your Supabase project ID        | The `{project_id}` in `https://supabase.com/dashboard/project/{project_id}`                                                                                             |
+| `SUPABASE_SESSION_POOLER_HOST` | Database connection pooler host | Supabase > Project > Connect 🔌 > Session pooler > View parameters > Host<br/>(`https://supabase.com/dashboard/project/{project_id}/database/schemas?showConnect=true`) |
 
-> Create the variables at GitHub > Repository > Settings ⚙️ > Secrets and variables \*️⃣ > Actions > Variables (`https://github.com/{github_account}/open-bsp-api/settings/variables/actions`).
+> [!NOTE]
+> 📝 Create the variables at GitHub > Repository > Settings ⚙️ > Secrets and variables > Actions > Variables<br/>
+> 🔗 (`https://github.com/{github_account}/open-bsp-api/settings/variables/actions`)
+
+---
 
 #### Release
 
-1. Go to GitHub > Repository > Actions ▶️ > Release (`https://github.com/{github_account}/open-bsp-api/actions/workflows/release.yml`)
+1. **➡️ Go to** GitHub > Repository > Actions ▶️ > Release<br/>
+   🔗 (`https://github.com/{github_account}/open-bsp-api/actions/workflows/release.yml`)
 2. Click **Run workflow**
 
 ## WhatsApp Integration
 
 To connect your WhatsApp API to your Supabase project, you'll need to configure the following Edge Functions secrets. You can set these up in two ways:
 
+<details>
+<summary><b>📋 Configuration Options</b></summary>
+
 1. **Direct configuration**: Add them directly in your Supabase dashboard at Supabase > Project > Edge Functions > Secrets (`https://supabase.com/dashboard/project/{project_id}/functions/secrets`).
 2. **GitHub Actions**: Set them as GitHub Actions secrets in your repository settings and re-run the _Release_ action to automatically deploy them.
 
+</details>
+
+---
+
 #### Secrets
 
-- `META_SYSTEM_USER_ID`
-- `META_SYSTEM_USER_ACCESS_TOKEN`
-- `META_APP_ID`
-- `META_APP_SECRET`
-- `WHATSAPP_VERIFY_TOKEN`
+| Secret                          | Description                                 |
+| ------------------------------- | ------------------------------------------- |
+| `META_SYSTEM_USER_ID`           | System user ID from Meta Business Suite     |
+| `META_SYSTEM_USER_ACCESS_TOKEN` | Access token for the system user            |
+| `META_APP_ID`                   | Meta app ID                                 |
+| `META_APP_SECRET`               | Meta app secret                             |
+| `WHATSAPP_VERIFY_TOKEN`         | Custom verification token (you choose this) |
 
 Follow these steps to obtain the required credentials:
 
+---
+
 ### Overview
+
+<details>
+<summary><b>📚 Meta Nomenclature Guide</b></summary>
 
 There is quiet a Meta nomenclature of entities that you might want to get in order
 to not to get lost in the platform.
 
-- **Business profile** - This is the top-level entity, represents a business. Has users and assets.
-- **User** - Real or system users. System users can have access tokens. Users belong to a business portfolio and can have assigned assets.
-- **Asset** - WhatsApp accounts, Instagram accounts, Meta apps, among others. Assets belong to a business portfolio and are assigned to users.
-- **App** - An asset that integrates Meta products such as the WhatsApp Cloud API.
-- **WhatsApp Business Account (WABA)** - A WhatsApp account asset, can have many phone numbers.
-- **Phone number** - A registered phone number within the WhatsApp Cloud API. Belongs to a WABA.
+| Entity                               | Description                                                                                                                      |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| **Business profile**                 | Top-level entity, represents a business. Has users and assets.                                                                   |
+| **User**                             | Real or system users. System users can have access tokens. Users belong to a business portfolio and can have assigned assets.    |
+| **Asset**                            | WhatsApp accounts, Instagram accounts, Meta apps, among others. Assets belong to a business portfolio and are assigned to users. |
+| **App**                              | An asset that integrates Meta products such as the WhatsApp Cloud API.                                                           |
+| **WhatsApp Business Account (WABA)** | A WhatsApp account asset, can have many phone numbers.                                                                           |
+| **Phone number**                     | A registered phone number within the WhatsApp Cloud API. Belongs to a WABA.                                                      |
 
-> **Note**: For more details, refer to [Cloud API overview](https://developers.facebook.com/docs/whatsapp/cloud-api/overview).
+> [!NOTE]
+> 📖 For more details, refer to [Cloud API overview](https://developers.facebook.com/docs/whatsapp/cloud-api/overview).
+
+</details>
+
+---
 
 ### Step 1: Create a Meta app (skip if you already have one)
+
+<details>
+<summary><b>🔧 View Instructions</b></summary>
 
 1. Navigate to [My Apps](https://developers.facebook.com/apps)
 2. Click **Create App**
@@ -108,48 +151,75 @@ to not to get lost in the platform.
 5. Click **Add API**
 6. Disregard the screen that appears next and proceed to the next step
 
+</details>
+
+---
+
 ### Step 2: Create a system user
+
+<details>
+<summary><b>👤 View Instructions</b></summary>
 
 1. Get into the [Meta Business Suite](https://business.facebook.com). If you have multiple portfolios, select the one associated with your app
 2. Go to Settings > Users > System users (`https://business.facebook.com/latest/settings/system_users`)
 3. Add an **admin system user**
-4. Copy the **ID** → `META_SYSTEM_USER_ID`
+4. Copy the **ID** → `META_SYSTEM_USER_ID` 🔑
 5. Assign your app to the user with **full control** permissions
 6. Generate a token with these permissions:
    - `business_management`
    - `whatsapp_business_messaging`
    - `whatsapp_business_management`
-7. Copy the **Access Token** → `META_SYSTEM_USER_ACCESS_TOKEN`
+7. Copy the **Access Token** → `META_SYSTEM_USER_ACCESS_TOKEN` 🔑
 
-> **Note**: For detailed instructions on system user setup, refer to the [WhatsApp Business Management API documentation](https://developers.facebook.com/docs/whatsapp/business-management-api/get-started).
+> [!NOTE]
+> 📖 For detailed instructions on system user setup, refer to the [WhatsApp Business Management API documentation](https://developers.facebook.com/docs/whatsapp/business-management-api/get-started).
+
+</details>
+
+---
 
 ### Step 3: Get the app credentials
+
+<details>
+<summary><b>🔐 View Instructions</b></summary>
 
 1. Navigate to [My Apps](`https://developers.facebook.com/apps`) > App Dashboard (`https://developers.facebook.com/apps/{app_id}`)
 2. Go to App settings > Basic (`https://developers.facebook.com/apps/{app_id}/settings/basic`)
 3. Copy the following values:
-   - **App ID** → `META_APP_ID`
-   - **App secret** → `META_APP_SECRET`
+   - **App ID** → `META_APP_ID` 🔑
+   - **App secret** → `META_APP_SECRET` 🔑
 
-> **Note**: Multiple Meta apps are supported by separating values with `|` (pipe) characters. For example: `META_APP_ID=app_id_1|app_id_2` and `META_APP_SECRET=app_secret_1|app_secret_2`.
+> [!NOTE]
+> 🔀 Multiple Meta apps are supported by separating values with `|` (pipe) characters.<br/>
+> For example: `META_APP_ID=app_id_1|app_id_2` and `META_APP_SECRET=app_secret_1|app_secret_2`.
+
+</details>
+
+---
 
 ### Step 4: Configure the `WhatsApp Business Account` webhook
 
-#### Part A
+<details>
+<summary><b>🪝 Part A: Set up webhook URL</b></summary>
 
 1. Within the App Dashboard
 2. Go to WhatsApp > Configuration (`https://developers.facebook.com/apps/{app_id}/whatsapp-business/wa-settings`)
 3. Set the **Callback URL** to: `https://{SUPABASE_PROJECT_ID}.supabase.co/functions/v1/whatsapp-webhook`
-4. Choose a secure token for `WHATSAPP_VERIFY_TOKEN` → Set it as the **Verify token**, but do not **Verify and save** yet!
+4. Choose a secure token for `WHATSAPP_VERIFY_TOKEN` → Set it as the **Verify token**, but do not **Verify and save** yet! ⚠️
 5. Ensure your Edge Functions environment variables are up-to-date
    - If you configured secrets directly in your Supabase dashboard, no further action is needed at this point
    - If you set secrets via GitHub Actions, re-run the _Release_ action now to deploy them to your Edge Functions
-6. Click **Verify and save**
+6. Click **Verify and save** ✅
 7. Disregard the screen that appears next and proceed to the next step
 
-> **Note**: Multiple Meta apps are supported by appending the query param `?app_id={META_APP_ID}` to the callback URL. For example: `https://{SUPABASE_PROJECT_ID}.supabase.co/functions/v1/whatsapp-webhook?app_id=app_id_2`.
+> [!NOTE]
+> 🔀 Multiple Meta apps are supported by appending the query param `?app_id={META_APP_ID}` to the callback URL.<br/>
+> For example: `https://{SUPABASE_PROJECT_ID}.supabase.co/functions/v1/whatsapp-webhook?app_id=app_id_2`.
 
-#### Part B
+</details>
+
+<details>
+<summary><b>📡 Part B: Subscribe to webhook fields</b></summary>
 
 1. Within the App Dashboard
 2. Go to WhatsApp > Configuration (`https://developers.facebook.com/apps/{app_id}/whatsapp-business/wa-settings`)
@@ -159,11 +229,21 @@ to not to get lost in the platform.
    - `smb_app_state_sync`
    - `smb_message_echoes`
 
-Optionally, test the configuration so far. In the `messages` subscription section, click **Test**. You should see the request in Supabase > Project > Edge Functions > Functions > whatsapp-webhook > Logs (`https://supabase.com/dashboard/project/{project_id}/functions/whatsapp-webhook/logs`).
+**🧪 Optional Test:**
 
-You might observe an error in the logs. This is an expected outcome at this stage; the simple fact that a log entry appears confirms that the webhook is successfully receiving events.
+In the `messages` subscription section, click **Test**. You should see the request in Supabase > Project > Edge Functions > Functions > whatsapp-webhook > Logs (`https://supabase.com/dashboard/project/{project_id}/functions/whatsapp-webhook/logs`).
+
+> [!WARNING]
+> You might observe an error in the logs. This is an expected outcome at this stage; the simple fact that a log entry appears confirms that the webhook is successfully receiving events.
+
+</details>
+
+---
 
 ### Step 5: Add a phone number
+
+<details>
+<summary><b>🧪 Option A: Add a test number</b></summary>
 
 If you decide to add the **test number**,
 
@@ -171,12 +251,18 @@ If you decide to add the **test number**,
 2. Go to WhatsApp > API Setup (`https://developers.facebook.com/apps/{app_id}/whatsapp-business/wa-dev-console`)
 3. Click **Generate access token** (you can't use the one you got from step 2 here)
 4. Copy these values:
-   - **Phone number ID**
-   - **WhatsApp Business Account ID**
+   - **Phone number ID** 📞
+   - **WhatsApp Business Account ID** 🆔
 5. Select a recipient phone number
 6. Send messages with the API > **Send message**
 
-> **Note**: the test number doesn't seem to fully activate to receive messages unless you send a test message at least once.
+> [!NOTE]
+> 📤 The test number doesn't seem to fully activate to receive messages unless you send a test message at least once.
+
+</details>
+
+<details>
+<summary><b>🚀 Option B: Add a production number</b></summary>
 
 In order to add a **production number**,
 
@@ -185,17 +271,22 @@ In order to add a **production number**,
 3. Navigate to [WhatsApp Manager](https://business.facebook.com/latest/whatsapp_manager/overview)
 4. Go to Account tools > Phone numbers (`https://business.facebook.com/latest/whatsapp_manager/phone_numbers`)
 5. Copy these values:
-   - **Phone number ID**
-   - **WhatsApp Business Account ID**
+   - **Phone number ID** 📞
+   - **WhatsApp Business Account ID** 🆔
+
+</details>
+
+---
 
 #### For any number you add
 
 Create an organization if you haven't done that already.
 
 ```sql
-insert into public.organizations (name, extra) values
-  ('Default', '{ "response_delay_seconds": 0 }')
-;
+-- 🏢 Create your organization
+INSERT INTO public.organizations (name, extra) VALUES
+  ('Default', '{ "response_delay_seconds": 0 }');
+-- 👆 Note the organization ID returned
 ```
 
 Note the **organization ID**.
@@ -203,9 +294,9 @@ Note the **organization ID**.
 Register the phone number with your organization in the system.
 
 ```sql
-insert into public.organizations_addresses (address, organization_id, service, extra) values
-  ('<Phone number ID>', '<Organization ID>', 'whatsapp', '{ "waba_id": "<WhatsApp Business Account ID>", "phone_number": "<Phone number>" }')
-;
+-- 📞 Register the phone number with your organization
+INSERT INTO public.organizations_addresses (address, organization_id, service, extra) VALUES
+  ('<Phone number ID>', '<Organization ID>', 'whatsapp', '{ "waba_id": "<WhatsApp Business Account ID>", "phone_number": "<Phone number>" }');
 ```
 
 ## Architecture
@@ -300,31 +391,31 @@ Requires Node 🐢 and Docker 🐋.
 
 ### Database
 
-```
+```bash
 npx supabase start
 ```
 
 After editing the schema files, generate a migration
 
-```
+```bash
 npx supabase db diff -f <migration_name>
 ```
 
 Apply the migration to the local database
 
-```
+```bash
 npx supabase migration up
 ```
 
 Finally, update the types
 
-```
+```bash
 npx supabase gen types typescript --local > supabase/functions/_shared/db_types.ts
 ```
 
 ### Edge Functions
 
-```
+```bash
 npx supabase functions serve
 ```
 
