@@ -648,7 +648,7 @@ async function processMessage(request: Request): Promise<Response> {
                   SENT: "sent",
                   ERROR: "failed",
                   PLAYED: "read",
-                  PENDING: "pending",
+                  PENDING: "accepted",
                 };
 
                 const message = isEcho

@@ -6,13 +6,13 @@ Open BSP is designed for both individual businesses and service providers. You c
 
 ## User Interface
 
+For a complete web-based interface to manage conversations check out the companion project:
+
+**🖥️ [Open BSP UI](https://github.com/matiasbattocchia/open-bsp-ui)** - A modern, responsive web interface built with React and TypeScript.
+
 <p align="center">
   <img src="./ui.png" alt="Open BSP UI Screenshot" width="800">
 </p>
-
-For a complete web-based interface to manage conversations, contacts, and organizations, check out the companion project:
-
-**🖥️ [Open BSP UI](https://github.com/matiasbattocchia/open-bsp-ui)** - A modern, responsive web interface built with React and TypeScript.
 
 ## Description
 
