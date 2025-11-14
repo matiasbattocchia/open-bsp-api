@@ -11,6 +11,7 @@
     "zod": "npm:zod@^4.0.9",
     "ajv": "https://esm.sh/ajv@8.17/dist/2020",
     "@hono/mcp": "npm:@hono/mcp",
-    "@hono/hono": "jsr:@hono/hono"
+    "@hono/hono": "jsr:@hono/hono",
+    "@std/encoding/base64url": "jsr:@std/encoding@1.0.10/base64url"
   }
 }

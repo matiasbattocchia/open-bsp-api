@@ -17,7 +17,7 @@ import {
   getBusinessCredentials,
 } from "./templates.ts";
 import { performEmbeddedSignup, SignupPayload } from "./embedded_signup.ts";
-import { decodeBase64Url } from "jsr:@std/encoding/base64url";
+import { decodeBase64Url } from "@std/encoding/base64url";
 
 const app = new Hono<{ Variables: { supabase: SupabaseClient } }>();
 
