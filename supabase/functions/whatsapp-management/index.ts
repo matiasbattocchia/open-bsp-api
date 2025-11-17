@@ -130,13 +130,9 @@ app.post("/whatsapp-management/signup", async (c) => {
   let claims: { sub?: string };
 
   try {
-    log.info("JWT part", parts[1]);
     const base64decodedPart = decodeBase64Url(parts[1]);
-    log.info("base 64 decoded part", base64decodedPart);
     const decodedPayload = new TextDecoder().decode(base64decodedPart);
-    log.info("decoded payload", decodedPayload);
     claims = JSON.parse(decodedPayload);
-    log.info("claims", claims);
   } catch (error) {
     throw new HTTPException(401, { message: "Invalid JWT", cause: error });
   }

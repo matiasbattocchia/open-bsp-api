@@ -12,22 +12,22 @@ import_map = "./functions/deno.json"
 entrypoint = "./functions/whatsapp-webhook/index.ts"
 
 [functions.whatsapp-management]
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/deno.json"
 entrypoint = "./functions/whatsapp-management/index.ts"
 
 [functions.annotator]
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/deno.json"
 entrypoint = "./functions/annotator/index.ts"
 
 [functions.agent-client]
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/deno.json"
 entrypoint = "./functions/agent-client/index.ts"
 
 [functions.whatsapp-dispatcher]
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/deno.json"
 entrypoint = "./functions/whatsapp-dispatcher/index.ts"
 

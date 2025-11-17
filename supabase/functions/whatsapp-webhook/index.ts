@@ -418,7 +418,7 @@ function webhookMessageToIncomingMessage(
         ...baseMessage,
         type: "data",
         kind: "media_placeholder",
-        data: null,
+        data: {},
       };
     }
 
@@ -549,7 +549,7 @@ async function processMessage(request: Request): Promise<Response> {
             error,
           );
 
-          client
+          await client
             .from("organizations_addresses")
             .update({
               extra: {
@@ -605,8 +605,7 @@ async function processMessage(request: Request): Promise<Response> {
       if (field === "history") {
         for (const history of value.history) {
           if ("threads" in history) {
-            // fire and forget
-            client
+            await client
               .from("organizations_addresses")
               .update({
                 extra: {
@@ -700,7 +699,7 @@ async function processMessage(request: Request): Promise<Response> {
 
           if ("errors" in history) {
             for (const error of history.errors) {
-              client
+              await client
                 .from("organizations_addresses")
                 .update({
                   extra: {

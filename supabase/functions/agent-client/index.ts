@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
   const token = authHeader?.replace("Bearer ", "");
 
   if (token !== SERVICE_ROLE_KEY) {
-    // TODO: SERVICE_ROLE_KEY might be the new secret key
+    // TODO: SERVICE_ROLE_KEY the *new* secret key (based on)
     // but we are sending the legacy one because the new one does not work
     // with PostgREST yet
     // This check is needed to not to respond to the anon / public key

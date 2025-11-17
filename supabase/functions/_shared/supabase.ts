@@ -728,7 +728,10 @@ type ButtonPart = DataPart<"button", ButtonMessage["button"]>;
 
 type TemplatePart = DataPart<"template", Template>;
 
-type MediaPlaceholderPart = DataPart<"media_placeholder", null>;
+type MediaPlaceholderPart = DataPart<
+  "media_placeholder",
+  Record<PropertyKey, never>
+>;
 
 // Multi-part messages
 

@@ -383,7 +383,7 @@ export async function performEmbeddedSignup(
   log.info("Persisting phone number data");
   const { data, error } = await client
     .from("organizations_addresses")
-    .insert({
+    .upsert({
       service: "whatsapp",
       address: payload.phone_number_id,
       organization_id: payload.organization_id,
@@ -406,19 +406,42 @@ export async function performEmbeddedSignup(
 
   // App data sync is a coexistence only feature
   if (payload.flow_type === "existing_phone_number") {
-    log.info("Step 4: Initiating contacts sync");
-    await postInitDataSync(
-      business_access_token,
-      payload.phone_number_id,
-      "contacts",
-    );
+    try {
+      log.info("Step 4: Initiating contacts sync");
+      await postInitDataSync(
+        business_access_token,
+        payload.phone_number_id,
+        "contacts",
+      );
 
-    log.info("Step 5: Initiating messages sync");
-    await postInitDataSync(
-      business_access_token,
-      payload.phone_number_id,
-      "messages",
-    );
+      log.info("Step 5: Initiating messages sync");
+      await postInitDataSync(
+        business_access_token,
+        payload.phone_number_id,
+        "messages",
+      );
+    } catch (error) {
+      // @ts-ignore
+      log.error(error.message, error.cause);
+
+      await client
+        .from("organizations_addresses")
+        .update({
+          extra: {
+            logs: [
+              {
+                timestamp: new Date().toISOString(),
+                level: "error",
+                // @ts-ignore
+                message: error.message,
+                // @ts-ignore
+                cause: error.cause,
+              },
+            ],
+          },
+        })
+        .eq("address", payload.phone_number_id);
+    }
   }
 
   return data;
