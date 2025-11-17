@@ -50,7 +50,7 @@ The `mcp` module utilizes an MCP server to provide agentic access to the API. Fo
 
 - `SUPABASE_ACCESS_TOKEN`: A [personal access token](https://supabase.com/dashboard/account/tokens)
 - `SUPABASE_DB_PASSWORD`: Get it at Supabase > Project > Database > Settings > Database password (`https://supabase.com/dashboard/project/{project_id}/database/settings`)
-- `SUPABASE_SERVICE_ROLE_KEY`: Get it at Supabase > Project > Project Settings > API keys > Legacy API Keys (`https://supabase.com/dashboard/project/{project_id}/settings/api-keys`)
+- `SUPABASE_SERVICE_ROLE_KEY`: Get it at Supabase > Project > Project Settings > API keys > API Keys > Secret keys (`https://supabase.com/dashboard/project/{project_id}/settings/api-keys/new`)
 
 > Create the secrets at GitHub > Repository > Settings ⚙️ > Secrets and variables \*️⃣ > Actions > Secrets (`https://github.com/{github_account}/open-bsp-api/settings/secrets/actions`).
 
