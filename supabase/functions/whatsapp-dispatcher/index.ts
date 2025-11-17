@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import * as log from "../_shared/logger.ts";
 import {
-  createClient,
+  createUnsecureClient,
   type EndpointMessage,
   type EndpointMessageResponse,
   type EndpointStatus,
@@ -278,10 +278,10 @@ Deno.serve(async (req) => {
   const token = authHeader?.replace("Bearer ", "");
 
   if (token !== SERVICE_ROLE_KEY) {
-    //return new Response("Unauthorized", { status: 401 });
+    return new Response("Unauthorized", { status: 401 });
   }
 
-  const client = createClient(req);
+  const client = createUnsecureClient();
 
   const message = ((await req.json()) as WebhookPayload<MessageRow>).record!;
 

@@ -3,8 +3,7 @@ import * as log from "../_shared/logger.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import {
   type AgentRow,
-  createClient,
-  DataPart,
+  type DataPart,
   type LocalMCPToolConfig,
   type MessageInsert,
   type MessageRow,
@@ -14,6 +13,7 @@ import {
   type WebhookPayload,
   type OutgoingMessage,
   type InternalMessage,
+  createUnsecureClient,
 } from "../_shared/supabase.ts";
 import { ProtocolFactory } from "./protocols/index.ts";
 import { callTool, initMCP, type MCPServer } from "./tools/mcp.ts";
@@ -92,16 +92,11 @@ Deno.serve(async (req) => {
   const authHeader = req.headers.get("Authorization");
   const token = authHeader?.replace("Bearer ", "");
 
-  const client = createClient(req);
-
-  const { data, error: claimsError } = await client.auth.getClaims();
-
-  log.info("claims", data.claims);
-
   if (token !== SERVICE_ROLE_KEY) {
-    log.error(`Token: ${token} - Service key: ${SERVICE_ROLE_KEY}`);
     return new Response("Unauthorized", { status: 401 });
   }
+
+  const client = createUnsecureClient();
 
   const incoming = ((await req.json()) as WebhookPayload<MessageRow>).record!;
 

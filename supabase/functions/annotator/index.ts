@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import {
-  createClient,
-  Part,
+  createUnsecureClient,
+  type Part,
   type MessageRow,
   type WebhookPayload,
 } from "../_shared/supabase.ts";
@@ -64,11 +64,10 @@ Deno.serve(async (req) => {
   const token = authHeader?.replace("Bearer ", "");
 
   if (token !== SERVICE_ROLE_KEY) {
-    log.error(`Token: ${token} - Service key: ${SERVICE_ROLE_KEY}`);
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const client = createClient(req);
+  const client = createUnsecureClient();
 
   const incoming = ((await req.json()) as WebhookPayload<MessageRow>).record!;
 
