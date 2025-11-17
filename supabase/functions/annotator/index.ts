@@ -64,7 +64,8 @@ Deno.serve(async (req) => {
   const token = authHeader?.replace("Bearer ", "");
 
   if (token !== SERVICE_ROLE_KEY) {
-    //return new Response("Unauthorized", { status: 401 });
+    log.error(`Token: ${token} - Service key: ${SERVICE_ROLE_KEY}`);
+    return new Response("Unauthorized", { status: 401 });
   }
 
   const client = createClient(req);

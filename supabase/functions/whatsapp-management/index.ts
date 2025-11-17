@@ -112,51 +112,32 @@ app.post("/whatsapp-management/signup", async (c) => {
   const payload = await c.req.json<SignupPayload>();
   log.info("Embedded signup payload", payload);
 
-  const authHeader = c.req.header("Authorization");
+  const { data, error: claimsError } = await client.auth.getClaims();
 
-  if (!authHeader?.startsWith("Bearer ")) {
+  if (claimsError || !data) {
     throw new HTTPException(401, {
       message: "Missing or invalid Authorization header",
+      cause: claimsError,
     });
-  }
-
-  const jwt = authHeader.replace("Bearer ", "");
-  const parts = jwt.split(".");
-
-  if (parts.length !== 3) {
-    throw new HTTPException(401, { message: "Invalid JWT format" });
-  }
-
-  let claims: { sub?: string };
-
-  try {
-    const base64decodedPart = decodeBase64Url(parts[1]);
-    const decodedPayload = new TextDecoder().decode(base64decodedPart);
-    claims = JSON.parse(decodedPayload);
-  } catch (error) {
-    throw new HTTPException(401, { message: "Invalid JWT", cause: error });
-  }
-
-  if (!claims?.sub) {
-    throw new HTTPException(401, { message: "Missing sub claim" });
   }
 
   const { error: agentError } = await client
     .from("agents")
     .select()
     .eq("organization_id", payload.organization_id)
-    .eq("user_id", claims.sub)
+    .eq("user_id", data.claims.sub)
     .single();
 
   if (agentError) {
     throw new HTTPException(403, {
-      message: "User not authorized for this organization",
+      message: `User ${data.claims.sub} not authorized for organization ${payload.organization_id}`,
       cause: agentError,
     });
   }
 
   // Once the user has been authorized, use the unsecure client to
-  // avoid row-level security
+  // avoid row-level security.
+  // Users are not allowed to modify organizations_addresses table.
   const unsecureClient = createUnsecureClient();
 
   const address = await performEmbeddedSignup(unsecureClient, payload);

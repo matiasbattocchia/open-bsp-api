@@ -92,15 +92,16 @@ Deno.serve(async (req) => {
   const authHeader = req.headers.get("Authorization");
   const token = authHeader?.replace("Bearer ", "");
 
-  if (token !== SERVICE_ROLE_KEY) {
-    // TODO: SERVICE_ROLE_KEY the *new* secret key (based on)
-    // but we are sending the legacy one because the new one does not work
-    // with PostgREST yet
-    // This check is needed to not to respond to the anon / public key
-    //return new Response("Unauthorized", { status: 401, headers: corsHeaders });
-  }
-
   const client = createClient(req);
+
+  const { data, error: claimsError } = await client.auth.getClaims();
+
+  log.info("claims", data.claims);
+
+  if (token !== SERVICE_ROLE_KEY) {
+    log.error(`Token: ${token} - Service key: ${SERVICE_ROLE_KEY}`);
+    return new Response("Unauthorized", { status: 401 });
+  }
 
   const incoming = ((await req.json()) as WebhookPayload<MessageRow>).record!;
 
