@@ -17,7 +17,6 @@ import {
   getBusinessCredentials,
 } from "./templates.ts";
 import { performEmbeddedSignup, SignupPayload } from "./embedded_signup.ts";
-import { decodeBase64Url } from "@std/encoding/base64url";
 
 const app = new Hono<{ Variables: { supabase: SupabaseClient } }>();
 
@@ -112,12 +111,15 @@ app.post("/whatsapp-management/signup", async (c) => {
   const payload = await c.req.json<SignupPayload>();
   log.info("Embedded signup payload", payload);
 
-  const { data, error: claimsError } = await client.auth.getClaims();
+  const {
+    data: { user },
+    error: userError,
+  } = await client.auth.getUser();
 
-  if (claimsError || !data) {
+  if (userError || !user) {
     throw new HTTPException(401, {
       message: "Missing or invalid Authorization header",
-      cause: claimsError,
+      cause: userError,
     });
   }
 
@@ -125,12 +127,12 @@ app.post("/whatsapp-management/signup", async (c) => {
     .from("agents")
     .select()
     .eq("organization_id", payload.organization_id)
-    .eq("user_id", data.claims.sub)
+    .eq("user_id", user.id)
     .single();
 
   if (agentError) {
     throw new HTTPException(403, {
-      message: `User ${data.claims.sub} not authorized for organization ${payload.organization_id}`,
+      message: `User ${user.id} not authorized for organization ${payload.organization_id}`,
       cause: agentError,
     });
   }
