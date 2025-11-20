@@ -117,6 +117,7 @@ app.post("/whatsapp-management/signup", async (c) => {
   } = await client.auth.getUser();
 
   if (userError || !user) {
+    log.error("Missing or invalid Authorization header", userError);
     throw new HTTPException(401, {
       message: "Missing or invalid Authorization header",
       cause: userError,
@@ -131,6 +132,10 @@ app.post("/whatsapp-management/signup", async (c) => {
     .single();
 
   if (agentError) {
+    log.error(
+      `User ${user.id} not authorized for organization ${payload.organization_id}`,
+      agentError,
+    );
     throw new HTTPException(403, {
       message: `User ${user.id} not authorized for organization ${payload.organization_id}`,
       cause: agentError,

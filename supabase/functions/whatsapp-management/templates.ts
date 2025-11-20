@@ -18,6 +18,7 @@ export async function getBusinessCredentials(
     .single();
 
   if (error) {
+    log.error("Could not fetch business access token", error);
     throw new HTTPException(403, {
       message: "Could not fetch business access token",
       cause: error,
@@ -40,12 +41,14 @@ export async function fetchTemplates(
   );
 
   if (!response.ok) {
+    const errorCause = {
+      headers: Object.fromEntries(response.headers.entries()),
+      body: await response.json().catch(() => ({})),
+    };
+    log.error("Could not fetch templates", errorCause);
     throw new HTTPException(response.status as ContentfulStatusCode, {
       message: "Could not fetch templates",
-      cause: {
-        headers: Object.fromEntries(response.headers.entries()),
-        body: await response.json().catch(() => ({})),
-      },
+      cause: errorCause,
     });
   }
 
@@ -85,12 +88,14 @@ export async function createTemplate(
   );
 
   if (!response.ok) {
+    const errorCause = {
+      headers: Object.fromEntries(response.headers.entries()),
+      body: await response.json().catch(() => ({})),
+    };
+    log.error("Could not create template", errorCause);
     throw new HTTPException(response.status as ContentfulStatusCode, {
       message: "Could not create template",
-      cause: {
-        headers: Object.fromEntries(response.headers.entries()),
-        body: await response.json().catch(() => ({})),
-      },
+      cause: errorCause,
     });
   }
 
@@ -119,12 +124,14 @@ export async function editTemplate(
   );
 
   if (!response.ok) {
+    const errorCause = {
+      headers: Object.fromEntries(response.headers.entries()),
+      body: await response.json().catch(() => ({})),
+    };
+    log.error("Could not update template", errorCause);
     throw new HTTPException(response.status as ContentfulStatusCode, {
       message: "Could not update template",
-      cause: {
-        headers: Object.fromEntries(response.headers.entries()),
-        body: await response.json().catch(() => ({})),
-      },
+      cause: errorCause,
     });
   }
 
@@ -149,12 +156,14 @@ export async function deleteTemplate(
   );
 
   if (!response.ok) {
+    const errorCause = {
+      headers: Object.fromEntries(response.headers.entries()),
+      body: await response.json().catch(() => ({})),
+    };
+    log.error("Could not delete template", errorCause);
     throw new HTTPException(response.status as ContentfulStatusCode, {
       message: "Could not delete template",
-      cause: {
-        headers: Object.fromEntries(response.headers.entries()),
-        body: await response.json().catch(() => ({})),
-      },
+      cause: errorCause,
     });
   }
 
