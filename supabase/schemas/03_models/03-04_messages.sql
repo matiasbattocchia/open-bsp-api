@@ -10,7 +10,7 @@ create table public.messages (
   contact_address text not null,
   direction public.direction not null,
   content jsonb not null,
-  agent_id text,
+  agent_id uuid,
   status jsonb default jsonb_build_object('pending', now()) not null,
   timestamp timestamp with time zone default now() not null,
   created_at timestamp with time zone default now() not null,
@@ -88,6 +88,26 @@ when (
   and (new.status ->> 'pending') is not null
 )
 execute function public.dispatcher_edge_function();
+
+-- There are four sources of outgoing messages:
+-- 1. history webhook
+-- 2. messages echoes webhook (messages sent from WA Business app)
+-- 3. UI
+-- 4. agent-client
+--
+-- 1 and 2 do not set status.pending to avoid dispatch.
+-- 2 and 3 should pause the conversation.
+create trigger pause_conversation_on_human_message
+after insert
+on public.messages
+for each row
+when (
+  new.direction = 'outgoing'::public.direction
+  and new.service <> 'local'::public.service
+  and new.timestamp <= now() -- messages not in the future
+  and new.timestamp >= now() - interval '10 seconds' -- recent messages
+)
+execute function public.pause_conversation_on_human_message();
 
 create trigger handle_message_to_annotator
 after insert

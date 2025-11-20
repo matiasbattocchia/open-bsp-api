@@ -450,7 +450,7 @@ function webhookMessageToIncomingMessage(
     default: {
       // System and unsupported messages are not converted to IncomingMessage
       // They should be handled separately or filtered out before calling this function
-      log.error(
+      log.warn(
         `Message type "${message.type}" cannot be converted to IncomingMessage`,
         message,
       );
