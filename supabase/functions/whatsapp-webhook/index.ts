@@ -485,7 +485,12 @@ async function processMessage(request: Request): Promise<Response> {
 
     for (const { value, field } of entry.changes) {
       log.info(`WhatsApp ${field} payload`, value);
-      const organization_address = value.metadata.phone_number_id; // WhatsApp business account phone number id
+      const organization_address = value.metadata?.phone_number_id; // WhatsApp business account phone number id
+
+      if (!organization_address) {
+        log.warn("No organization address");
+        continue;
+      }
 
       if (field === "messages" && "contacts" in value) {
         for (const contact of value.contacts) {
@@ -493,7 +498,7 @@ async function processMessage(request: Request): Promise<Response> {
             service: "whatsapp",
             organization_address,
             contact_address: contact.wa_id,
-            name: contact.profile.name,
+            name: contact.profile?.name,
           });
         }
       }

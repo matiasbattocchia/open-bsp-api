@@ -411,6 +411,7 @@ export async function performEmbeddedSignup(
       service: "whatsapp",
       address: payload.phone_number_id,
       organization_id: payload.organization_id,
+      status: "connected",
       extra: {
         waba_id: payload.waba_id,
         access_token: business_access_token,

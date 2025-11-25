@@ -42,7 +42,7 @@ export type WebhookMetadata = {
 
 // Contact profile information
 export type WebhookContact = {
-  profile: {
+  profile?: {
     name: string;
   };
   wa_id: string;
@@ -53,7 +53,7 @@ export type WebhookIncomingMessage = WebhookMessageBase & IncomingContextInfo;
 
 export type WebhookValueMessages = {
   messaging_product: "whatsapp";
-  metadata: WebhookMetadata;
+  metadata?: WebhookMetadata;
   contacts: WebhookContact[];
   messages: WebhookIncomingMessage[];
 };
