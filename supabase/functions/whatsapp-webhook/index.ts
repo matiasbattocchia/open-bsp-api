@@ -647,13 +647,18 @@ async function processMessage(request: Request): Promise<Response> {
                 }
 
                 const historyStatusMap = {
-                  READ: "read",
-                  DELIVERED: "delivered",
-                  SENT: "sent",
-                  ERROR: "failed",
-                  PLAYED: "read",
-                  PENDING: "accepted",
+                  read: "read",
+                  delivered: "delivered",
+                  sent: "sent",
+                  error: "failed",
+                  played: "read",
+                  pending: "accepted",
                 };
+
+                const originalStatus =
+                  webhookMessage.history_context.status.toLowerCase() as keyof typeof historyStatusMap;
+                const status =
+                  historyStatusMap[originalStatus] || originalStatus;
 
                 const message = isEcho
                   ? {
@@ -666,9 +671,7 @@ async function processMessage(request: Request): Promise<Response> {
                       direction: "outgoing" as const,
                       content: content as OutgoingMessage, // Incoming are a superset of outgoing, except for templates
                       status: {
-                        [historyStatusMap[
-                          webhookMessage.history_context.status
-                        ]]: new Date(
+                        [status]: new Date(
                           webhookMessage.timestamp * 1000,
                         ).toISOString(),
                       },
@@ -686,9 +689,7 @@ async function processMessage(request: Request): Promise<Response> {
                       direction: "incoming" as const,
                       content, // Incoming are a superset of outgoing, except for templates
                       status: {
-                        [historyStatusMap[
-                          webhookMessage.history_context.status
-                        ]]: new Date(
+                        [status]: new Date(
                           webhookMessage.timestamp * 1000,
                         ).toISOString(),
                       },

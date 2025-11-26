@@ -62,7 +62,7 @@ const ANNOTATION_POLLING_INTERVAL = 5 * 1000; // 5 seconds
  *  agent will get the conversation history in the correct order.
  */
 
-function isNewestMessage(incoming: MessageRow, messages: MessageRow[]) {
+function getNewestMessage(incoming: MessageRow, messages: MessageRow[]) {
   const incomingCreatedAt = new Date(incoming.created_at);
 
   const sortedMessages = messages
@@ -81,9 +81,7 @@ function isNewestMessage(incoming: MessageRow, messages: MessageRow[]) {
       return 0;
     });
 
-  const newestMessage = sortedMessages[0];
-
-  return newestMessage.id === incoming.id;
+  return sortedMessages[0];
 }
 
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -194,11 +192,12 @@ Deno.serve(async (req) => {
   messages.reverse();
 
   // CHECK IF THERE IS A NEWER MESSAGE
+  const newestMessage = getNewestMessage(incoming, messages);
 
-  if (!isNewestMessage(incoming, messages)) {
+  if (newestMessage.id !== incoming.id) {
     // Then the newest message is not the incoming one that triggered this edge function.
     log.info(
-      `Newer message for conversation ${conv.name} found. Skipping response.`,
+      `Newer message ${newestMessage.id} found for conversation ${conv.name}. Skipping response.`,
     );
 
     return new Response("ok", { headers: corsHeaders });
