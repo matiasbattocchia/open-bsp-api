@@ -107,7 +107,7 @@ begin
   if new.agent_id is not null then
     select ai into agent_is_ai
     from public.agents
-    where id::text = new.agent_id;
+    where id = new.agent_id;
 
     -- If agent exists and is AI, don't pause
     if agent_is_ai = true then

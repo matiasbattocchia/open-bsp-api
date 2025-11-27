@@ -285,6 +285,8 @@ Deno.serve(async (req) => {
 
   const message = ((await req.json()) as WebhookPayload<MessageRow>).record!;
 
+  log.info(`Dispatching message ${message.id}`, message);
+
   const { data: account } = await client
     .from("organizations_addresses")
     .select("extra->>access_token")
@@ -344,8 +346,6 @@ Deno.serve(async (req) => {
     let readReceipt = false;
     let typingIndicator = false;
 
-    log.info(`Incoming message ${message.id} status`, message.status);
-
     if (
       message.status.read &&
       Date.now() - +new Date(message.status.read) <= 60 * 1000
@@ -392,8 +392,6 @@ Deno.serve(async (req) => {
       phone_number_id: message.organization_address,
       access_token,
     });
-
-    log.info(`Response body`, response);
   } else {
     throw new Error(
       `Cannot dispatch message with id ${message.id} because its direction is not 'outgoing' nor 'incoming'.`,
