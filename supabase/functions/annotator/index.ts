@@ -1,8 +1,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import {
   createUnsecureClient,
-  type Part,
   type MessageRow,
+  type Part,
   type WebhookPayload,
 } from "../_shared/supabase.ts";
 import {
@@ -77,27 +77,21 @@ Deno.serve(async (req) => {
   ) => {
     log[logLevel](logMessage);
 
-    const { error: annotatedError } = await client
+    await client
       .from("messages")
       .update({ status: { annotated: new Date().toISOString() } })
-      .eq("id", incoming.id);
-
-    if (annotatedError) {
-      throw annotatedError;
-    }
+      .eq("id", incoming.id)
+      .throwOnError();
 
     return new Response();
   };
 
-  const { data: conv, error: convError } = await client
+  const { data: conv } = await client
     .from("conversations")
     .select(`*, organizations (*)`)
     .eq("id", incoming.conversation_id)
-    .single();
-
-  if (convError) {
-    throw convError;
-  }
+    .single()
+    .throwOnError();
 
   const org = conv.organizations;
 
@@ -193,8 +187,7 @@ Deno.serve(async (req) => {
     ],
   };
 
-  const isSupportedMimeType =
-    mimeType.startsWith("text/") ||
+  const isSupportedMimeType = mimeType.startsWith("text/") ||
     allowedMimeTypes[mediaType]?.includes(mimeType.split(";")[0]); // "audio/ogg; codecs=opus" -> "audio/ogg"
 
   if (!isSupportedMimeType) {
@@ -216,14 +209,11 @@ Deno.serve(async (req) => {
     );
   }
 
-  const { error: annotatingError } = await client
+  await client
     .from("messages")
     .update({ status: { annotating: new Date().toISOString() } })
-    .eq("id", incoming.id);
-
-  if (annotatingError) {
-    throw annotatingError;
-  }
+    .eq("id", incoming.id)
+    .throwOnError();
 
   const file = await downloadFromStorage(client, content.file.uri);
   const base64File = encodeBase64(await file.arrayBuffer());
@@ -232,25 +222,32 @@ Deno.serve(async (req) => {
 
   switch (mediaType) {
     case "audio":
-      prompt = `Analyze this audio file. Provide a transcription of the audio content in its original language and a brief description in ${language} of what it contains (voice, music, noises, etc.). If it's voice, include emotion recognition in the description.`;
+      prompt =
+        `Analyze this audio file. Provide a transcription of the audio content in its original language and a brief description in ${language} of what it contains (voice, music, noises, etc.). If it's voice, include emotion recognition in the description.`;
       break;
     case "video":
-      prompt = `Analyze this video file. Provide a transcription of any audio content in its original language and a brief description in ${language} of what the video shows.`;
+      prompt =
+        `Analyze this video file. Provide a transcription of any audio content in its original language and a brief description in ${language} of what the video shows.`;
       break;
     case "image":
-      prompt = `Analyze this image. If it contains text, extract it as transcription in its original language using markdown format if possible. Provide a brief description in ${language} of the image content, or if it's a document, specify the document type (invoice, receipt, etc.) and include relevant information (dates, amounts, etc.).`;
+      prompt =
+        `Analyze this image. If it contains text, extract it as transcription in its original language using markdown format if possible. Provide a brief description in ${language} of the image content, or if it's a document, specify the document type (invoice, receipt, etc.) and include relevant information (dates, amounts, etc.).`;
       break;
     case "document":
       if (mimeType === "text/csv") {
-        prompt = `Analyze this CSV document. Do not transcribe! Do not extract the data as a table either! Provide a brief description in ${language} of the data (column names, row samples, etc.).`;
+        prompt =
+          `Analyze this CSV document. Do not transcribe! Do not extract the data as a table either! Provide a brief description in ${language} of the data (column names, row samples, etc.).`;
       } else if (mimeType === "application/pdf") {
-        prompt = `Analyze this PDF document. Extract the text content as transcription in its original language using markdown format if possible. If the content includes a table, do not transcribe the table. Instead, provide the table as an array of arrays; the first row should contain the column names (if the header is multi-row, flatten it and pick sensible column names). Do not treat key-value data as a table (avoid single-row tables). Provide a brief description in ${language} of the document, specify the document type (invoice, receipt, etc.) and include relevant information (dates, amounts, etc.).`;
+        prompt =
+          `Analyze this PDF document. Extract the text content as transcription in its original language using markdown format if possible. If the content includes a table, do not transcribe the table. Instead, provide the table as an array of arrays; the first row should contain the column names (if the header is multi-row, flatten it and pick sensible column names). Do not treat key-value data as a table (avoid single-row tables). Provide a brief description in ${language} of the document, specify the document type (invoice, receipt, etc.) and include relevant information (dates, amounts, etc.).`;
       } else {
-        prompt = `Analyze this text document. Do not transcribe! If the content includes a table, provide the table as an array of arrays; the first row should contain the column names (if the header is multi-row, flatten it and pick sensible column names). Do not treat key-value data as a table (avoid single-row tables). Provide a brief description in ${language} of the document, specify the document type (invoice, receipt, etc.) and include relevant information (dates, amounts, etc.).`;
+        prompt =
+          `Analyze this text document. Do not transcribe! If the content includes a table, provide the table as an array of arrays; the first row should contain the column names (if the header is multi-row, flatten it and pick sensible column names). Do not treat key-value data as a table (avoid single-row tables). Provide a brief description in ${language} of the document, specify the document type (invoice, receipt, etc.) and include relevant information (dates, amounts, etc.).`;
       }
       break;
     default:
-      prompt = `Analyze this file and provide a transcription of any text content in its original language and a brief description in ${language} of what it contains.`;
+      prompt =
+        `Analyze this file and provide a transcription of any text content in its original language and a brief description in ${language} of what it contains.`;
   }
 
   if (config?.extra_prompt) {
@@ -280,11 +277,11 @@ Deno.serve(async (req) => {
 
   const contents: Array<
     | {
-        text: string;
-      }
+      text: string;
+    }
     | {
-        inlineData: { mimeType: string; data: string };
-      }
+      inlineData: { mimeType: string; data: string };
+    }
   > = [
     {
       inlineData: {
@@ -342,7 +339,7 @@ Deno.serve(async (req) => {
 
   try {
     result = JSON.parse(response.text);
-  } catch (error) {
+  } catch (_error) {
     return log_update_and_respond(
       "error",
       "Failed to parse the response text from the annotation model into a JSON object. Skipping annotation.",
@@ -426,14 +423,11 @@ Deno.serve(async (req) => {
     },
   };
 
-  const { error: annotatedError } = await client
+  await client
     .from("messages")
     .update(annotated)
-    .eq("id", incoming.id);
-
-  if (annotatedError) {
-    throw annotatedError;
-  }
+    .eq("id", incoming.id)
+    .throwOnError();
 
   return new Response();
 });

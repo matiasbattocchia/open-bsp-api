@@ -76,8 +76,7 @@ server.tool(
       organization_address,
       contact_address,
       service: "local",
-      type: "outgoing",
-      message: { type: "text", content: message },
+      content: { type: "text", kind: "text", text: message, version: "1" },
     });
 
     if (error) {
@@ -94,7 +93,7 @@ server.tool(
         },
       ],
     };
-  }
+  },
 );
 
 /**

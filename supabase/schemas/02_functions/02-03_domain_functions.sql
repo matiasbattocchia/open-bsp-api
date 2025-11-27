@@ -28,9 +28,7 @@ begin
 
   -- If a conversation exists and old.name is null and new.name is not, then update
   -- all conversations with the same organization_address and contact_address.
-  -- Note: status is defined as not null, if null, there is no conversation.
-  if recent_conv is not null and new.name is not null and
-  (recent_conv.name is null or (new.extra->'smb_contact')::boolean is true) then
+  if recent_conv is not null and recent_conv.name is null and new.name is not null then
     update public.conversations
     set name = new.name
     where organization_address = new.organization_address
@@ -44,7 +42,7 @@ begin
 
   if new.organization_id is null then
     -- Reuse organization_id from most recent conversation if missing
-    if recent_conv.organization_id then
+    if recent_conv.organization_id is not null then
       new.organization_id = recent_conv.organization_id;
     else
     -- Look up organization_id if missing
@@ -52,11 +50,6 @@ begin
       from public.organizations_addresses
       where address = new.organization_address;
     end if;
-  end if;
-
-  -- Reuse contact_id from most recent conversation if missing
-  if new.contact_id is null then
-    new.contact_id := recent_conv.contact_id;
   end if;
 
   -- Reuse name from most recent conversation if missing

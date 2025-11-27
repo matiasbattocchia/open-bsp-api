@@ -3,6 +3,7 @@ create table public.contacts (
   id uuid default gen_random_uuid() not null,
   name text not null,
   extra jsonb,
+  status text default 'active'::text not null,
   created_at timestamp with time zone default now() not null,
   updated_at timestamp with time zone default now() not null
 );
@@ -20,14 +21,6 @@ on delete cascade;
 create index contacts_organization_id_idx
 on public.contacts
 using btree (organization_id);
-
-create unique index unique_org_id_in_id
-on public.contacts
-using btree (organization_id, ((extra ->> 'internal_id')));
-
-create unique index unique_org_id_wa_id
-on public.contacts
-using btree (organization_id, ((extra ->> 'whatsapp_id')));
 
 create trigger set_extra
 before update

@@ -1,15 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import * as log from "../_shared/logger.ts";
 import {
-  type IncomingMessage,
-  type OutgoingMessage,
+  type ContactInsert,
   type ConversationInsert,
+  createUnsecureClient,
+  type IncomingMessage,
   type MessageInsert,
   type MetaWebhookPayload,
-  type WebhookIncomingMessage,
+  type OutgoingMessage,
   type WebhookEchoMessage,
   type WebhookHistoryMessage,
-  createUnsecureClient,
+  type WebhookIncomingMessage,
 } from "../_shared/supabase.ts";
 import { fetchMedia, uploadToStorage } from "../_shared/media.ts";
 
@@ -17,8 +18,8 @@ const API_VERSION = "v24.0";
 const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN");
 const APP_ID = Deno.env.get("META_APP_ID");
 const APP_SECRET = Deno.env.get("META_APP_SECRET");
-const DEFAULT_ACCESS_TOKEN =
-  Deno.env.get("META_SYSTEM_USER_ACCESS_TOKEN") || "";
+const DEFAULT_ACCESS_TOKEN = Deno.env.get("META_SYSTEM_USER_ACCESS_TOKEN") ||
+  "";
 
 Deno.serve(async (request) => {
   switch (request.method) {
@@ -215,14 +216,11 @@ async function downloadMedia(
     ...new Set(mediaMessages.map((m) => m.organization_address)),
   ]; // organization_address is the WA phone_number_id
 
-  const { data: addresses, error: queryError } = await client
+  const { data: addresses } = await client
     .from("organizations_addresses")
     .select("organization_id, address, extra->>access_token")
-    .in("address", unique_number_ids);
-
-  if (queryError) {
-    throw queryError;
-  }
+    .in("address", unique_number_ids)
+    .throwOnError();
 
   addresses.forEach((a) => {
     a.access_token ||= DEFAULT_ACCESS_TOKEN;
@@ -247,14 +245,15 @@ async function downloadMedia(
         )!,
         message,
         client,
-      }),
+      })
     ),
   );
 }
 
-function webhookMessageToIncomingMessage(
+async function webhookMessageToIncomingMessage(
   message: WebhookIncomingMessage | WebhookEchoMessage | WebhookHistoryMessage,
-): IncomingMessage | undefined {
+  client: SupabaseClient,
+): Promise<IncomingMessage | undefined> {
   let re_message_id: string | undefined;
   let forwarded: boolean | undefined;
 
@@ -422,30 +421,20 @@ function webhookMessageToIncomingMessage(
       };
     }
 
-    case "system":
-    /*
-    // TODO: it seems that this message can be mark as read
-    // TODO: customer_identity_changed
-    if (message.system.type === "customer_changed_number") {
-      const old_wa_id = message.system!.customer;
-      const new_wa_id = message.system!.wa_id;
+    case "system": {
+      if (message.system.type === "user_changed_number") {
+        const old_phone_number = message.from;
+        const new_phone_number = message.system.wa_id;
 
-      // TODO: outdated
-      const { error } = await client
-        .from("contacts")
-        .update({ extra: { whatsapp_id: new_wa_id } })
-        .eq("organization_address", organization_address)
-        .eq("extra->>whatsapp_id", old_wa_id);
-
-      if (error) {
-        log.error(
-          `Could not update contact with old whatsapp id ${old_wa_id} during contact number update`,
-          error,
-        );
-        continue;
+        await client.rpc("change_contact_address", {
+          old_address: old_phone_number,
+          new_address: new_phone_number,
+        })
+          .throwOnError();
       }
     }
-    */
+    /* falls through */
+
     case "unsupported":
     default: {
       // System and unsupported messages are not converted to IncomingMessage
@@ -479,6 +468,15 @@ async function processMessage(request: Request): Promise<Response> {
   const messages: MessageInsert[] = [];
   const conversations: Set<ConversationInsert> = new Set();
   const statuses: MessageInsert[] = [];
+  const contacts: Set<
+    {
+      service: "whatsapp";
+      organization_address: string;
+      contact_address: string;
+      name?: string;
+      status: "active" | "inactive";
+    }
+  > = new Set();
 
   for (const entry of payload.entry) {
     const _waba_id = entry.id; // WhatsApp business account ID (WABA ID)
@@ -506,7 +504,10 @@ async function processMessage(request: Request): Promise<Response> {
       if (field === "messages" && "messages" in value) {
         for (const webhookMessage of value.messages) {
           const contact_address = webhookMessage.from;
-          const content = webhookMessageToIncomingMessage(webhookMessage);
+          const content = await webhookMessageToIncomingMessage(
+            webhookMessage,
+            client,
+          );
 
           if (!content) {
             continue;
@@ -582,7 +583,10 @@ async function processMessage(request: Request): Promise<Response> {
             contact_address,
           });
 
-          const content = webhookMessageToIncomingMessage(webhookMessage);
+          const content = await webhookMessageToIncomingMessage(
+            webhookMessage,
+            client,
+          );
 
           if (!content) {
             continue;
@@ -640,7 +644,10 @@ async function processMessage(request: Request): Promise<Response> {
                   ? webhookMessage.to!
                   : webhookMessage.from;
 
-                const content = webhookMessageToIncomingMessage(webhookMessage);
+                const content = await webhookMessageToIncomingMessage(
+                  webhookMessage,
+                  client,
+                );
 
                 if (!content) {
                   continue;
@@ -655,48 +662,48 @@ async function processMessage(request: Request): Promise<Response> {
                   pending: "accepted",
                 };
 
-                const originalStatus =
-                  webhookMessage.history_context.status.toLowerCase() as keyof typeof historyStatusMap;
-                const status =
-                  historyStatusMap[originalStatus] || originalStatus;
+                const originalStatus = webhookMessage.history_context.status
+                  .toLowerCase() as keyof typeof historyStatusMap;
+                const status = historyStatusMap[originalStatus] ||
+                  originalStatus;
 
                 const message = isEcho
                   ? {
-                      // id is the internal (aka surrogate) identifier given by the DB, while
-                      // external_id is the one given by the service, such as the WhatsApp message id (WAMID)
-                      external_id: webhookMessage.id,
-                      service: "whatsapp" as const,
-                      organization_address,
-                      contact_address,
-                      direction: "outgoing" as const,
-                      content: content as OutgoingMessage, // Incoming are a superset of outgoing, except for templates
-                      status: {
-                        [status]: new Date(
-                          webhookMessage.timestamp * 1000,
-                        ).toISOString(),
-                      },
-                      timestamp: new Date(
+                    // id is the internal (aka surrogate) identifier given by the DB, while
+                    // external_id is the one given by the service, such as the WhatsApp message id (WAMID)
+                    external_id: webhookMessage.id,
+                    service: "whatsapp" as const,
+                    organization_address,
+                    contact_address,
+                    direction: "outgoing" as const,
+                    content: content as OutgoingMessage, // Incoming are a superset of outgoing, except for templates
+                    status: {
+                      [status]: new Date(
                         webhookMessage.timestamp * 1000,
                       ).toISOString(),
-                    }
+                    },
+                    timestamp: new Date(
+                      webhookMessage.timestamp * 1000,
+                    ).toISOString(),
+                  }
                   : {
-                      // id is the internal (aka surrogate) identifier given by the DB, while
-                      // external_id is the one given by the service, such as the WhatsApp message id (WAMID)
-                      external_id: webhookMessage.id,
-                      service: "whatsapp" as const,
-                      organization_address,
-                      contact_address,
-                      direction: "incoming" as const,
-                      content, // Incoming are a superset of outgoing, except for templates
-                      status: {
-                        [status]: new Date(
-                          webhookMessage.timestamp * 1000,
-                        ).toISOString(),
-                      },
-                      timestamp: new Date(
+                    // id is the internal (aka surrogate) identifier given by the DB, while
+                    // external_id is the one given by the service, such as the WhatsApp message id (WAMID)
+                    external_id: webhookMessage.id,
+                    service: "whatsapp" as const,
+                    organization_address,
+                    contact_address,
+                    direction: "incoming" as const,
+                    content, // Incoming are a superset of outgoing, except for templates
+                    status: {
+                      [status]: new Date(
                         webhookMessage.timestamp * 1000,
                       ).toISOString(),
-                    };
+                    },
+                    timestamp: new Date(
+                      webhookMessage.timestamp * 1000,
+                    ).toISOString(),
+                  };
 
                 messages.push(message);
               }
@@ -728,14 +735,21 @@ async function processMessage(request: Request): Promise<Response> {
       if (field === "smb_app_state_sync") {
         for (const syncItem of value.state_sync) {
           if (syncItem.type === "contact" && syncItem.action === "add") {
-            conversations.add({
+            contacts.add({
               service: "whatsapp",
               organization_address,
               contact_address: syncItem.contact.phone_number,
               name: syncItem.contact.full_name,
-              extra: {
-                smb_contact: true,
-              },
+              status: "active",
+            });
+          }
+
+          if (syncItem.type === "contact" && syncItem.action === "remove") {
+            contacts.add({
+              service: "whatsapp",
+              organization_address,
+              contact_address: syncItem.contact.phone_number,
+              status: "inactive",
             });
           }
         }
@@ -745,6 +759,13 @@ async function processMessage(request: Request): Promise<Response> {
 
   const downloadMediaPromise = downloadMedia(messages, client);
 
+  if (contacts.size > 0) {
+    await client.rpc("mass_upsert_contacts", {
+      payload: Array.from(contacts),
+    })
+      .throwOnError();
+  }
+
   // Notes:
   // 1. Upsert is needed because there is no bulk update
   // 2. Insert operation is not expected, statuses come
@@ -752,40 +773,31 @@ async function processMessage(request: Request): Promise<Response> {
   // 3. Only the status field should be updated based on external_id,
   //    but upsert requires records to be prepared for insertion (which won't happen)
   // 4. message field is present at {}, it will be merged during update (inocuous)
-  const { error: statusesError } = await client
+  await client
     .from("messages")
     .upsert(statuses, {
       onConflict: "external_id",
-    });
-
-  if (statusesError) {
-    throw statusesError;
-  }
+    })
+    .throwOnError();
 
   // Conversations table has a before insert trigger which acts as an upsert.
   // It won't create a new conversation if an active one exists.
   // It updates the name if provided.
-  const { error: conversationsError } = await client
+  await client
     .from("conversations")
-    .insert(Array.from(conversations));
-
-  if (conversationsError) {
-    throw conversationsError;
-  }
+    .insert(Array.from(conversations))
+    .throwOnError();
 
   // Download media before upserting incoming messages
   // Patched messages include media local id and file size
   const patchedMessages = await downloadMediaPromise;
 
-  const { error: messagesError } = await client
+  await client
     .from("messages")
     .upsert(patchedMessages, {
       onConflict: "external_id",
-    });
-
-  if (messagesError) {
-    throw messagesError;
-  }
+    })
+    .throwOnError();
 
   return new Response();
 }

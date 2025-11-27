@@ -78,17 +78,14 @@ export async function createSignedUrl(client: SupabaseClient, uri: string) {
 export async function getFileMetadata(client: SupabaseClient, uri: string) {
   const key = uri.replace(BASE_URI + "/", "");
 
-  const { data, error } = await client
+  const { data } = await client
     .schema("storage")
     .from("objects")
     .select("name, metadata, user_metadata")
     .eq("name", key)
     .eq("bucket_id", "media")
-    .single();
-
-  if (error) {
-    throw error;
-  }
+    .single()
+    .throwOnError();
 
   return {
     mime_type: data.metadata.mimetype as string,

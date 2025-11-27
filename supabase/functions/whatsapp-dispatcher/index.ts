@@ -14,8 +14,8 @@ import { downloadFromStorage } from "../_shared/media.ts";
 import { Json } from "../_shared/db_types.ts";
 
 const API_VERSION = "v24.0";
-const DEFAULT_ACCESS_TOKEN =
-  Deno.env.get("META_SYSTEM_USER_ACCESS_TOKEN") || "";
+const DEFAULT_ACCESS_TOKEN = Deno.env.get("META_SYSTEM_USER_ACCESS_TOKEN") ||
+  "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 class WhatsAppError extends Error {
@@ -134,8 +134,8 @@ async function outgoingMessageToEndpointMessage({
     recipient_type: "individual" as const,
     to,
     ...(content.kind !== "reaction" && // From the docs: You cannot send a reaction message as a contextual reply.
-    content.re_message_id &&
-    !content.forwarded
+        content.re_message_id &&
+        !content.forwarded
       ? { context: { message_id: content.re_message_id } }
       : {}),
   };
@@ -285,15 +285,12 @@ Deno.serve(async (req) => {
 
   const message = ((await req.json()) as WebhookPayload<MessageRow>).record!;
 
-  const { data: account, error: queryError } = await client
+  const { data: account } = await client
     .from("organizations_addresses")
     .select("extra->>access_token")
     .eq("address", message.organization_address)
-    .single();
-
-  if (queryError) {
-    throw queryError;
-  }
+    .single()
+    .throwOnError();
 
   const access_token = account.access_token || DEFAULT_ACCESS_TOKEN;
 
@@ -316,26 +313,23 @@ Deno.serve(async (req) => {
         access_token,
       });
 
-      const { error: updateError } = await client
+      await client
         .from("messages")
         .update({
           external_id: response.messages[0].id,
           status: {
-            [response.messages[0].message_status || "accepted"]:
-              new Date().toISOString(),
+            [response.messages[0].message_status || "accepted"]: new Date()
+              .toISOString(),
           },
         })
-        .eq("id", message.id);
-
-      if (updateError) {
-        throw updateError;
-      }
+        .eq("id", message.id)
+        .throwOnError();
     } catch (error) {
       if (!(error instanceof WhatsAppError)) {
         throw error;
       }
 
-      const { error: updateError } = await client
+      await client
         .from("messages")
         .update({
           status: {
@@ -343,11 +337,8 @@ Deno.serve(async (req) => {
             errors: [error.cause as Json],
           },
         })
-        .eq("id", message.id);
-
-      if (updateError) {
-        throw updateError;
-      }
+        .eq("id", message.id)
+        .throwOnError();
     }
   } else if (message.direction === "incoming") {
     let readReceipt = false;
