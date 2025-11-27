@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
   const { data: contactAddress } = await client
     .from("contacts_addresses")
     .select(`*, contacts (*)`)
-    .eq("contacts_addresses.address", incoming.contact_address)
+    .eq("address", incoming.contact_address)
     .single()
     .throwOnError();
 
