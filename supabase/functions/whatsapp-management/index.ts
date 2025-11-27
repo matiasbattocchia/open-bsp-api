@@ -8,7 +8,6 @@ import {
   createUnsecureClient,
   type TemplateData,
 } from "../_shared/supabase.ts";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   createTemplate,
   deleteTemplate,
@@ -16,9 +15,15 @@ import {
   fetchTemplates,
   getBusinessCredentials,
 } from "./templates.ts";
-import { performEmbeddedSignup, SignupPayload } from "./embedded_signup.ts";
+import {
+  deleteSignup,
+  performEmbeddedSignup,
+  SignupPayload,
+} from "./embedded_signup.ts";
 
-const app = new Hono<{ Variables: { supabase: SupabaseClient } }>();
+const app = new Hono<
+  { Variables: { supabase: ReturnType<typeof createClient> } }
+>();
 
 // CORS middleware
 app.use("*", cors());
@@ -37,7 +42,7 @@ app.get("/whatsapp-management/templates", async (c) => {
     organization_address: string;
   }>();
 
-  const client = c.get("supabase") as SupabaseClient;
+  const client = c.get("supabase");
 
   const { waba_id, access_token } = await getBusinessCredentials(
     client,
@@ -55,7 +60,7 @@ app.post("/whatsapp-management/templates", async (c) => {
     template: TemplateData;
   }>();
 
-  const client = c.get("supabase") as SupabaseClient;
+  const client = c.get("supabase");
 
   const { waba_id, access_token } = await getBusinessCredentials(
     client,
@@ -73,7 +78,7 @@ app.patch("/whatsapp-management/templates", async (c) => {
     template: TemplateData;
   }>();
 
-  const client = c.get("supabase") as SupabaseClient;
+  const client = c.get("supabase");
 
   const { access_token } = await getBusinessCredentials(
     client,
@@ -91,7 +96,7 @@ app.delete("/whatsapp-management/templates", async (c) => {
     template: TemplateData;
   }>();
 
-  const client = c.get("supabase") as SupabaseClient;
+  const client = c.get("supabase");
 
   const { waba_id, access_token } = await getBusinessCredentials(
     client,
@@ -137,7 +142,8 @@ app.post("/whatsapp-management/signup", async (c) => {
       agentError,
     );
     throw new HTTPException(403, {
-      message: `User ${user.id} not authorized for organization ${payload.organization_id}`,
+      message:
+        `User ${user.id} not authorized for organization ${payload.organization_id}`,
       cause: agentError,
     });
   }
@@ -148,6 +154,60 @@ app.post("/whatsapp-management/signup", async (c) => {
   const unsecureClient = createUnsecureClient();
 
   const address = await performEmbeddedSignup(unsecureClient, payload);
+
+  return c.json(address);
+});
+
+app.delete("/whatsapp-management/signup", async (c) => {
+  const client = c.get("supabase");
+
+  const payload = await c.req.json<{
+    phone_number_id: string;
+    organization_id: string;
+  }>();
+  log.info("Embedded signup delete payload", payload);
+
+  const {
+    data: { user },
+    error: userError,
+  } = await client.auth.getUser();
+
+  if (userError || !user) {
+    log.error("Missing or invalid Authorization header", userError);
+    throw new HTTPException(401, {
+      message: "Missing or invalid Authorization header",
+      cause: userError,
+    });
+  }
+
+  const { error: agentError } = await client
+    .from("agents")
+    .select()
+    .eq("organization_id", payload.organization_id)
+    .eq("user_id", user.id)
+    .single();
+
+  if (agentError) {
+    log.error(
+      `User ${user.id} not authorized for organization ${payload.organization_id}`,
+      agentError,
+    );
+    throw new HTTPException(403, {
+      message:
+        `User ${user.id} not authorized for organization ${payload.organization_id}`,
+      cause: agentError,
+    });
+  }
+
+  // Once the user has been authorized, use the unsecure client to
+  // avoid row-level security.
+  // Users are not allowed to modify organizations_addresses table.
+  const unsecureClient = createUnsecureClient();
+
+  const address = await deleteSignup(
+    unsecureClient,
+    payload,
+  );
 
   return c.json(address);
 });

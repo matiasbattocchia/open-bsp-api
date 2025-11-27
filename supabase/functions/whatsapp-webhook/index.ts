@@ -1,7 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import * as log from "../_shared/logger.ts";
 import {
-  type ContactInsert,
   type ConversationInsert,
   createUnsecureClient,
   type IncomingMessage,

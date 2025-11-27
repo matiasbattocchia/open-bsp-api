@@ -1,6 +1,6 @@
 import * as log from "../_shared/logger.ts";
 import { HTTPException } from "jsr:@hono/hono/http-exception";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { createClient } from "../_shared/supabase.ts";
 import { ContentfulStatusCode } from "@hono/hono/utils/http-status";
 
 const API_VERSION = "v24.0";
@@ -309,7 +309,7 @@ export type SignupPayload = {
 };
 
 export async function performEmbeddedSignup(
-  client: SupabaseClient,
+  client: ReturnType<typeof createClient>,
   payload: SignupPayload,
 ) {
   if (!payload.code) {
@@ -470,6 +470,75 @@ export async function performEmbeddedSignup(
         .eq("address", payload.phone_number_id);
     }
   }
+
+  return data;
+}
+
+async function deregisterPhoneNumber(
+  business_access_token: string,
+  phone_number_id: string,
+): Promise<boolean> {
+  log.info(`Deregistering phone number: ${phone_number_id}`);
+
+  const response = await fetch(
+    `https://graph.facebook.com/${API_VERSION}/${phone_number_id}/deregister`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${business_access_token}`,
+        "Content-Type": "application/json",
+      },
+    },
+  );
+
+  if (!response.ok) {
+    const errorCause = {
+      headers: Object.fromEntries(response.headers.entries()),
+      body: await response.json().catch(() => ({})),
+    };
+    log.error("Could not deregister phone number", errorCause);
+    throw new HTTPException(response.status as ContentfulStatusCode, {
+      message: "Could not deregister phone number",
+      cause: errorCause,
+    });
+  }
+
+  return (await response.json()).success;
+}
+
+export async function deleteSignup(
+  client: ReturnType<typeof createClient>,
+  payload: { phone_number_id: string },
+) {
+  const { phone_number_id } = payload;
+
+  const { data: organization_address } = await client
+    .from("organizations_addresses")
+    .select()
+    .eq("address", phone_number_id)
+    .single()
+    .throwOnError();
+
+  const extra = organization_address.extra || {};
+
+  if (extra.flow_type !== "new_phone_number") {
+    throw new HTTPException(403, {
+      message:
+        "Cannot deregister organization address. Only new phone numbers can be deregistered.",
+    });
+  }
+
+  await deregisterPhoneNumber(extra.access_token || "", phone_number_id);
+
+  const { data } = await client
+    .from("organizations_addresses")
+    .update({
+      status: "disconnected",
+    })
+    .eq("address", phone_number_id)
+    .select()
+    .single()
+    .throwOnError();
 
   return data;
 }

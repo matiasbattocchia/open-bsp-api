@@ -351,7 +351,6 @@ Deno.serve(async (req) => {
       Date.now() - +new Date(message.status.read) <= 60 * 1000
     ) {
       readReceipt = true;
-      log.info("Read receipt");
     }
 
     if (
@@ -359,7 +358,6 @@ Deno.serve(async (req) => {
       Date.now() - +new Date(message.status.typing) <= 60 * 1000
     ) {
       typingIndicator = true;
-      log.info("Typing indicator");
     }
 
     log.info(

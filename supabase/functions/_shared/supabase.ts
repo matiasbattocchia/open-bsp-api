@@ -988,13 +988,27 @@ export type OrganizationExtra = {
   error_messages_direction?: "internal" | "outgoing";
 };
 
+export type OrganizationAddressExtra = {
+  waba_id?: string;
+  phone_number?: string;
+  verified_name?: string;
+  access_token?: string;
+  flow_type?: "only_waba" | "new_phone_number" | "existing_phone_number";
+  logs?: Array<{
+    webhook: string;
+    timestamp: string;
+    level: "info" | "warn" | "error";
+    message: unknown;
+  }>;
+};
+
 export type ConversationExtra = {
   type?: "personal" | "group" | "test" | "test_run";
   memory?: Memory;
   paused?: string;
   archived?: string;
   pinned?: string;
-  notifications?: "off" | "muted" | "on";
+  /*
   test_run?: {
     reference_conversation: {
       organization_address: string;
@@ -1003,6 +1017,7 @@ export type ConversationExtra = {
     status?: "fail" | "success";
     reference_message_id?: string;
   };
+  */
 };
 
 export type ContactExtra = {
@@ -1088,6 +1103,11 @@ export type Database = MergeDeep<
         organizations: {
           Row: {
             extra: OrganizationExtra | null;
+          };
+        };
+        organizations_addresses: {
+          Row: {
+            extra: OrganizationAddressExtra | null;
           };
         };
         conversations: {
