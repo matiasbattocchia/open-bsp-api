@@ -152,6 +152,37 @@ export type WebhookValueStateSync = {
   state_sync: WebhookStateSyncItem[];
 };
 
+// Account update webhook types
+export type WebhookAccountUpdate_Account = {
+  event: "ACCOUNT_DELETED";
+  waba_info: {
+    waba_id: string;
+    owner_business_id: string;
+  };
+};
+
+export type WebhookAccountUpdate_PartnerApp = {
+  event: "PARTNER_APP_INSTALLED" | "PARTNER_APP_UNINSTALLED";
+  waba_info: {
+    waba_id: string;
+    owner_business_id: string;
+    partner_app_id: string;
+  };
+};
+
+export type WebhookAccountUpdate_Partner = {
+  event: "PARTNER_ADDED" | "PARTNER_REMOVED";
+  waba_info: {
+    waba_id: string;
+    owner_business_id: string;
+  };
+};
+
+export type WebhookAccountUpdateValue =
+  | WebhookAccountUpdate_Account
+  | WebhookAccountUpdate_PartnerApp
+  | WebhookAccountUpdate_Partner;
+
 // Change object that discriminates based on field value
 export type WebhookChange =
   | {
@@ -172,6 +203,10 @@ export type WebhookChange =
   | {
     field: "smb_app_state_sync";
     value: WebhookValueStateSync; // contact sync events
+  }
+  | {
+    field: "account_update";
+    value: WebhookAccountUpdateValue;
   };
 
 // Entry object that contains one or more changes

@@ -482,6 +482,25 @@ async function processMessage(request: Request): Promise<Response> {
 
     for (const { value, field } of entry.changes) {
       log.info(`WhatsApp ${field} payload`, value);
+
+      if (field === "account_update") {
+        if (value.event === "PARTNER_REMOVED") {
+          log.info(
+            "Partner removed, disconnecting organization address",
+            value,
+          );
+          await client
+            .from("organizations_addresses")
+            .update({ status: "disconnected" })
+            .eq("extra->>waba_id", value.waba_info.waba_id)
+            .throwOnError();
+        }
+      }
+
+      if (!("metadata" in value)) {
+        continue;
+      }
+
       const organization_address = value.metadata?.phone_number_id; // WhatsApp business account phone number id
 
       if (!organization_address) {
