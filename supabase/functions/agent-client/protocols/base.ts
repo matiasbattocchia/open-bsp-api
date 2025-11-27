@@ -1,11 +1,11 @@
 import type {
-  AgentRow,
-  MessageRow,
-  MessageInsert,
-  ConversationRow,
-  OrganizationRow,
-  ContactRow,
   AgentExtra,
+  AgentRow,
+  ContactRow,
+  ConversationRow,
+  MessageInsert,
+  MessageRow,
+  OrganizationRow,
 } from "../../_shared/supabase.ts";
 
 export type AgentRowWithExtra = Omit<AgentRow, "extra"> & {
@@ -16,7 +16,7 @@ export interface RequestContext {
   organization: OrganizationRow;
   conversation: ConversationRow;
   messages: MessageRow[];
-  contact: ContactRow | null;
+  contact?: ContactRow;
   agent: AgentRowWithExtra;
 }
 

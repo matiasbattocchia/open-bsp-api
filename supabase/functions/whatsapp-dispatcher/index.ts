@@ -344,6 +344,8 @@ Deno.serve(async (req) => {
     let readReceipt = false;
     let typingIndicator = false;
 
+    log.info(`Incoming message ${message.id} status`, message.status);
+
     if (
       message.status.read &&
       Date.now() - +new Date(message.status.read) <= 60 * 1000
@@ -359,6 +361,10 @@ Deno.serve(async (req) => {
       typingIndicator = true;
       log.info("Typing indicator");
     }
+
+    log.info(
+      `read receipt: ${readReceipt}, typing indicator: ${typingIndicator}`,
+    );
 
     if (!readReceipt && !typingIndicator) {
       return new Response();
@@ -381,11 +387,13 @@ Deno.serve(async (req) => {
       }),
     };
 
-    await postPayloadToWhatsAppEndpoint({
+    const response = await postPayloadToWhatsAppEndpoint({
       payload,
       phone_number_id: message.organization_address,
       access_token,
     });
+
+    log.info(`Response body`, response);
   } else {
     throw new Error(
       `Cannot dispatch message with id ${message.id} because its direction is not 'outgoing' nor 'incoming'.`,

@@ -368,7 +368,8 @@ export async function performEmbeddedSignup(
         `Could not find application id '${payload.application_id}' in META_APP_ID environment variable`,
       );
       throw new HTTPException(500, {
-        message: `Could not find application id '${payload.application_id}' in META_APP_ID environment variable`,
+        message:
+          `Could not find application id '${payload.application_id}' in META_APP_ID environment variable`,
       });
     }
   }

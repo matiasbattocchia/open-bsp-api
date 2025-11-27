@@ -123,10 +123,10 @@ Deno.serve(async (req) => {
     .from("contacts_addresses")
     .select(`*, contacts (*)`)
     .eq("address", incoming.contact_address)
-    .single()
+    .maybeSingle()
     .throwOnError();
 
-  const contact = contactAddress.contacts;
+  const contact = contactAddress?.contacts;
 
   // CHECK IF CONTACT IS ALLOWED
 

@@ -14,7 +14,6 @@ export async function getBusinessCredentials(
     .from("organizations_addresses")
     .select("extra->>waba_id, extra->>access_token")
     .eq("address", organization_address)
-    .limit(1)
     .single();
 
   if (error) {
