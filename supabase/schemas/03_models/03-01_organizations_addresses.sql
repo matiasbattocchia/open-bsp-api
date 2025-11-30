@@ -36,3 +36,8 @@ before update
 on public.organizations_addresses
 for each row
 execute function public.moddatetime('updated_at');
+
+create index organizations_addresses_waba_id_idx
+on public.organizations_addresses
+using btree ((extra->>'waba_id'))
+where service = 'whatsapp';
