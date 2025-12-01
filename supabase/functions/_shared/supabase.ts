@@ -243,6 +243,11 @@ export type UnsupportedMessage = {
   };
 };
 
+export type ErrorsMessage = {
+  errors: Omit<WebhookError, "href">[];
+  type: "errors";
+};
+
 // Shared types
 
 // Only included when a user replies or interacts with one of your messages.
@@ -473,6 +478,7 @@ export type WebhookMessageBase =
     | ButtonMessage
     | ContactsMessage
     | DocumentMessage
+    | ErrorsMessage
     | ImageMessage
     | InteractiveMessage
     | LocationMessage
@@ -770,6 +776,11 @@ type MediaPlaceholderPart = DataPart<
   Record<PropertyKey, never>
 >;
 
+type UnsupportedPart = DataPart<
+  "unsupported",
+  UnsupportedMessage["unsupported"]
+>;
+
 // Multi-part messages
 
 export type Part = TextPart | DataPart | FilePart;
@@ -809,6 +820,7 @@ export type IncomingMessage =
     | InteractivePart
     | ButtonPart
     | MediaPlaceholderPart
+    | UnsupportedPart
   );
 
 export type InternalMessage =
@@ -1029,12 +1041,6 @@ export type OrganizationAddressExtra = {
   verified_name?: string;
   access_token?: string;
   flow_type?: "only_waba" | "new_phone_number" | "existing_phone_number";
-  logs?: Array<{
-    webhook: string;
-    timestamp: string;
-    level: "info" | "warn" | "error";
-    message: unknown;
-  }>;
 };
 
 export type ConversationExtra = {
@@ -1201,6 +1207,11 @@ export type Database = MergeDeep<
         agents: {
           Row: {
             extra: AgentExtra | null;
+          };
+        };
+        logs: {
+          Insert: {
+            organization_id?: string;
           };
         };
       };

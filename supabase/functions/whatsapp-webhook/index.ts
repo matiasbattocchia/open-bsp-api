@@ -8,6 +8,7 @@ import {
   type MetaWebhookPayload,
   type OutgoingMessage,
   type WebhookEchoMessage,
+  WebhookError,
   type WebhookHistoryMessage,
   type WebhookIncomingMessage,
 } from "../_shared/supabase.ts";
@@ -420,6 +421,14 @@ async function webhookMessageToIncomingMessage(
       };
     }
 
+    case "unsupported":
+      return {
+        ...baseMessage,
+        type: "data",
+        kind: "unsupported",
+        data: message.unsupported,
+      };
+
     case "system": {
       if (message.system.type === "user_changed_number") {
         const old_phone_number = message.from;
@@ -434,7 +443,7 @@ async function webhookMessageToIncomingMessage(
     }
     /* falls through */
 
-    case "unsupported":
+    case "errors":
     default: {
       // System and unsupported messages are not converted to IncomingMessage
       // They should be handled separately or filtered out before calling this function
@@ -484,6 +493,18 @@ async function processMessage(request: Request): Promise<Response> {
       log.info(`WhatsApp ${field} payload`, value);
 
       if (field === "account_update") {
+        // create_log trigger will find the org id and address
+        // based on metadata.waba_info.waba_id
+        await client
+          .from("logs")
+          .insert({
+            category: "account_update",
+            level: "info",
+            message: value.event.toLocaleLowerCase(),
+            metadata: value,
+          })
+          .throwOnError();
+
         if (value.event === "PARTNER_REMOVED") {
           log.info(
             "Partner removed, disconnecting organization address",
@@ -501,7 +522,9 @@ async function processMessage(request: Request): Promise<Response> {
         continue;
       }
 
-      const organization_address = value.metadata?.phone_number_id; // WhatsApp business account phone number id
+      const errors: Omit<WebhookError, "href">[] = [];
+
+      const organization_address = value.metadata!.phone_number_id; // WhatsApp business account phone number id
 
       if (!organization_address) {
         log.warn("No organization address");
@@ -522,6 +545,12 @@ async function processMessage(request: Request): Promise<Response> {
       if (field === "messages" && "messages" in value) {
         for (const webhookMessage of value.messages) {
           const contact_address = webhookMessage.from;
+
+          if (webhookMessage.type === "errors") {
+            errors.push(...webhookMessage.errors);
+            continue;
+          }
+
           const content = await webhookMessageToIncomingMessage(
             webhookMessage,
             client,
@@ -574,20 +603,15 @@ async function processMessage(request: Request): Promise<Response> {
           );
 
           await client
-            .from("organizations_addresses")
-            .update({
-              extra: {
-                logs: [
-                  {
-                    webhook: "messages",
-                    timestamp: new Date().toISOString(),
-                    level: "error",
-                    message: error,
-                  },
-                ],
-              },
+            .from("logs")
+            .insert({
+              organization_address,
+              category: "messages",
+              level: "error",
+              message: error.message,
+              metadata: error,
             })
-            .eq("address", organization_address);
+            .throwOnError();
         }
       }
 
@@ -600,6 +624,11 @@ async function processMessage(request: Request): Promise<Response> {
             organization_address,
             contact_address,
           });
+
+          if (webhookMessage.type === "errors") {
+            errors.push(...webhookMessage.errors);
+            continue;
+          }
 
           const content = await webhookMessageToIncomingMessage(
             webhookMessage,
@@ -633,20 +662,15 @@ async function processMessage(request: Request): Promise<Response> {
         for (const history of value.history) {
           if ("threads" in history) {
             await client
-              .from("organizations_addresses")
-              .update({
-                extra: {
-                  logs: [
-                    {
-                      webhook: "history",
-                      timestamp: new Date().toISOString(),
-                      level: "info",
-                      message: history.metadata,
-                    },
-                  ],
-                },
+              .from("logs")
+              .insert({
+                organization_address,
+                category: "history",
+                level: "info",
+                message: `Sync progress: ${history.metadata.progress}`,
+                metadata: history.metadata,
               })
-              .eq("address", organization_address);
+              .throwOnError();
 
             for (const thread of history.threads) {
               conversations.add({
@@ -661,6 +685,11 @@ async function processMessage(request: Request): Promise<Response> {
                 const contact_address = isEcho
                   ? webhookMessage.to!
                   : webhookMessage.from;
+
+                if (webhookMessage.type === "errors") {
+                  errors.push(...webhookMessage.errors);
+                  continue;
+                }
 
                 const content = await webhookMessageToIncomingMessage(
                   webhookMessage,
@@ -682,6 +711,7 @@ async function processMessage(request: Request): Promise<Response> {
 
                 const originalStatus = webhookMessage.history_context.status
                   .toLowerCase() as keyof typeof historyStatusMap;
+
                 const status = historyStatusMap[originalStatus] ||
                   originalStatus;
 
@@ -731,20 +761,15 @@ async function processMessage(request: Request): Promise<Response> {
           if ("errors" in history) {
             for (const error of history.errors) {
               await client
-                .from("organizations_addresses")
-                .update({
-                  extra: {
-                    logs: [
-                      {
-                        webhook: "history",
-                        timestamp: new Date().toISOString(),
-                        level: "error",
-                        message: error,
-                      },
-                    ],
-                  },
+                .from("logs")
+                .insert({
+                  organization_address,
+                  category: "history",
+                  level: "error",
+                  message: error.message,
+                  metadata: error,
                 })
-                .eq("address", organization_address);
+                .throwOnError();
             }
           }
         }
@@ -770,6 +795,45 @@ async function processMessage(request: Request): Promise<Response> {
               status: "inactive",
             });
           }
+        }
+      }
+
+      if (errors.length > 0) {
+        const errorCounts = errors.reduce(
+          (acc, curr) => {
+            const code = curr.code;
+
+            if (!acc[code]) {
+              acc[code] = { count: 0, error: curr };
+            }
+
+            acc[code].count += 1;
+
+            return acc;
+          },
+          {} as Record<
+            string,
+            { count: number; error: Omit<WebhookError, "href"> }
+          >,
+        );
+
+        for (const { count, error } of Object.values(errorCounts)) {
+          log.error(
+            `Received ${count} error messages with code ${error.code}`,
+            error,
+          );
+
+          await client
+            .from("logs")
+            .insert({
+              organization_address,
+              category: field,
+              level: "error",
+              message:
+                `Received ${count} error messages with code ${error.code}`,
+              metadata: error,
+            })
+            .throwOnError();
         }
       }
     }

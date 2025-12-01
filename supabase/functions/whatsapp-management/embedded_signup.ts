@@ -22,7 +22,6 @@ async function getBusinessAccessToken(
       headers: Object.fromEntries(response.headers.entries()),
       body: await response.json().catch(() => ({})),
     };
-    log.error("Could not get business access token", errorCause);
     throw new HTTPException(response.status as ContentfulStatusCode, {
       message: "Could not get business access token",
       cause: errorCause,
@@ -154,7 +153,6 @@ async function postSubscribeToWebhooks(
       headers: Object.fromEntries(response.headers.entries()),
       body: await response.json().catch(() => ({})),
     };
-    log.error("Could not subscribe to webhooks", errorCause);
     throw new HTTPException(response.status as ContentfulStatusCode, {
       message: "Could not subscribe to webhooks",
       cause: errorCause,
@@ -190,7 +188,6 @@ async function postRegisterPhoneNumber(
       headers: Object.fromEntries(response.headers.entries()),
       body: await response.json().catch(() => ({})),
     };
-    log.error("Could not register phone number", errorCause);
     throw new HTTPException(response.status as ContentfulStatusCode, {
       message: "Could not register phone number",
       cause: errorCause,
@@ -240,7 +237,6 @@ async function getPhoneNumber(
       headers: Object.fromEntries(response.headers.entries()),
       body: await response.json().catch(() => ({})),
     };
-    log.error("Could not get phone number data", errorCause);
     throw new HTTPException(response.status as ContentfulStatusCode, {
       message: "Could not get phone number data",
       cause: errorCause,
@@ -285,10 +281,6 @@ async function postInitDataSync(
       headers: Object.fromEntries(response.headers.entries()),
       body: await response.json().catch(() => ({})),
     };
-    log.error(
-      `Could not initiate ${type} app data synchronization`,
-      errorCause,
-    );
     throw new HTTPException(response.status as ContentfulStatusCode, {
       message: `Could not initiate ${type} app data synchronization`,
       cause: errorCause,
@@ -313,33 +305,28 @@ export async function performEmbeddedSignup(
   payload: SignupPayload,
 ) {
   if (!payload.code) {
-    log.error("Missing 'code' body param!");
     throw new HTTPException(400, { message: "Missing 'code' body param!" });
   }
 
   if (!payload.organization_id) {
-    log.error("Missing 'organization_id' body param!");
     throw new HTTPException(400, {
       message: "Missing 'organization_id' body param!",
     });
   }
 
   if (!payload.waba_id) {
-    log.error("Missing 'waba_id' body param!");
     throw new HTTPException(400, {
       message: "Missing 'waba_id' body param!",
     });
   }
 
   if (!payload.phone_number_id) {
-    log.error("Missing 'phone_number_id' body param!");
     throw new HTTPException(400, {
       message: "Missing 'phone_number_id' body param!",
     });
   }
 
   if (!APP_ID || !APP_SECRET) {
-    log.error("META_APP_ID or META_APP_SECRET environment variable not set");
     throw new HTTPException(401, {
       message: "META_APP_ID or META_APP_SECRET environment variable not set",
     });
@@ -349,9 +336,6 @@ export async function performEmbeddedSignup(
   const secrets = APP_SECRET.split("|");
 
   if (ids.length !== secrets.length) {
-    log.error(
-      "META_APP_ID and META_APP_SECRET environment variables must have the same number of elements, separated by '|'",
-    );
     throw new HTTPException(500, {
       message:
         "META_APP_ID and META_APP_SECRET environment variables must have the same number of elements, separated by '|'",
@@ -364,9 +348,6 @@ export async function performEmbeddedSignup(
     idIndex = ids.indexOf(payload.application_id);
 
     if (idIndex === -1) {
-      log.error(
-        `Could not find application id '${payload.application_id}' in META_APP_ID environment variable`,
-      );
       throw new HTTPException(500, {
         message:
           `Could not find application id '${payload.application_id}' in META_APP_ID environment variable`,
@@ -424,7 +405,6 @@ export async function performEmbeddedSignup(
     .single();
 
   if (error) {
-    log.error("Could not persist phone number data", error);
     throw new HTTPException(500, {
       message: "Could not persist phone number data",
       cause: error,
@@ -433,42 +413,19 @@ export async function performEmbeddedSignup(
 
   // App data sync is a coexistence only feature
   if (payload.flow_type === "existing_phone_number") {
-    try {
-      log.info("Step 4: Initiating contacts sync");
-      await postInitDataSync(
-        business_access_token,
-        payload.phone_number_id,
-        "contacts",
-      );
+    log.info("Step 4: Initiating contacts sync");
+    await postInitDataSync(
+      business_access_token,
+      payload.phone_number_id,
+      "contacts",
+    );
 
-      log.info("Step 5: Initiating messages sync");
-      await postInitDataSync(
-        business_access_token,
-        payload.phone_number_id,
-        "messages",
-      );
-    } catch (error) {
-      // @ts-ignore
-      log.error(error.message, error.cause);
-
-      await client
-        .from("organizations_addresses")
-        .update({
-          extra: {
-            logs: [
-              {
-                timestamp: new Date().toISOString(),
-                level: "error",
-                // @ts-ignore
-                message: error.message,
-                // @ts-ignore
-                cause: error.cause,
-              },
-            ],
-          },
-        })
-        .eq("address", payload.phone_number_id);
-    }
+    log.info("Step 5: Initiating messages sync");
+    await postInitDataSync(
+      business_access_token,
+      payload.phone_number_id,
+      "messages",
+    );
   }
 
   return data;

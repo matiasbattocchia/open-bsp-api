@@ -153,9 +153,27 @@ app.post("/whatsapp-management/signup", async (c) => {
   // Users are not allowed to modify organizations_addresses table.
   const unsecureClient = createUnsecureClient();
 
-  const address = await performEmbeddedSignup(unsecureClient, payload);
+  try {
+    const address = await performEmbeddedSignup(unsecureClient, payload);
 
-  return c.json(address);
+    return c.json(address);
+  } catch (error) {
+    if (error instanceof HTTPException) {
+      log.error(error.message, error);
+
+      await client
+        .from("logs")
+        .insert({
+          category: "signup",
+          level: "error",
+          message: error.message,
+          metadata: error,
+        })
+        .throwOnError();
+    }
+
+    throw error;
+  }
 });
 
 app.delete("/whatsapp-management/signup", async (c) => {
