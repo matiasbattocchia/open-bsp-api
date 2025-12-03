@@ -661,13 +661,20 @@ async function processMessage(request: Request): Promise<Response> {
       if (field === "history") {
         for (const history of value.history) {
           if ("threads" in history) {
+            const convCount = history.threads.length;
+            const msgCount = history.threads.reduce(
+              (acc, thread) => acc + thread.messages.length,
+              0,
+            );
+
             await client
               .from("logs")
               .insert({
                 organization_address,
                 category: "history",
                 level: "info",
-                message: `Sync progress: ${history.metadata.progress}`,
+                message:
+                  `Syncing ${convCount} conversations and ${msgCount} messages`,
                 metadata: history.metadata,
               })
               .throwOnError();

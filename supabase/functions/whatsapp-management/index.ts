@@ -170,6 +170,8 @@ app.post("/whatsapp-management/signup", async (c) => {
           metadata: error,
         })
         .throwOnError();
+    } else {
+      log.error("Embedded signup failed", error);
     }
 
     throw error;

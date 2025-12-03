@@ -225,6 +225,54 @@ export type Database = {
           },
         ]
       }
+      logs: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          level: Database["public"]["Enums"]["log_level"]
+          message: string
+          metadata: Json | null
+          organization_address: string | null
+          organization_id: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          id?: string
+          level: Database["public"]["Enums"]["log_level"]
+          message: string
+          metadata?: Json | null
+          organization_address?: string | null
+          organization_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          level?: Database["public"]["Enums"]["log_level"]
+          message?: string
+          metadata?: Json | null
+          organization_address?: string | null
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "logs_organization_address_fkey"
+            columns: ["organization_address"]
+            isOneToOne: false
+            referencedRelation: "organizations_addresses"
+            referencedColumns: ["address"]
+          },
+          {
+            foreignKeyName: "logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           agent_id: string | null
@@ -450,6 +498,7 @@ export type Database = {
     }
     Enums: {
       direction: "incoming" | "outgoing" | "internal"
+      log_level: "info" | "warning" | "error"
       service: "whatsapp" | "instagram" | "local"
       webhook_operation: "insert" | "update"
       webhook_table: "messages" | "conversations"
@@ -1181,6 +1230,7 @@ export const Constants = {
   public: {
     Enums: {
       direction: ["incoming", "outgoing", "internal"],
+      log_level: ["info", "warning", "error"],
       service: ["whatsapp", "instagram", "local"],
       webhook_operation: ["insert", "update"],
       webhook_table: ["messages", "conversations"],
