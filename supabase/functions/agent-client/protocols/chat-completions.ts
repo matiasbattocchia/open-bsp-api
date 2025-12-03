@@ -1,15 +1,16 @@
 import OpenAI from "openai";
 import type {
+  ChatCompletion,
   ChatCompletionAssistantMessageParam,
+  ChatCompletionMessage,
   ChatCompletionMessageParam,
   ChatCompletionMessageToolCall,
-  ChatCompletionToolMessageParam,
-  ChatCompletion,
-  ChatCompletionMessage,
   ChatCompletionTool,
+  ChatCompletionToolMessageParam,
 } from "openai/resources/chat/completions";
 import type {
   LocalToolInfo,
+  MessageInsert,
   MessageRow,
   Part,
   ToolEventInfo,
@@ -38,8 +39,7 @@ export interface ChatCompletionsResponse {
 
 export class ChatCompletionsHandler
   implements
-    AgentProtocolHandler<ChatCompletionsRequest, ChatCompletionsResponse>
-{
+    AgentProtocolHandler<ChatCompletionsRequest, ChatCompletionsResponse> {
   private tools: AgentTool[];
   private context: RequestContext;
   private client: SupabaseClient;
@@ -403,7 +403,7 @@ export class ChatCompletionsHandler
     if (finish_reason === "tool_calls" && message.tool_calls?.length) {
       const taskId = crypto.randomUUID();
 
-      const messages = message.tool_calls.map((toolCall) => {
+      const messages = message.tool_calls.map((toolCall): MessageInsert => {
         let tool: ToolEventInfo & LocalToolInfo;
         let name: string;
         let text: string;
@@ -449,7 +449,6 @@ export class ChatCompletionsHandler
           organization_address: conversation.organization_address,
           contact_address: conversation.contact_address,
           direction: "internal" as const,
-          type: "function_call" as const,
           agent_id: agent.id,
           content: {
             version: "1" as const,
