@@ -5,6 +5,7 @@ import {
   createUnsecureClient,
   type IncomingMessage,
   type MessageInsert,
+  type MessageUpdate,
   type MetaWebhookPayload,
   type OutgoingMessage,
   type WebhookEchoMessage,
@@ -475,7 +476,7 @@ async function processMessage(request: Request): Promise<Response> {
 
   const messages: MessageInsert[] = [];
   const conversations: Set<ConversationInsert> = new Set();
-  const statuses: MessageInsert[] = [];
+  const statuses: MessageUpdate[] = [];
   const contacts: Set<
     {
       service: "whatsapp";
@@ -584,7 +585,7 @@ async function processMessage(request: Request): Promise<Response> {
             organization_address,
             contact_address: status.recipient_id,
             direction: "outgoing",
-            content: {} as OutgoingMessage, // this will get merged (it won't overwrite)
+            //content: {} as OutgoingMessage, // this will get merged (it won't overwrite)
             status: {
               [status.status]: new Date(
                 parseInt(status.timestamp) * 1000,
@@ -864,7 +865,7 @@ async function processMessage(request: Request): Promise<Response> {
   // 4. message field is present at {}, it will be merged during update (inocuous)
   await client
     .from("messages")
-    .upsert(statuses, {
+    .upsert(statuses as MessageInsert[], {
       onConflict: "external_id",
     })
     .throwOnError();
