@@ -3,6 +3,7 @@ import { Hono } from "@hono/hono";
 import { cors } from "@hono/hono/cors";
 import { HTTPException } from "jsr:@hono/hono/http-exception";
 import * as log from "../_shared/logger.ts";
+import { Json } from "../_shared/db_types.ts";
 import {
   createClient,
   createUnsecureClient,
@@ -167,7 +168,7 @@ app.post("/whatsapp-management/signup", async (c) => {
           category: "signup",
           level: "error",
           message: error.message,
-          metadata: error,
+          metadata: error.cause as Json,
         })
         .throwOnError();
     } else {

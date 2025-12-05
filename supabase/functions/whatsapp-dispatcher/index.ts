@@ -108,10 +108,7 @@ async function uploadMediaItem({
 
   if (!response.ok) {
     throw new WhatsAppError("Could not upload media item to WhatsApp servers", {
-      cause: {
-        headers: Object.fromEntries(response.headers.entries()),
-        body: await response.json().catch(() => ({})),
-      },
+      cause: await response.json().catch(() => ({})),
     });
   }
 
@@ -263,10 +260,7 @@ async function postPayloadToWhatsAppEndpoint({
 
   if (!response.ok) {
     throw new WhatsAppError("Could not post payload to WhatsApp servers", {
-      cause: {
-        headers: Object.fromEntries(response.headers.entries()),
-        body: await response.json().catch(() => ({})),
-      },
+      cause: await response.json().catch(() => ({})),
     });
   }
 

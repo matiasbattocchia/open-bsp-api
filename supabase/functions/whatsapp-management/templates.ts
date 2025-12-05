@@ -40,14 +40,9 @@ export async function fetchTemplates(
   );
 
   if (!response.ok) {
-    const errorCause = {
-      headers: Object.fromEntries(response.headers.entries()),
-      body: await response.json().catch(() => ({})),
-    };
-    log.error("Could not fetch templates", errorCause);
     throw new HTTPException(response.status as ContentfulStatusCode, {
       message: "Could not fetch templates",
-      cause: errorCause,
+      cause: await response.json().catch(() => ({})),
     });
   }
 
@@ -87,14 +82,9 @@ export async function createTemplate(
   );
 
   if (!response.ok) {
-    const errorCause = {
-      headers: Object.fromEntries(response.headers.entries()),
-      body: await response.json().catch(() => ({})),
-    };
-    log.error("Could not create template", errorCause);
     throw new HTTPException(response.status as ContentfulStatusCode, {
       message: "Could not create template",
-      cause: errorCause,
+      cause: await response.json().catch(() => ({})),
     });
   }
 
@@ -123,14 +113,9 @@ export async function editTemplate(
   );
 
   if (!response.ok) {
-    const errorCause = {
-      headers: Object.fromEntries(response.headers.entries()),
-      body: await response.json().catch(() => ({})),
-    };
-    log.error("Could not update template", errorCause);
     throw new HTTPException(response.status as ContentfulStatusCode, {
       message: "Could not update template",
-      cause: errorCause,
+      cause: await response.json().catch(() => ({})),
     });
   }
 
@@ -155,14 +140,9 @@ export async function deleteTemplate(
   );
 
   if (!response.ok) {
-    const errorCause = {
-      headers: Object.fromEntries(response.headers.entries()),
-      body: await response.json().catch(() => ({})),
-    };
-    log.error("Could not delete template", errorCause);
     throw new HTTPException(response.status as ContentfulStatusCode, {
       message: "Could not delete template",
-      cause: errorCause,
+      cause: await response.json().catch(() => ({})),
     });
   }
 

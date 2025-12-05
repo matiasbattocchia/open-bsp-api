@@ -18,13 +18,9 @@ async function getBusinessAccessToken(
   );
 
   if (!response.ok) {
-    const errorCause = {
-      headers: Object.fromEntries(response.headers.entries()),
-      body: await response.json().catch(() => ({})),
-    };
     throw new HTTPException(response.status as ContentfulStatusCode, {
       message: "Could not get business access token",
-      cause: errorCause,
+      cause: await response.json().catch(() => ({})),
     });
   }
 
@@ -149,13 +145,9 @@ async function postSubscribeToWebhooks(
   );
 
   if (!response.ok) {
-    const errorCause = {
-      headers: Object.fromEntries(response.headers.entries()),
-      body: await response.json().catch(() => ({})),
-    };
     throw new HTTPException(response.status as ContentfulStatusCode, {
       message: "Could not subscribe to webhooks",
-      cause: errorCause,
+      cause: await response.json().catch(() => ({})),
     });
   }
 
@@ -184,13 +176,9 @@ async function postRegisterPhoneNumber(
   );
 
   if (!response.ok) {
-    const errorCause = {
-      headers: Object.fromEntries(response.headers.entries()),
-      body: await response.json().catch(() => ({})),
-    };
     throw new HTTPException(response.status as ContentfulStatusCode, {
       message: "Could not register phone number",
-      cause: errorCause,
+      cause: await response.json().catch(() => ({})),
     });
   }
 
@@ -233,13 +221,9 @@ async function getPhoneNumber(
   );
 
   if (!response.ok) {
-    const errorCause = {
-      headers: Object.fromEntries(response.headers.entries()),
-      body: await response.json().catch(() => ({})),
-    };
     throw new HTTPException(response.status as ContentfulStatusCode, {
       message: "Could not get phone number data",
-      cause: errorCause,
+      cause: await response.json().catch(() => ({})),
     });
   }
 
@@ -277,13 +261,9 @@ async function postInitDataSync(
   );
 
   if (!response.ok) {
-    const errorCause = {
-      headers: Object.fromEntries(response.headers.entries()),
-      body: await response.json().catch(() => ({})),
-    };
     throw new HTTPException(response.status as ContentfulStatusCode, {
       message: `Could not initiate ${type} app data synchronization`,
-      cause: errorCause,
+      cause: await response.json().catch(() => ({})),
     });
   }
 
@@ -449,14 +429,9 @@ async function deregisterPhoneNumber(
   );
 
   if (!response.ok) {
-    const errorCause = {
-      headers: Object.fromEntries(response.headers.entries()),
-      body: await response.json().catch(() => ({})),
-    };
-    log.error("Could not deregister phone number", errorCause);
     throw new HTTPException(response.status as ContentfulStatusCode, {
       message: "Could not deregister phone number",
-      cause: errorCause,
+      cause: await response.json().catch(() => ({})),
     });
   }
 
