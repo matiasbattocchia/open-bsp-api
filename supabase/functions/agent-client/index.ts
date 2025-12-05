@@ -765,18 +765,6 @@ Deno.serve(async (req) => {
               service: conv.service,
               organization_address: conv.organization_address,
               contact_address: conv.contact_address,
-              direction: "internal" as const,
-              agent_id: agent.id,
-              content: {
-                version: "1" as const,
-                task: { id: taskId },
-                ...part,
-              } as InternalMessage,
-            }
-            : {
-              service: conv.service,
-              organization_address: conv.organization_address,
-              contact_address: conv.contact_address,
               direction: "outgoing" as const,
               agent_id: agent.id,
               content: {
@@ -784,6 +772,18 @@ Deno.serve(async (req) => {
                 task: { id: taskId },
                 ...part,
               } as OutgoingMessage,
+            }
+            : {
+              service: conv.service,
+              organization_address: conv.organization_address,
+              contact_address: conv.contact_address,
+              direction: "internal" as const,
+              agent_id: agent.id,
+              content: {
+                version: "1" as const,
+                task: { id: taskId },
+                ...part,
+              } as InternalMessage,
             };
 
           response.messages.push(message);
