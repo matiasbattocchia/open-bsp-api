@@ -1,64 +1,58 @@
 alter table public.agents enable row level security;
 
-create policy "org members can read their org agents"
+create policy "members can read their orgs agents"
 on public.agents
 for select
 to authenticated
 using (
   organization_id in (
-    select public.get_authorized_orgs()
+    select public.get_authorized_orgs('member')
   )
 );
 
-create policy "org admins can create agents in their orgs"
+create policy "members can update themselves, without changing their org nor role"
 on public.agents
-for insert
+for update
 to authenticated
+using (
+  user_id = auth.uid()
+)
 with check (
-  organization_id in (
-    select public.get_authorized_orgs('admin')
+  user_id = auth.uid()
+  and organization_id = (
+    select organization_id from public.agents as a where a.id = id
+  )
+  and extra->>'role' = (
+    select extra->>'role' from public.agents as a where a.id = id
   )
 );
 
-create policy "org admins can delete their org agents"
+create policy "members can delete themselves"
 on public.agents
 for delete
 to authenticated
 using (
-  organization_id in (
-    select public.get_authorized_orgs('admin')
-  )
+  user_id = auth.uid()
 );
 
-create policy "org admins can update their org agents"
+create policy "admins can manage their orgs ai agents"
 on public.agents
-for update
+for all
 to authenticated
 using (
   organization_id in (
     select public.get_authorized_orgs('admin')
   )
-)
-with check (
-  organization_id in (
-    select public.get_authorized_orgs('admin')
-  )
+  and user_id is null
+  and ai = true
 );
 
-create policy "users can update their extra field except roles"
+create policy "owners can manage their orgs agents"
 on public.agents
-for update
+for all
 to authenticated
 using (
   organization_id in (
-    select public.get_authorized_orgs()
+    select public.get_authorized_orgs('owner')
   )
-  and user_id = auth.uid()
-)
-with check (
-  organization_id in (
-    select public.get_authorized_orgs()
-  )
-  and user_id = auth.uid()
-  and (extra -> 'roles') is null
-); 
+);

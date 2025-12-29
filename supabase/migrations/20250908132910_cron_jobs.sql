@@ -76,6 +76,7 @@ select
   );
 
 -- Allow org members to upload and download media
+-- Replaced at supabase/migrations/20251229144620_rls_rework.sql
 create policy "org members can manage their orgs media"
 on storage.objects
 to authenticated

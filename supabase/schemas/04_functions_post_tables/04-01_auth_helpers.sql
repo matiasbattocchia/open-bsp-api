@@ -19,23 +19,41 @@ begin
 end;
 $$;
 
+create function public.get_authorized_orgs(role text default 'member') returns setof uuid
+language plpgsql
+security definer
+set search_path to ''
+as $$
+declare
+  req_level int;
+begin
+  req_level := case role
+    when 'owner' then 3
+    when 'admin' then 2
+    else 1 -- 'member'
+  end;
+
+  return query select organization_id from public.agents where user_id = auth.uid()
+  and (
+    case (extra->>'role')
+      when 'owner' then 3
+      when 'admin' then 2
+      else 1 -- 'member'
+    end
+  ) >= req_level;
+end;
+$$;
+
+/*
+-- Note: this function should not be needed, because the above implementation has a default value.
+-- Albait, many policies use this signature, so we keep it for now.
 create function public.get_authorized_orgs() returns setof uuid
 language plpgsql
 security definer
 set search_path to ''
 as $$
 begin
-  return query select organization_id from public.agents where user_id = auth.uid();
-end;
-$$;
-
-create function public.get_authorized_orgs(role text) returns setof uuid
-language plpgsql
-security definer
-set search_path to ''
-as $$
-begin
-  return query select organization_id from public.agents where user_id = auth.uid()
-  and role in (select jsonb_array_elements_text(extra->'roles'));
+  return query select * from public.get_authorized_orgs('member');
 end;
 $$; 
+*/

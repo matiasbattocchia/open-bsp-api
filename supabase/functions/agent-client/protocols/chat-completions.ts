@@ -357,12 +357,13 @@ export class ChatCompletionsHandler
         apiKey ||= Deno.env.get("GEMINI_API_KEY");
         model ||= "gemini-2.5-flash";
         break;
+      case "openai":
       default:
         // undefined makes OpenAI use the default base URL
         // and api key from the OPENAI_API_KEY environment variable.
         baseURL ||= undefined;
         apiKey ||= undefined;
-        model ||= "gpt-5-mini";
+        model ||= "gpt-4.1-mini";
     }
     // Note: for Bedrock, the base URL is https://${bedrock-runtime-endpoint}/openai/v1
 

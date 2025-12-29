@@ -269,22 +269,22 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  // CHECK IF THERE ARE ACTIVE AI AGENTS
+  // CHECK IF THERE ARE AI AGENTS
 
   const aiAgents = agents.filter(
-    (agent) => agent.ai && agent.extra && agent.extra.mode !== "inactive",
-  );
+    (agent) => agent.ai
+  ) as AgentRowWithExtra[]
 
   if (!aiAgents.length) {
     log.info(
-      `No active AI agents found for conversation ${conv.name}. Skipping response.`,
+      `No AI agents found for conversation ${conv.name}. Skipping response.`,
     );
     return new Response("ok", { headers: corsHeaders });
   }
 
   // AGENT SELECTION
 
-  let agent: AgentRow | null | undefined;
+  let agent: AgentRowWithExtra | null | undefined;
 
   /* Not featuring multiple agents per conversation by the time being.
 
@@ -306,10 +306,22 @@ Deno.serve(async (req) => {
   }
   */
 
-  // 3. Fallback to any agent
+  // 4. Use the agent defined in the conversation
+  // For internal conversations, the agent does need to be active.
+
+  agent = aiAgents.find((a) => (conv.service === "local" || a.extra?.mode !== "inactive") && a.id === conversation.extra?.agent_id);
+
+  // 3. Fallback to the oldest active agent
 
   if (!agent) {
-    agent = aiAgents[0];
+    agent = aiAgents.filter((a) => a.extra?.mode !== "inactive").sort((a, b) => +a.created_at - +b.created_at).at(0);
+  }
+
+  if (!agent) {
+    log.info(
+      `No active AI agents found for conversation ${conv.name}. Skipping response.`,
+    );
+    return new Response("ok", { headers: corsHeaders });
   }
 
   //---------------------------------------------------------------------------

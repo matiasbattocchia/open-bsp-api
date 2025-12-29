@@ -188,9 +188,9 @@ export type WebhookChange =
   | {
     field: "messages";
     value:
-      | WebhookValueMessages // incoming
-      | WebhookValueStatuses // outgoing
-      | WebhookValueMessagesError; // error
+    | WebhookValueMessages // incoming
+    | WebhookValueStatuses // outgoing
+    | WebhookValueMessagesError; // error
   }
   | {
     field: "smb_message_echoes";
@@ -276,25 +276,25 @@ export type IncomingContextInfo = {
  */
 export type ReferralInfo = {
   referral?:
-    & {
-      source_url: string;
-      source_type: "ad" | "post";
-      source_id: string;
-      headline: string;
-      body: string;
-      ctwa_clid: string;
+  & {
+    source_url: string;
+    source_type: "ad" | "post";
+    source_id: string;
+    headline: string;
+    body: string;
+    ctwa_clid: string;
+  }
+  & (
+    | {
+      media_type: "image";
+      image_url: string;
     }
-    & (
-      | {
-        media_type: "image";
-        image_url: string;
-      }
-      | {
-        media_type: "video";
-        video_url: string;
-        thumbnail_url?: string;
-      }
-    );
+    | {
+      media_type: "video";
+      video_url: string;
+      thumbnail_url?: string;
+    }
+  );
 };
 
 // Text based
@@ -321,11 +321,11 @@ export type AudioMessage = {
   audio: {
     id: string;
     mime_type:
-      | "audio/aac"
-      | "audio/amr"
-      | "audio/mpeg"
-      | "audio/mp4"
-      | "audio/ogg; codecs=opus";
+    | "audio/aac"
+    | "audio/amr"
+    | "audio/mpeg"
+    | "audio/mp4"
+    | "audio/ogg; codecs=opus";
     voice: boolean;
   };
 } & ReferralInfo;
@@ -359,14 +359,14 @@ export type DocumentMessage = {
     id: string;
     sha256: string;
     mime_type:
-      | "text/plain"
-      | "application/vnd.ms-excel"
-      | "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-      | "application/msword"
-      | "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-      | "application/vnd.ms-powerpoint"
-      | "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-      | "application/pdf";
+    | "text/plain"
+    | "application/vnd.ms-excel"
+    | "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    | "application/msword"
+    | "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    | "application/vnd.ms-powerpoint"
+    | "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    | "application/pdf";
   };
 } & ReferralInfo;
 
@@ -397,11 +397,11 @@ export type ButtonMessage = {
 export type InteractiveMessage = {
   type: "interactive";
   interactive:
-    | { type: "button_reply"; button_reply: { id: string; title: string } }
-    | {
-      type: "list_reply";
-      list_reply: { id: string; title: string; description?: string };
-    };
+  | { type: "button_reply"; button_reply: { id: string; title: string } }
+  | {
+    type: "list_reply";
+    list_reply: { id: string; title: string; description?: string };
+  };
 };
 
 // ORDER
@@ -508,15 +508,15 @@ export type TemplateData = {
   id: string;
   name: string;
   status:
-    | "APPROVED"
-    | "IN_APPEAL"
-    | "PENDING"
-    | "REJECTED"
-    | "PENDING_DELETION"
-    | "DELETED"
-    | "DISABLED"
-    | "PAUSED"
-    | "LIMIT_EXCEEDED";
+  | "APPROVED"
+  | "IN_APPEAL"
+  | "PENDING"
+  | "REJECTED"
+  | "PENDING_DELETION"
+  | "DELETED"
+  | "DISABLED"
+  | "PAUSED"
+  | "LIMIT_EXCEEDED";
   category: "MARKETING"; // TODO: service and auth categories - cabra 2024/09/12
   language: string;
   components: (
@@ -658,8 +658,8 @@ export type TaskInfo = {
 
 export type ToolInfo = {
   tool?:
-    & ToolEventInfo
-    & (LocalToolInfo | GoogleToolInfo | OpenAIToolInfo | AnthropicToolInfo);
+  & ToolEventInfo
+  & (LocalToolInfo | GoogleToolInfo | OpenAIToolInfo | AnthropicToolInfo);
 };
 
 export type ToolEventInfo =
@@ -689,23 +689,23 @@ type GoogleToolInfo = {
 type OpenAIToolInfo = {
   provider: "openai";
   type:
-    | "mcp"
-    | "web_search_preview"
-    | "file_search"
-    | "image_generation"
-    | "code_interpreter"
-    | "computer_use_preview";
+  | "mcp"
+  | "web_search_preview"
+  | "file_search"
+  | "image_generation"
+  | "code_interpreter"
+  | "computer_use_preview";
 };
 
 type AnthropicToolInfo = {
   provider: "anthropic";
   type:
-    | "mcp"
-    | "bash"
-    | "code_execution"
-    | "computer"
-    | "str_replace_based_edit_tool"
-    | "web_search";
+  | "mcp"
+  | "bash"
+  | "code_execution"
+  | "computer"
+  | "str_replace_based_edit_tool"
+  | "web_search";
 };
 
 // Text based
@@ -1049,6 +1049,7 @@ export type ConversationExtra = {
   paused?: string;
   archived?: string;
   pinned?: string;
+  agent_id?: string;
   /*
   test_run?: {
     reference_conversation: {
@@ -1118,7 +1119,15 @@ export type ToolConfig =
   | LocalSpecialToolConfig
   | LocalMCPToolConfig;
 
-export type AgentExtra = {
+export type HumanAgentExtra = {
+  role: "user" | "admin" | "owner";
+  invitation?: {
+    email: string;
+    status: "pending" | "accepted" | "rejected";
+  };
+};
+
+export type AIAgentExtra = {
   mode?: "active" | "draft" | "inactive";
   description?: string;
   api_url?: string;
@@ -1135,6 +1144,8 @@ export type AgentExtra = {
   send_inline_files_up_to_size_mb?: number;
   tools?: ToolConfig[];
 };
+
+type AgentExtra = HumanAgentExtra | AIAgentExtra;
 
 export type Database = MergeDeep<
   DatabaseGenerated,
@@ -1161,43 +1172,43 @@ export type Database = MergeDeep<
         };
         messages: {
           Row:
-            | {
-              direction: "incoming";
-              content: IncomingMessage;
-              status: IncomingStatus;
-            }
-            | {
-              direction: "internal";
-              content: InternalMessage;
-              status: IncomingStatus;
-            }
-            | {
-              direction: "outgoing";
-              content: OutgoingMessage;
-              status: OutgoingStatus;
-            };
+          | {
+            direction: "incoming";
+            content: IncomingMessage;
+            status: IncomingStatus;
+          }
+          | {
+            direction: "internal";
+            content: InternalMessage;
+            status: IncomingStatus;
+          }
+          | {
+            direction: "outgoing";
+            content: OutgoingMessage;
+            status: OutgoingStatus;
+          };
           Insert:
-            | {
-              organization_id?: string;
-              conversation_id?: string;
-              direction: "incoming";
-              content: IncomingMessage;
-              status?: IncomingStatus;
-            }
-            | {
-              organization_id?: string;
-              conversation_id?: string;
-              direction: "internal";
-              content: InternalMessage;
-              status?: IncomingStatus;
-            }
-            | {
-              organization_id?: string;
-              conversation_id?: string;
-              direction: "outgoing";
-              content: OutgoingMessage;
-              status?: OutgoingStatus;
-            };
+          | {
+            organization_id?: string;
+            conversation_id?: string;
+            direction: "incoming";
+            content: IncomingMessage;
+            status?: IncomingStatus;
+          }
+          | {
+            organization_id?: string;
+            conversation_id?: string;
+            direction: "internal";
+            content: InternalMessage;
+            status?: IncomingStatus;
+          }
+          | {
+            organization_id?: string;
+            conversation_id?: string;
+            direction: "outgoing";
+            content: OutgoingMessage;
+            status?: OutgoingStatus;
+          };
         };
         contacts: {
           Row: {

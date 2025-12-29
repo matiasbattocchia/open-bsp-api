@@ -1,5 +1,5 @@
 import type {
-  AgentExtra,
+  AIAgentExtra,
   AgentRow,
   ContactRow,
   ConversationRow,
@@ -9,7 +9,7 @@ import type {
 } from "../../_shared/supabase.ts";
 
 export type AgentRowWithExtra = Omit<AgentRow, "extra"> & {
-  extra: AgentExtra;
+  extra: AIAgentExtra;
 };
 
 export interface RequestContext {

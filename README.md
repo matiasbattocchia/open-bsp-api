@@ -368,6 +368,18 @@ export type OrganizationExtra = {
 
 ### Agents
 
+The spirit of this project has been to equiparate the experience of human and AI agents.
+
+#### Human
+
+Roles and privileges
+
+* Owner — full control: manage organizations, manage integrations, invite/remove anyone
+* Admin — operational control: manage conversations, create AI agents
+* Member — standard usage: create conversations, use the chat features
+
+#### AI
+
 ```ts
 export type AgentExtra = {
    mode?: "active" | "draft" | "inactive";
@@ -375,7 +387,7 @@ export type AgentExtra = {
    api_url?: "openai" | "anthropic" | "google" | "groq" | string; // default: openai
    api_key?: string; // default: provider env var, i.e. OPENAI_API_KEY
    model?: string; // default: gpt-5-mini
-   // TODO: Add responses (openai), messages (anthropic), generate-content (google).
+   // TODO: Add responses (openai), messages (anthropic), generate-content (gemini).
    protocol?: "chat_completions" | "a2a"; // default: chat_completions
    assistant_id?: string;
    max_messages?: number;
