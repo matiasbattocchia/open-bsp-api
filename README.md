@@ -452,3 +452,23 @@ types:
 
 - DOC
 - XLS
+
+## TODO
+
+- [ ] Store integration API keys (openai, anthropic, google, etc.) in api_keys table
+- [ ] An awesome README
+- [ ] Improved error handling
+  https://modelcontextprotocol.io/specification/2025-03-26/server/tools#error-handling
+- [ ] Timestamp precision (JS milliseconds vs PostgreSQL microseconds)
+- [ ] split supabase.ts into different types files
+- [x] Roles: owner, admin, user
+- [x] Define agent extra types
+- [x] Revisit on delete effects
+- [ ] Revisit contact and contacts addresses
+- [ ] Setup a hard limit of 9 orgs per user
+- [ ] Create owner after creating org
+- [ ] Cannot delete last owner
+- [ ] Invitations functions
+  - [ ] If user exists, associate user_id
+  - [ ] Upon user creation, associate user_id
+  - [ ] Member invitation email should be unique per org

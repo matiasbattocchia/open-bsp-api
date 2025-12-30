@@ -893,14 +893,3 @@ Deno.serve(async (req) => {
     headers: { "Content-Type": "application/json" },
   });
 });
-
-/**
- * TODO
- * - Store integration API keys (openai, anthropic, google, etc.) in api_keys table
- * - An awesome README
- * - Revisit RLS
- * - Improved error handling
- *   https://modelcontextprotocol.io/specification/2025-03-26/server/tools#error-handling
- * - Timestamp precision (JS milliseconds vs PostgreSQL microseconds)
- * - split supabase.ts into different types files
- */

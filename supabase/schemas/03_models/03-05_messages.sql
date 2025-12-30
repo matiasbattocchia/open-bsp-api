@@ -6,6 +6,8 @@ create table public.messages (
   id uuid default gen_random_uuid() not null,
   external_id text,
   service public.service not null,
+  -- there is no foreign key to organizations_addresses and contacts_addresses on purpose
+  -- since messages are related to these models through conversations.
   organization_address text not null,
   contact_address text not null,
   direction public.direction not null,
@@ -28,6 +30,12 @@ add constraint messages_conversation_id_fkey
 foreign key (conversation_id)
 references public.conversations(id)
 on delete cascade;
+
+alter table only public.messages
+add constraint messages_agent_id_fkey
+foreign key (agent_id)
+references public.agents(id)
+on delete set null;
 
 alter table only public.messages
 add constraint messages_pkey primary key (id);

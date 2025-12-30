@@ -2,8 +2,8 @@ create table public.conversations (
   organization_id uuid not null,
   id uuid default gen_random_uuid() not null,
   service public.service not null,
-  organization_address text not null,
-  contact_address text not null, -- there is no foreign key to contacts_addresses on purpose
+  organization_address text,
+  contact_address text, -- there is no foreign key to contacts_addresses on purpose
   name text,
   extra jsonb,
   status text default 'active'::text not null,
@@ -24,7 +24,8 @@ primary key (id);
 alter table only public.conversations
 add constraint conversations_organization_address_fkey
 foreign key (organization_address)
-references public.organizations_addresses(address);
+references public.organizations_addresses(address)
+on delete set null;
 
 create index conversations_organization_id_created_at_idx
 on public.conversations

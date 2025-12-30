@@ -44,8 +44,6 @@ drop policy "org admins can update their org webhooks" on "public"."webhooks";
 
 drop policy "org members can read their org webhooks" on "public"."webhooks";
 
-drop function if exists "public"."get_authorized_orgs"();
-
 set check_function_bodies = off;
 
 CREATE OR REPLACE FUNCTION public.get_authorized_orgs(role text DEFAULT 'member'::text)
@@ -293,5 +291,4 @@ using (((bucket_id = 'media'::text) AND ((storage.foldername(name))[2] IN ( SELE
   to authenticated
 with check (((bucket_id = 'media'::text) AND ((storage.foldername(name))[2] IN ( SELECT (public.get_authorized_orgs('member'::text))::text AS get_authorized_orgs))));
 
-
-
+drop function if exists "public"."get_authorized_orgs"();
