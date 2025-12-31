@@ -33,7 +33,13 @@ begin
     else 1 -- 'member'
   end;
 
-  return query select organization_id from public.agents where user_id = auth.uid()
+  return query select organization_id from public.agents
+  where
+    user_id = auth.uid()
+  and (
+    extra->'invitation' is null
+    or extra->'invitation'->>'status' = 'accepted'
+  )
   and (
     case (extra->>'role')
       when 'owner' then 3
@@ -43,17 +49,3 @@ begin
   ) >= req_level;
 end;
 $$;
-
-/*
--- Note: this function should not be needed, because the above implementation has a default value.
--- Albait, many policies use this signature, so we keep it for now.
-create function public.get_authorized_orgs() returns setof uuid
-language plpgsql
-security definer
-set search_path to ''
-as $$
-begin
-  return query select * from public.get_authorized_orgs('member');
-end;
-$$; 
-*/

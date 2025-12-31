@@ -465,10 +465,10 @@ types:
 - [x] Define agent extra types
 - [x] Revisit on delete effects
 - [ ] Revisit contact and contacts addresses
-- [ ] Setup a hard limit of 9 orgs per user
-- [ ] Create owner after creating org
-- [ ] Cannot delete last owner
-- [ ] Invitations functions
-  - [ ] If user exists, associate user_id
+- [x] Setup a hard limit of 9 orgs per user
+- [x] Create owner after creating org
+- [x] Cannot delete last owner
+- Invitations functions
+  - [x] If user exists, associate user_id
   - [ ] Upon user creation, associate user_id
   - [ ] Member invitation email should be unique per org

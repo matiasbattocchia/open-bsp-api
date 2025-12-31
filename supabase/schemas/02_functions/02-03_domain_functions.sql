@@ -1,14 +1,156 @@
-create function public.create_organization() returns trigger
+-- Check org limit before user becomes active member (invitation accepted)
+create function public.check_org_limit_before_update_agent() returns trigger
 language plpgsql
+set search_path to ''
 as $$
 declare
-  org_id uuid := new.id;
-  org_address text := org_id::text;
+  org_count int;
 begin
-  insert into public.organizations_addresses (organization_id, service, address)
-    values (org_id, 'local', org_address);
+  select count(*) into org_count
+  from public.agents
+  where user_id = new.user_id
+  and (
+    extra->'invitation' is null
+    or extra->'invitation'->>'status' = 'accepted'
+  );
+
+  if org_count >= 9 then
+    raise exception 'User cannot be a member of more than 9 organizations';
+  end if;
 
   return new;
+end;
+$$;
+
+-- Check org limit before creating org (prevents orphaned orgs)
+create function public.check_org_limit_before_create_org() returns trigger
+language plpgsql
+set search_path to ''
+as $$
+declare
+  current_user_id uuid := auth.uid();
+  org_count int;
+begin
+  if current_user_id is null then
+    return new;
+  end if;
+
+  select count(*) into org_count
+  from public.agents
+  where user_id = current_user_id
+  and (
+    extra->'invitation' is null
+    or extra->'invitation'->>'status' = 'accepted'
+  );
+
+  if org_count >= 9 then
+    raise exception 'User cannot be a member of more than 9 organizations';
+  end if;
+
+  return new;
+end;
+$$;
+
+create function public.handle_invitation_insert() returns trigger
+language plpgsql
+security definer
+set search_path to ''
+as $$
+begin
+  select id into new.user_id
+  from auth.users
+  where email = new.extra->'invitation'->>'email';
+  
+  return new;
+end;
+$$;
+
+-- Enforce invitation status flow: pending → accepted/rejected only
+create function public.enforce_invitation_status_flow() returns trigger
+language plpgsql
+set search_path to ''
+as $$
+begin
+  if old.extra->'invitation' is not null then -- invitation
+    if new.extra->'invitation' is null then -- invitation removed
+      raise exception 'Cannot remove invitation';
+    end if;
+
+    if old.extra->'invitation'->>'status' is distinct from new.extra->'invitation'->>'status' then
+      if old.extra->'invitation'->>'status' <> 'pending' then
+        raise exception 'Cannot change invitation status from %', old.extra->'invitation'->>'status';
+      end if;
+    
+      if new.extra->'invitation'->>'status' not in ('accepted', 'rejected') then
+        raise exception 'Invitation status can only be changed to accepted or rejected';
+      end if;
+    end if;
+  else -- no invitation; original owner
+    if new.extra->'invitation' is not null then
+      raise exception 'Cannot add invitation to existing agent';
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+-- Create local address and owner agent after org creation
+create function public.create_organization() returns trigger
+language plpgsql
+security definer -- bypass RLS to create the owner agent
+set search_path to ''
+as $$
+declare
+  user_id uuid := auth.uid();
+  user_name text;
+begin
+  insert into public.organizations_addresses (organization_id, service, address)
+    values (new.id, 'local', new.id::text);
+
+  if user_id is not null then
+    select coalesce(raw_user_meta_data->>'full_name', email, '?') into user_name
+    from auth.users
+    where id = user_id;
+
+    insert into public.agents (organization_id, user_id, name, ai, extra)
+    values (new.id, user_id, user_name, false, '{"role": "owner"}');
+  end if;
+
+  return new;
+end;
+$$;
+
+-- Prevent deletion of the last owner in an organization
+create function public.prevent_last_owner_deletion() returns trigger
+language plpgsql
+set search_path to ''
+as $$
+declare
+  owner_count int;
+begin
+  -- Skip check if org is being deleted (cascade delete)
+  if not exists (
+    select 1 from public.organizations
+    where id = old.organization_id
+    for update skip locked
+  ) then
+    return old;
+  end if;
+
+  if old.extra->>'role' = 'owner' then
+    select count(*) into owner_count
+    from public.agents
+    where organization_id = old.organization_id
+      and extra->>'role' = 'owner'
+      and id <> old.id;
+
+    if owner_count = 0 then
+      raise exception 'Cannot delete the last owner of an organization';
+    end if;
+  end if;
+
+  return old;
 end;
 $$;
 
