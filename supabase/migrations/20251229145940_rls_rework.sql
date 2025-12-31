@@ -275,6 +275,9 @@ using ((organization_id IN ( SELECT public.get_authorized_orgs('admin'::text) AS
 drop policy "org members can manage their orgs media" on "storage"."objects";
 
 
+drop policy "org members can upload media for their orgs" on "storage"."objects";
+drop policy "org members can download their orgs media" on "storage"."objects";
+
   create policy "members can download their orgs media"
   on "storage"."objects"
   as permissive
