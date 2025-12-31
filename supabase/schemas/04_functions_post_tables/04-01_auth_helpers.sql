@@ -2,6 +2,7 @@ create function public.get_authorized_org_by_api_key() returns uuid
 language plpgsql
 security definer
 set search_path to ''
+set row_security to off
 as $$
 declare
   api_key text := current_setting('request.headers', true)::json->>'x-app-api-key';
@@ -23,6 +24,7 @@ create function public.get_authorized_orgs(role text default 'member') returns s
 language plpgsql
 security definer
 set search_path to ''
+set row_security to off
 as $$
 declare
   req_level int;
