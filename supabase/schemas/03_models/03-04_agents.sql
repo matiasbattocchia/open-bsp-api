@@ -49,7 +49,7 @@ on public.agents
 for each row
 execute function public.moddatetime('updated_at');
 
-create trigger handle_invitation_insert
+create trigger handle_new_invitation
 before insert
 on public.agents
 for each row
@@ -57,15 +57,18 @@ when (
   new.ai = false
   and new.extra->'invitation' is not null
 )
-execute function public.handle_invitation_insert();
+execute function public.lookup_user_id_by_email();
 
 create trigger enforce_invitation_status_flow
 before update
 on public.agents
 for each row
+when (
+  new.ai = false
+)
 execute function public.enforce_invitation_status_flow();
 
-create trigger check_org_limit_before_update_agent
+create trigger check_org_limit
 before update
 on public.agents
 for each row
@@ -75,10 +78,25 @@ when (
   and old.extra->'invitation'->>'status' != 'accepted'
   and new.extra->'invitation'->>'status' = 'accepted'
 )
-execute function public.check_org_limit_before_update_agent();
+execute function public.check_org_limit_before_update_on_agents();
 
-create trigger prevent_last_owner_deletion
+create trigger prevent_last_owner_deletion_before_update
+before update
+on public.agents
+for each row
+when (
+  new.ai = false
+  and old.extra->>'role' = 'owner'
+  and new.extra->>'role' != 'owner'
+)
+execute function public.prevent_last_owner_deletion();
+
+create trigger prevent_last_owner_deletion_before_delete
 before delete
 on public.agents
 for each row
+when (
+  old.ai = false
+  and old.extra->>'role' = 'owner'
+)
 execute function public.prevent_last_owner_deletion();

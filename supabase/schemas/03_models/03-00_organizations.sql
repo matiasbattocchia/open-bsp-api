@@ -10,17 +10,17 @@ alter table only public.organizations
 add constraint organizations_pkey
 primary key (id);
 
-create trigger check_org_limit_before_create_org
+create trigger check_org_limit
 before insert
 on public.organizations
 for each row
-execute function public.check_org_limit_before_create_org();
+execute function public.check_org_limit_before_insert_on_organizations();
 
 create trigger handle_new_organization
 after insert
 on public.organizations
 for each row
-execute function public.create_organization();
+execute function public.after_insert_on_organizations();
 
 create trigger set_extra
 before update

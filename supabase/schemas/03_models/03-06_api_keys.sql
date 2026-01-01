@@ -1,6 +1,7 @@
 create table public.api_keys (
   id uuid default gen_random_uuid() not null,
   organization_id uuid not null,
+  name text not null,
   key text not null,
   created_at timestamp with time zone default now() not null,
   updated_at timestamp with time zone default now() not null

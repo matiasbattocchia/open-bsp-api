@@ -30,7 +30,7 @@ insert into auth.identities (id, user_id, provider_id, identity_data, provider, 
 ;
 
 insert into public.agents (name, user_id, organization_id, ai, extra) values
-  ('Admin', '185f2f83-d63a-4c9b-b4a0-7e4a885799e2', '3a182d8d-d6d8-44bd-b021-029915476b8c', false, '{"roles":["admin"]}')
+  ('Admin', '185f2f83-d63a-4c9b-b4a0-7e4a885799e2', '3a182d8d-d6d8-44bd-b021-029915476b8c', false, '{"role": "owner"}')
 ;
 
 insert into public.api_keys (organization_id, key) values

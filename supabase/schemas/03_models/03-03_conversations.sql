@@ -40,7 +40,7 @@ create trigger handle_new_conversation
 before insert
 on public.conversations
 for each row
-execute function public.create_conversation();
+execute function public.before_insert_on_conversations();
 
 create trigger notify_webhook_conversations
 after insert or update

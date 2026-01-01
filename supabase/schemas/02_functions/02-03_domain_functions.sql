@@ -1,5 +1,5 @@
 -- Check org limit before user becomes active member (invitation accepted)
-create function public.check_org_limit_before_update_agent() returns trigger
+create function public.check_org_limit_before_update_on_agents() returns trigger
 language plpgsql
 set search_path to ''
 as $$
@@ -23,7 +23,7 @@ end;
 $$;
 
 -- Check org limit before creating org (prevents orphaned orgs)
-create function public.check_org_limit_before_create_org() returns trigger
+create function public.check_org_limit_before_insert_on_organizations() returns trigger
 language plpgsql
 set search_path to ''
 as $$
@@ -51,9 +51,9 @@ begin
 end;
 $$;
 
-create function public.handle_invitation_insert() returns trigger
+create function public.lookup_user_id_by_email() returns trigger
 language plpgsql
-security definer
+security definer -- bypass RLS to access auth.users
 set search_path to ''
 as $$
 begin
@@ -96,9 +96,9 @@ end;
 $$;
 
 -- Create local address and owner agent after org creation
-create function public.create_organization() returns trigger
+create function public.after_insert_on_organizations() returns trigger
 language plpgsql
-security definer -- bypass RLS to create the owner agent
+security definer -- bypass RLS to create the first owner
 set search_path to ''
 as $$
 declare
@@ -143,6 +143,10 @@ begin
     from public.agents
     where organization_id = old.organization_id
       and extra->>'role' = 'owner'
+      and (
+        extra->>'invitation' is null
+        or extra->'invitation'->>'status' = 'accepted'
+      )
       and id <> old.id;
 
     if owner_count = 0 then
@@ -154,7 +158,7 @@ begin
 end;
 $$;
 
-create function public.create_conversation() returns trigger
+create function public.before_insert_on_conversations() returns trigger
 language plpgsql
 as $$
 declare
@@ -203,7 +207,7 @@ begin
 end;
 $$;
 
-create function public.create_message() returns trigger
+create function public.before_insert_on_messages() returns trigger
 language plpgsql
 as $$
 begin
@@ -265,7 +269,7 @@ begin
 end;
 $$;
 
-create function public.create_log() returns trigger
+create function public.before_insert_on_logs() returns trigger
 language plpgsql
 as $$
 declare

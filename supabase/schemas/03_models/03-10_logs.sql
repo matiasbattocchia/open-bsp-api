@@ -27,7 +27,7 @@ create index idx_logs_org_id
 on public.logs
 using btree (organization_id);
 
-create trigger create_log
+create trigger lookup_org_address
 before insert on public.logs
 for each row
-execute function public.create_log();
+execute function public.before_insert_on_logs();

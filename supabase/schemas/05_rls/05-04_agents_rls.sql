@@ -16,14 +16,7 @@ using (
   user_id = auth.uid()
 )
 with check (
-  user_id = auth.uid()
-  and organization_id = (
-    select organization_id from public.agents as a where a.id = id
-  )
-  and ai = false
-  and extra->>'role' = (
-    select extra->>'role' from public.agents as a where a.id = id
-  )
+  public.member_self_update_rules(id, user_id, organization_id, ai, extra)
 );
 
 create policy "members can delete themselves"
@@ -84,18 +77,7 @@ using (
   )
 )
 with check (
-  user_id = (
-    select user_id from public.agents as a where a.id = id
-  )
-  and organization_id = (
-    select organization_id from public.agents as a where a.id = id
-  )
-  and ai = (
-    select ai from public.agents as a where a.id = id
-  )
-  and extra->'invitation' = (
-    select extra->'invitation' from public.agents as a where a.id = id
-  )
+  public.agent_update_by_owner_rules(id, user_id, organization_id, ai, extra)
 );
 
 create policy "owners can delete their orgs agents"

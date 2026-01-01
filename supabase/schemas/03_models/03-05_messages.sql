@@ -59,7 +59,7 @@ create trigger handle_new_message
 before insert
 on public.messages
 for each row
-execute function public.create_message();
+execute function public.before_insert_on_messages();
 
 create trigger handle_incoming_message_to_agent
 after insert
