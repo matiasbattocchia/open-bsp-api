@@ -12,12 +12,16 @@ become a
 [Meta Business Partner](https://developers.facebook.com/docs/whatsapp/solution-providers)
 and offer WhatsApp messaging services to other organizations.
 
+🚀 **Powering production-grade AI agents at [Mirlo.com](https://mirlo.com/agentes-ia/whatsapp)**
+
+> **Sign up for a free account (requires a Google account) and try it out at [open-bsp-ui.pages.dev](https://open-bsp-ui.pages.dev)**
+
 ## User Interface
 
 For a complete web-based interface to manage conversations check out the
 companion project:
 
-**🖥️ [Open BSP UI](https://github.com/matiasbattocchia/open-bsp-ui)** - A
+**🖥️ [Open BSP UI](https://github.com/matiasbattocchia/open-bsp-ui)** — A
 modern, responsive web interface built with React and TypeScript.
 
 <p align="center">
@@ -28,16 +32,17 @@ modern, responsive web interface built with React and TypeScript.
 
 Open BSP API is a multi-tenant platform that connects to the official WhatsApp
 API to receive and send messages, storing them in a Supabase-backed database.
-Each organization (tenant) manages its own contacts and accesses the API using
-an individual API key, enabling simple integration with other services and
-systems.
 
-The architecture is based on webhooks for receiving messages and conversations,
-and uses the Supabase client for reading and writing data. The API is designed
-to be simple and easy to integrate, supporting automation and custom workflows.
+### Core features
 
-Optionally, the platform can include the `agent-client` module, which allows you
-to create lightweight agents or connect to external, more advanced agents using
+- Apply to become a [Meta Business Partner](https://developers.facebook.com/documentation/business-messaging/whatsapp/solution-providers/overview)
+- Connect existing WhatsApp Business accounts ([Coexistence](https://developers.facebook.com/documentation/business-messaging/whatsapp/embedded-signup/onboarding-business-app-users))
+- Multiple organizations (tenants)
+- Webhooks and API keys by tenant
+
+### AI agents
+
+Create lightweight agents or connect to external, more advanced agents using
 different protocols like `a2a` and `chat-completions`. Lightweight agents can
 use built-in tools such as:
 
@@ -48,8 +53,9 @@ use built-in tools such as:
 - Transfer to human agent
 - Attach file
 
-Additionally, `annotator` module that can interpret and extract information from
-media and document files, including:
+### Media processing
+
+Interpret and extract information from media and document files, including:
 
 - Audio
 - Images
@@ -57,10 +63,14 @@ media and document files, including:
 - PDF
 - Other text-based documents (CSV, HTML, TXT, etc.)
 
+<!--
+### MCP server
+
 The `mcp` module utilizes an MCP server to provide agentic access to the API.
 For instance, you can send messages directly from clients like Claude Desktop or
 other agent platforms. In addition, most built-in tools—such as SQL, HTTP, and
 calculator—are also made available through the MCP server.
+-->
 
 ## Deployment
 
@@ -83,7 +93,7 @@ You are live! 🚀
 - **SUPABASE_ACCESS_TOKEN**: A
   [personal access token](https://supabase.com/dashboard/account/tokens)
 - **SUPABASE_DB_PASSWORD** <!-- Get it at Supabase > Project > Database > Settings > Database password `https://supabase.com/dashboard/project/{project_id}/database/settings` -->
-- **SUPABASE_SERVICE_ROLE_KEY** <!-- Get it at Supabase > Project > Project Settings > API keys > API Keys > Secret keys `https://supabase.com/dashboard/project/{project_id}/settings/api-keys/new` -->
+- **SUPABASE_SERVICE_ROLE_KEY**: you can use a secret key instead of the legacy service role key <!-- Get it at Supabase > Project > Project Settings > API keys > API Keys > Secret keys `https://supabase.com/dashboard/project/{project_id}/settings/api-keys/new` -->
 
 #### Variables
 
@@ -91,7 +101,7 @@ You are live! 🚀
 > Create the variables at GitHub > Repository > Settings ⚙️ > Secrets and variables \*️⃣ > Actions > Variables <!-- `https://github.com/{github_account}/open-bsp-api/settings/variables/actions` -->
 
 - **SUPABASE_PROJECT_ID** <!-- the `{project_id}` in `https://supabase.com/dashboard/project/{project_id}` -->
-- **SUPABASE_SESSION_POOLER_HOST** <!-- Found at Supabase > Project > Connect 🔌 > Session pooler > View parameters > Host `https://supabase.com/dashboard/project/{project_id}/database/schemas?showConnect=true` -->
+- **SUPABASE_SESSION_POOLER_HOST**: it is like `aws-0-us-east-1.pooler.supabase.com` <!-- Found at Supabase > Project > Connect 🔌 > Session pooler > View parameters > Host `https://supabase.com/dashboard/project/{project_id}/database/schemas?showConnect=true` -->
 
 #### Release
 
@@ -106,22 +116,21 @@ To connect your WhatsApp API to your Supabase project, you'll need to configure
 the following Edge Functions secrets. You can set these up in two ways:
 
 1. **Direct configuration**: Add them directly in your Supabase dashboard at
-   Supabase > Project > Edge Functions > Secrets
-   (`https://supabase.com/dashboard/project/{project_id}/functions/secrets`).
+   Supabase > Project > Edge Functions > Secrets <!-- `https://supabase.com/dashboard/project/{project_id}/functions/secrets` -->
 2. **GitHub Actions**: Set them as GitHub Actions secrets in your repository
    settings and re-run the _Release_ action to automatically deploy them.
 
 #### Secrets
 
-- `META_SYSTEM_USER_ID`
-- `META_SYSTEM_USER_ACCESS_TOKEN`
-- `META_APP_ID`
-- `META_APP_SECRET`
-- `WHATSAPP_VERIFY_TOKEN`
+- **META_SYSTEM_USER_ID**
+- **META_SYSTEM_USER_ACCESS_TOKEN**
+- **META_APP_ID**
+- **META_APP_SECRET**
+- **WHATSAPP_VERIFY_TOKEN**
 
-Follow these steps to obtain the required credentials:
+Follow these steps to obtain the required credentials.
 
-### Overview
+### Step 0: Overview
 
 There is quiet a Meta nomenclature of entities that you might want to get in
 order to not to get lost in the platform.
