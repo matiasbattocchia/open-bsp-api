@@ -131,7 +131,6 @@ There is quiet a Meta nomenclature of entities that you might want to get in ord
 - **WhatsApp Business Account (WABA)** - A WhatsApp account asset, can have many phone numbers.
 - **Phone number** - A registered phone number within the WhatsApp Cloud API. Belongs to a WABA.
 
-> [!NOTE]
 > For more details, refer to [Cloud API overview](https://developers.facebook.com/docs/whatsapp/cloud-api/overview).
 </details>
 
@@ -166,7 +165,6 @@ Step 2: Create a system user
    - `whatsapp_business_management`
 7. Copy the **Access Token** → **META_SYSTEM_USER_ACCESS_TOKEN**
 
-> [!NOTE]
 > For detailed instructions on system user setup, refer to the
 > [WhatsApp Business Management API documentation](https://developers.facebook.com/docs/whatsapp/business-management-api/get-started).
 </details>
@@ -182,7 +180,6 @@ Step 3: Get the app credentials
    - **App ID** → **META_APP_ID**
    - **App secret** → **META_APP_SECRET**
 
-> ![NOTE] 
 > Multiple Meta apps are supported by separating values with `|` (pipe) characters. For example: `META_APP_ID=app_id_1|app_id_2` and `META_APP_SECRET=app_secret_1|app_secret_2`.
 </details>
 
@@ -203,7 +200,7 @@ Step 4: Configure the WhatsApp Business Account webhook
 6. Click **Verify and save**
 7. Disregard the screen that appears next and proceed to the next step
 
-> ![NOTE] Multiple Meta apps are supported by appending the query param `?app_id={META_APP_ID}` to the callback URL. For example: `https://{SUPABASE_PROJECT_ID}.supabase.co/functions/v1/whatsapp-webhook?app_id=app_id_2`.
+> Multiple Meta apps are supported by appending the query param `?app_id={META_APP_ID}` to the callback URL. For example: `https://{SUPABASE_PROJECT_ID}.supabase.co/functions/v1/whatsapp-webhook?app_id=app_id_2`.
 
 ### Part B
 
@@ -216,7 +213,6 @@ Step 4: Configure the WhatsApp Business Account webhook
    - `smb_app_state_sync`
    - `smb_message_echoes`
 
-> [!TIP]
 > Optionally, test the configuration so far. In the `messages` subscription
 section, click **Test**. You should see the request in Supabase > Project > Edge Functions > Functions > whatsapp-webhook > Logs. <!-- `https://supabase.com/dashboard/project/{project_id}/functions/whatsapp-webhook/logs` -->
 >
@@ -239,7 +235,6 @@ If you decide to add the **test number**,
 5. Select a recipient phone number
 6. Send messages with the API > **Send message**
 
-> [!IMPORTANT]
 > The test number doesn't seem to fully activate to receive messages unless you send a test message at least once.
 
 In order to add a **production number**,
