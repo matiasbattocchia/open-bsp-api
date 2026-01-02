@@ -1,28 +1,19 @@
 # Open BSP API
 
-The Open Business Service Provider API integrates with the
-[WhatsApp Business Platform 💬](https://developers.facebook.com/docs/whatsapp).
-It is built with [Deno 🦕](https://deno.land), powered by
-[Postgres 🐘](https://www.postgresql.org) and runs on
-[Supabase ⚡](https://supabase.com) for scalable, modern backend infrastructure.
+The Open Business Service Provider API integrates with the **WhatsApp Business Platform** 💬.
+It is built with Deno 🦕, powered by Postgres 🐘 and runs on Supabase ⚡ for scalable, modern backend infrastructure.
 
-Open BSP is designed for both individual businesses and service providers. You
-can use it to manage your own WhatsApp messaging, or leverage its features to
-become a
-[Meta Business Partner](https://developers.facebook.com/docs/whatsapp/solution-providers)
-and offer WhatsApp messaging services to other organizations.
+Open BSP is designed for both individual businesses and service providers. You can use it to manage your own WhatsApp messaging, or leverage its features to become a [Meta Business Partner](https://developers.facebook.com/docs/whatsapp/solution-providers) and offer WhatsApp messaging services to other organizations.
 
 🚀 **Powering production-grade AI agents at [Mirlo.com](https://mirlo.com/agentes-ia/whatsapp)**
 
-> **Sign up for a free account (requires a Google account) and try it out at [open-bsp-ui.pages.dev](https://open-bsp-ui.pages.dev)**
+> **Sign up for a free account (requires a Google account) and try it out at [open-bsp-ui.pages.dev](https://open-bsp-ui.pages.dev)**!
 
 ## User Interface
 
-For a complete web-based interface to manage conversations check out the
-companion project:
+For a complete web-based interface to manage conversations check out the companion project:
 
-**🖥️ [Open BSP UI](https://github.com/matiasbattocchia/open-bsp-ui)** — A
-modern, responsive web interface built with React and TypeScript.
+**🖥️ [Open BSP UI](https://github.com/matiasbattocchia/open-bsp-ui)** — A modern, responsive web interface built with React and TypeScript.
 
 <p align="center">
   <img src="./ui.png" alt="Open BSP UI Screenshot" width="800">
@@ -30,8 +21,7 @@ modern, responsive web interface built with React and TypeScript.
 
 ## Description
 
-Open BSP API is a multi-tenant platform that connects to the official WhatsApp
-API to receive and send messages, storing them in a Supabase-backed database.
+Open BSP API is a multi-tenant platform that connects to the official WhatsApp API to receive and send messages, storing them in a Supabase-backed database.
 
 ### Core features
 
@@ -130,28 +120,27 @@ the following Edge Functions secrets. You can set these up in two ways:
 
 Follow these steps to obtain the required credentials.
 
+<details>
+<summary>
 ### Step 0: Overview
+</summary>
 
-There is quiet a Meta nomenclature of entities that you might want to get in
-order to not to get lost in the platform.
+There is quiet a Meta nomenclature of entities that you might want to get in order to not to get lost in the platform.
 
-- **Business profile** - This is the top-level entity, represents a business.
-  Has users and assets.
-- **User** - Real or system users. System users can have access tokens. Users
-  belong to a business portfolio and can have assigned assets.
-- **Asset** - WhatsApp accounts, Instagram accounts, Meta apps, among others.
-  Assets belong to a business portfolio and are assigned to users.
-- **App** - An asset that integrates Meta products such as the WhatsApp Cloud
-  API.
-- **WhatsApp Business Account (WABA)** - A WhatsApp account asset, can have many
-  phone numbers.
-- **Phone number** - A registered phone number within the WhatsApp Cloud API.
-  Belongs to a WABA.
+- **Business profile** - This is the top-level entity, represents a business. Has users and assets.
+- **User** - Real or system users. System users can have access tokens. Users belong to a business portfolio and can have assigned assets.
+- **Asset** - WhatsApp accounts, Instagram accounts, Meta apps, among others. Assets belong to a business portfolio and are assigned to users.
+- **App** - An asset that integrates Meta products such as the WhatsApp Cloud API.
+- **WhatsApp Business Account (WABA)** - A WhatsApp account asset, can have many phone numbers.
+- **Phone number** - A registered phone number within the WhatsApp Cloud API. Belongs to a WABA.
 
-> **Note**: For more details, refer to
-> [Cloud API overview](https://developers.facebook.com/docs/whatsapp/cloud-api/overview).
+For more details, refer to [Cloud API overview](https://developers.facebook.com/docs/whatsapp/cloud-api/overview).
+</details>
 
+<details>
+<summary>
 ### Step 1: Create a Meta app (skip if you already have one)
+</summary>
 
 1. Navigate to [My Apps](https://developers.facebook.com/apps)
 2. Click **Create App**
@@ -161,8 +150,12 @@ order to not to get lost in the platform.
 4. Add the **WhatsApp** product to your app
 5. Click **Add API**
 6. Disregard the screen that appears next and proceed to the next step
+</details>
 
+<details>
+<summary>
 ### Step 2: Create a system user
+</summary>
 
 1. Get into the [Meta Business Suite](https://business.facebook.com). If you
    have multiple portfolios, select the one associated with your app
@@ -179,8 +172,12 @@ order to not to get lost in the platform.
 
 > **Note**: For detailed instructions on system user setup, refer to the
 > [WhatsApp Business Management API documentation](https://developers.facebook.com/docs/whatsapp/business-management-api/get-started).
+</details>
 
+<details>
+<summary>
 ### Step 3: Get the app credentials
+</summary>
 
 1. Navigate to [My Apps](`https://developers.facebook.com/apps`) > App Dashboard
    (`https://developers.facebook.com/apps/{app_id}`)
@@ -193,8 +190,12 @@ order to not to get lost in the platform.
 > **Note**: Multiple Meta apps are supported by separating values with `|`
 > (pipe) characters. For example: `META_APP_ID=app_id_1|app_id_2` and
 > `META_APP_SECRET=app_secret_1|app_secret_2`.
+</details>
 
+<details>
+<summary>
 ### Step 4: Configure the `WhatsApp Business Account` webhook
+</summary>
 
 #### Part A
 
@@ -237,8 +238,12 @@ Functions > Functions > whatsapp-webhook > Logs
 You might observe an error in the logs. This is an expected outcome at this
 stage; the simple fact that a log entry appears confirms that the webhook is
 successfully receiving events.
+</details>
 
+<details>
+<summary>
 ### Step 5: Add a phone number
+</summary>
 
 If you decide to add the **test number**,
 
@@ -287,6 +292,7 @@ insert into public.organizations_addresses (address, organization_id, service, e
   ('<Phone number ID>', '<Organization ID>', 'whatsapp', '{ "waba_id": "<WhatsApp Business Account ID>", "phone_number": "<Phone number>" }')
 ;
 ```
+</details>
 
 ## Architecture
 
