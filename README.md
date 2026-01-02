@@ -64,44 +64,41 @@ calculator—are also made available through the MCP server.
 
 ## Deployment
 
-1. Create a [Supabase](https://supabase.com) project
-2. [Fork me](https://github.com/matiasbattocchia/open-bsp-api/fork)
+> [!NOTE]
+> No local environment is required to deploy this project. This is a close approach to a one-click deploy to Supabase.
+
+1. Create a [Supabase](https://supabase.com) project (5 min)
+2. [Fork me](https://github.com/matiasbattocchia/open-bsp-api/fork) (1 min)
 3. Configure the following secrets and variables for GitHub Actions in your
-   repository settings
-4. Re-run the _Release_ action
+   repository settings (7 min)
+4. Re-run the _Release_ action (1 min)
+
+You are live! 🚀
 
 #### Secrets
 
-- `SUPABASE_ACCESS_TOKEN`: A
-  [personal access token](https://supabase.com/dashboard/account/tokens)
-- `SUPABASE_DB_PASSWORD`: Get it at Supabase > Project > Database > Settings >
-  Database password
-  (`https://supabase.com/dashboard/project/{project_id}/database/settings`)
-- `SUPABASE_SERVICE_ROLE_KEY`: Get it at Supabase > Project > Project Settings >
-  API keys > API Keys > Secret keys
-  (`https://supabase.com/dashboard/project/{project_id}/settings/api-keys/new`)
+> [!TIP]
+> Create the secrets at GitHub > Repository > Settings ⚙️ > Secrets and variables \*️⃣ > Actions > Secrets <!-- `https://github.com/{github_account}/open-bsp-api/settings/secrets/actions` -->
 
-> Create the secrets at GitHub > Repository > Settings ⚙️ > Secrets and
-> variables \*️⃣ > Actions > Secrets
-> (`https://github.com/{github_account}/open-bsp-api/settings/secrets/actions`).
+- **SUPABASE_ACCESS_TOKEN**: A
+  [personal access token](https://supabase.com/dashboard/account/tokens)
+- **SUPABASE_DB_PASSWORD** <!-- Get it at Supabase > Project > Database > Settings > Database password `https://supabase.com/dashboard/project/{project_id}/database/settings` -->
+- **SUPABASE_SERVICE_ROLE_KEY** <!-- Get it at Supabase > Project > Project Settings > API keys > API Keys > Secret keys `https://supabase.com/dashboard/project/{project_id}/settings/api-keys/new` -->
 
 #### Variables
 
-- `SUPABASE_PROJECT_ID`: the `{project_id}` in
-  `https://supabase.com/dashboard/project/{project_id}`
-- `SUPABASE_SESSION_POOLER_HOST`: Found at Supabase > Project > Connect 🔌 >
-  Session pooler > View parameters > Host
-  (`https://supabase.com/dashboard/project/{project_id}/database/schemas?showConnect=true`)
+> [!TIP]
+> Create the variables at GitHub > Repository > Settings ⚙️ > Secrets and variables \*️⃣ > Actions > Variables <!-- `https://github.com/{github_account}/open-bsp-api/settings/variables/actions` -->
 
-> Create the variables at GitHub > Repository > Settings ⚙️ > Secrets and
-> variables \*️⃣ > Actions > Variables
-> (`https://github.com/{github_account}/open-bsp-api/settings/variables/actions`).
+- **SUPABASE_PROJECT_ID** <!-- the `{project_id}` in `https://supabase.com/dashboard/project/{project_id}` -->
+- **SUPABASE_SESSION_POOLER_HOST** <!-- Found at Supabase > Project > Connect 🔌 > Session pooler > View parameters > Host `https://supabase.com/dashboard/project/{project_id}/database/schemas?showConnect=true` -->
 
 #### Release
 
-1. Go to GitHub > Repository > Actions ▶️ > Release
-   (`https://github.com/{github_account}/open-bsp-api/actions/workflows/release.yml`)
-2. Click **Run workflow**
+> [!TIP]
+> Go to GitHub > Repository > Actions ▶️ > Release <!-- `https://github.com/{github_account}/open-bsp-api/actions/workflows/release.yml` -->
+
+1. Click **Run workflow**
 
 ## WhatsApp Integration
 
@@ -456,6 +453,7 @@ types:
 ## TODO
 
 - [ ] Store integration API keys (openai, anthropic, google, etc.) in api_keys table
+- [ ] Encrypt API keys
 - [ ] An awesome README
 - [ ] Improved error handling
   https://modelcontextprotocol.io/specification/2025-03-26/server/tools#error-handling
@@ -464,7 +462,9 @@ types:
 - [x] Roles: owner, admin, user
 - [x] Define agent extra types
 - [x] Revisit on delete effects
-- [ ] Revisit contact and contacts addresses
+- [ ] Revisit contacts and contacts_addresses
+- [ ] Respond to all / non-contacts
+- [ ] Enhanced privacy (do not store messages from contacts)
 - [x] Setup a hard limit of 9 orgs per user
 - [x] Create owner after creating org
 - [x] Cannot delete last owner
@@ -472,3 +472,4 @@ types:
   - [x] If user exists, associate user_id
   - [ ] Upon user creation, associate user_id
   - [ ] Member invitation email should be unique per org
+- [ ] Fix update JSON columns
