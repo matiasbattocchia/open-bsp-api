@@ -33,6 +33,6 @@ insert into public.agents (name, user_id, organization_id, ai, extra) values
   ('Admin', '185f2f83-d63a-4c9b-b4a0-7e4a885799e2', '3a182d8d-d6d8-44bd-b021-029915476b8c', false, '{"role": "owner"}')
 ;
 
-insert into public.api_keys (organization_id, key) values
-  ('3a182d8d-d6d8-44bd-b021-029915476b8c', '1234567890')
+insert into public.api_keys (organization_id, key, name) values
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', '1234567890', 'Default')
 ;

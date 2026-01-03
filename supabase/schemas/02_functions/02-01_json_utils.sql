@@ -1,3 +1,14 @@
+-- Behavior Summary:
+-- | Value Type             | Behavior                               | Merges? |
+-- |------------------------|----------------------------------------|---------|
+-- | null                   | Replaces entire target with null       | NO      |
+-- | {} (empty object)      | Recursively merges (no-op if empty)    | YES     |
+-- | Non-empty object       | Recursively merges nested keys         | YES     |
+-- | String/Number/Boolean  | Replaces value at path                 | NO      |
+--
+-- Note: Arrays are currently REPLACED, not merged (array merge logic is commented out).
+-- Example: {"tags": ["a", "b"]} + update tags to ["c"] = {"tags": ["c"]}
+
 create function public.merge_update_jsonb(target jsonb, path text[], object jsonb) returns jsonb
 language plpgsql
 immutable
@@ -16,25 +27,17 @@ begin
     when null then
       target := null;
     when 'object' then
-      if object = '{}'::jsonb then
-        if cardinality(path) = 0 then
-          target := object;
-        else
-          target := jsonb_set(target, path, object, true);
-        end if;
-      else
-        if jsonb_typeof(target #> path) <> 'object' or target #> path is null then
-            if cardinality(path) = 0 then
-              target := '{}'::jsonb;
-            else
-              target := jsonb_set(target, path, '{}', true);
-            end if;
-        end if;
-
-        for key, value in select * from jsonb_each(object) loop
-            target := public.merge_update_jsonb(target, array_append(path, key), value);
-        end loop;
+      if jsonb_typeof(target #> path) <> 'object' or target #> path is null then
+          if cardinality(path) = 0 then
+            target := '{}'::jsonb;
+          else
+            target := jsonb_set(target, path, '{}', true);
+          end if;
       end if;
+
+      for key, value in select * from jsonb_each(object) loop
+          target := public.merge_update_jsonb(target, array_append(path, key), value);
+      end loop;
     -- when 'array' then
     --   if jsonb_typeof(target #> path) <> 'array' or target #> path is null then
     --     target := jsonb_set(target, path, '[]', true);

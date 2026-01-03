@@ -582,7 +582,7 @@ async function processMessage(request: Request): Promise<Response> {
             organization_address,
             contact_address: status.recipient_id,
             direction: "outgoing",
-            //content: {} as OutgoingMessage, // this will get merged (it won't overwrite)
+            content: {} as OutgoingMessage, // this will get merged (it won't overwrite)
             status: {
               [status.status]: new Date(
                 parseInt(status.timestamp) * 1000,
