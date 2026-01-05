@@ -1122,6 +1122,7 @@ export type ToolConfig =
 export type HumanAgentExtra = {
   role: "user" | "admin" | "owner";
   invitation?: {
+    organization_name: string;
     email: string;
     status: "pending" | "accepted" | "rejected";
   };

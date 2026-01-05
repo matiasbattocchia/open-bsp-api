@@ -57,9 +57,10 @@ when (
   new.ai = false
   and new.extra->'invitation' is not null
 )
-execute function public.lookup_user_id_by_email();
+execute function public.lookup_user_id_by_email_before_insert_on_agents();
 
-create trigger enforce_invitation_status_flow
+-- should execute after set_extra
+create trigger z_enforce_invitation_status_flow
 before update
 on public.agents
 for each row

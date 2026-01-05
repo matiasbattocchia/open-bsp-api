@@ -51,15 +51,43 @@ begin
 end;
 $$;
 
-create function public.lookup_user_id_by_email() returns trigger
+create function public.lookup_user_id_by_email_before_insert_on_agents() returns trigger
 language plpgsql
 security definer -- bypass RLS to access auth.users
 set search_path to ''
 as $$
 begin
+  -- Check if an invitation already exists for this email in this org
+  if exists (
+    select 1
+    from public.agents
+    where organization_id = new.organization_id
+      and extra->'invitation'->>'email' = new.extra->'invitation'->>'email'
+  ) then
+    raise exception 'An invitation for this email already exists in this organization';
+  end if;
+
+  -- Associate user_id to the agent
   select id into new.user_id
   from auth.users
   where email = new.extra->'invitation'->>'email';
+  
+  return new;
+end;
+$$;
+
+-- Auto-associate user_id to agents when new user signs up
+create function public.lookup_agents_by_email_after_insert_on_auth_users() returns trigger
+language plpgsql
+security definer -- bypass RLS to update agents table
+set search_path to ''
+as $$
+begin
+  -- Update invitations matching the new user's email
+  update public.agents
+  set user_id = new.id
+  where user_id is null
+    and extra->'invitation'->>'email' = new.email;
   
   return new;
 end;
@@ -74,6 +102,10 @@ begin
   if old.extra->'invitation' is not null then -- invitation
     if new.extra->'invitation' is null then -- invitation removed
       raise exception 'Cannot remove invitation';
+    end if;
+
+    if new.extra->'invitation'->>'email' is distinct from old.extra->'invitation'->>'email' then
+      raise exception 'Cannot change invitation email';
     end if;
 
     if old.extra->'invitation'->>'status' is distinct from new.extra->'invitation'->>'status' then
