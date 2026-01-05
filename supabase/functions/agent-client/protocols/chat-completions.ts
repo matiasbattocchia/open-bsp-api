@@ -39,7 +39,7 @@ export interface ChatCompletionsResponse {
 
 export class ChatCompletionsHandler
   implements
-    AgentProtocolHandler<ChatCompletionsRequest, ChatCompletionsResponse> {
+  AgentProtocolHandler<ChatCompletionsRequest, ChatCompletionsResponse> {
   private tools: AgentTool[];
   private context: RequestContext;
   private client: SupabaseClient;
@@ -358,9 +358,11 @@ export class ChatCompletionsHandler
         model ||= "gemini-2.5-flash";
         break;
       case "openai":
-      default:
         // undefined makes OpenAI use the default base URL
         // and api key from the OPENAI_API_KEY environment variable.
+        baseURL = undefined;
+      /* falls through */
+      default:
         baseURL ||= undefined;
         apiKey ||= undefined;
         model ||= "gpt-4.1-mini";
@@ -380,8 +382,8 @@ export class ChatCompletionsHandler
       max_completion_tokens: agent.extra.max_tokens ?? undefined,
       messages: request.messages,
       // TOOLS
-      tools: request.tools,
-      parallel_tool_calls: true,
+      tools: request.tools.length ? request.tools : undefined,
+      parallel_tool_calls: request.tools.length ? true : undefined,
       // THINKING
       // ts-expect-error
       //thinking: { type: "enabled", budget_tokens: 2000 },
