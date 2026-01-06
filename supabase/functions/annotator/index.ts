@@ -116,12 +116,12 @@ Deno.serve(async (req) => {
 
   const language = config.language || "English";
 
-  const apiKey = config.api_key || Deno.env.get("GEMINI_API_KEY");
+  const apiKey = config.api_key || Deno.env.get("GOOGLE_API_KEY");
 
   if (!apiKey) {
     return log_update_and_respond(
       "warn",
-      "No GOOGLE API KEY found for annotation. Skipping annotation.",
+      "GOOGLE_API_KEY not set. Skipping annotation.",
     );
   }
 
@@ -283,13 +283,13 @@ Deno.serve(async (req) => {
       inlineData: { mimeType: string; data: string };
     }
   > = [
-    {
-      inlineData: {
-        mimeType: mimeType,
-        data: base64File,
+      {
+        inlineData: {
+          mimeType: mimeType,
+          data: base64File,
+        },
       },
-    },
-  ];
+    ];
 
   if (mediaType === "image") {
     // Documentation recommends to put the prompt at the end for images

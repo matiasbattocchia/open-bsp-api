@@ -840,7 +840,15 @@ Deno.serve(async (req) => {
         organization_address: conv.organization_address,
         contact_address: conv.contact_address,
         // Disambiguate by milliseconds to ensure the insertion order.
-        timestamp: new Date(+new Date() + index).toISOString(),
+        timestamp: (() => {
+          const timeMs = performance.timeOrigin + performance.now() + index;
+          const decimalPart = timeMs - Math.trunc(timeMs);
+          // Extract first 3 digits of the decimal part (microseconds)
+          const microseconds = decimalPart.toFixed(3).slice(2, 5);
+          const isoString = new Date(Math.trunc(timeMs)).toISOString();
+          // Insert microseconds before the 'Z'
+          return isoString.slice(0, -1) + microseconds + 'Z';
+        })(),
       }));
 
       // Insert and select the inserted messages
