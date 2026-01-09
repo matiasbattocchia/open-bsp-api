@@ -2,8 +2,9 @@ create table public.conversations (
   organization_id uuid not null,
   id uuid default gen_random_uuid() not null,
   service public.service not null,
-  organization_address text,
-  contact_address text, -- there is no foreign key to contacts_addresses on purpose
+  organization_address text not null,
+  contact_address text, -- one of contact_address or group_address
+  group_address text,   -- must be not null for whatsapp service
   name text,
   extra jsonb,
   status text default 'active'::text not null,
@@ -23,24 +24,37 @@ primary key (id);
 
 alter table only public.conversations
 add constraint conversations_organization_address_fkey
-foreign key (organization_address)
-references public.organizations_addresses(address)
-on delete set null;
+foreign key (organization_id, organization_address)
+references public.organizations_addresses(organization_id, address)
+on delete no action;
 
-create index conversations_organization_id_created_at_idx
-on public.conversations
-using btree (organization_id, created_at);
+/*
+alter table only public.conversations
+add constraint conversations_contact_address_fkey
+foreign key (contact_address)
+references public.contacts_addresses(address)
+on delete no action;
+*/
 
--- We might add service (1) and created_at (4), yet it does not feel critical.
-create index conversations_organization_address_contact_address_idx
+create index conversations_organization_id_idx
 on public.conversations
-using btree (organization_address, contact_address);
+using btree (organization_id);
 
-create trigger handle_new_conversation
-before insert
+create index conversations_updated_at_idx
 on public.conversations
-for each row
-execute function public.before_insert_on_conversations();
+using btree (updated_at);
+
+create index conversations_organization_address_idx
+on public.conversations
+using btree (organization_address);
+
+create index conversations_contact_address_idx
+on public.conversations
+using btree (contact_address);
+
+create index conversations_group_address_idx
+on public.conversations
+using btree (group_address);
 
 create trigger notify_webhook_conversations
 after insert or update

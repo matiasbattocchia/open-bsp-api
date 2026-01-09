@@ -36,3 +36,7 @@ before update
 on public.contacts
 for each row
 execute function public.moddatetime('updated_at');
+
+create index contacts_extra_addresses_idx
+on public.contacts
+using gin ((extra -> 'addresses'));

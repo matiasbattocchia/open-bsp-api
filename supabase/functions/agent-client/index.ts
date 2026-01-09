@@ -140,8 +140,8 @@ Deno.serve(async (req) => {
 
   if (
     conv.service !== "local" &&
-    org.extra.authorized_contacts_only &&
-    !contact?.extra?.allowed
+    org.extra.authorized_contacts_only
+    // TODO: && !contact?.extra?.allowed
   ) {
     log.info(
       `Conversation ${conv.name} does not correspond to an authorized contact. Skipping response.`,
@@ -309,7 +309,7 @@ Deno.serve(async (req) => {
   // 4. Use the agent defined in the conversation
   // For internal conversations, the agent does need to be active.
 
-  agent = aiAgents.find((a) => (conv.service === "local" || a.extra?.mode !== "inactive") && a.id === conversation.extra?.agent_id);
+  agent = aiAgents.find((a) => (conv.service === "local" || a.extra?.mode !== "inactive") && a.id === conversation.extra?.default_agent_id);
 
   // 3. Fallback to the oldest active agent
 

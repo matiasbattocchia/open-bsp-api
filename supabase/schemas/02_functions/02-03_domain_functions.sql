@@ -190,55 +190,6 @@ begin
 end;
 $$;
 
-create function public.before_insert_on_conversations() returns trigger
-language plpgsql
-as $$
-declare
-  recent_conv record;
-begin
-  -- Check most recent conversation for same organization and contact addresses
-  select * into recent_conv
-  from public.conversations
-  where organization_address = new.organization_address
-    and contact_address = new.contact_address
-  order by created_at desc
-  limit 1;
-
-  -- If a conversation exists and old.name is null and new.name is not, then update
-  -- all conversations with the same organization_address and contact_address.
-  if recent_conv is not null and recent_conv.name is null and new.name is not null then
-    update public.conversations
-    set name = new.name
-    where organization_address = new.organization_address
-      and contact_address = new.contact_address;
-  end if;
-
-  -- If an active conversation exists, skip insertion
-  if recent_conv.status = 'active' then
-    return null;
-  end if;
-
-  if new.organization_id is null then
-    -- Reuse organization_id from most recent conversation if missing
-    if recent_conv.organization_id is not null then
-      new.organization_id = recent_conv.organization_id;
-    else
-    -- Look up organization_id if missing
-      select organization_id into new.organization_id
-      from public.organizations_addresses
-      where address = new.organization_address;
-    end if;
-  end if;
-
-  -- Reuse name from most recent conversation if missing
-  if new.name is null then
-    new.name := recent_conv.name;
-  end if;
-
-  return new;
-end;
-$$;
-
 create function public.before_insert_on_messages() returns trigger
 language plpgsql
 as $$
@@ -253,19 +204,31 @@ begin
   from public.conversations
   where organization_address = new.organization_address
     and contact_address = new.contact_address
+    and group_address = new.group_address
     and status = 'active'
   order by created_at desc
   limit 1;
 
-  -- Create conversation if it doesn't exist (create_conversation trigger will handle organization_id lookup)
+  -- Create conversation if it doesn't exist
   if new.conversation_id is null then
     insert into public.conversations (
+      organization_id,
       organization_address,
       contact_address,
+      group_address,
       service
     ) values (
+      (
+        select organization_id
+        from public.organizations_addresses
+        where address = new.organization_address
+          and status = 'active'
+        order by created_at desc
+        limit 1
+      ),
       new.organization_address,
       new.contact_address,
+      new.group_address,
       new.service
     )
     returning id, organization_id into new.conversation_id, new.organization_id;

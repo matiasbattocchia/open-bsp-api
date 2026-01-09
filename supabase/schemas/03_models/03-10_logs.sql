@@ -3,7 +3,8 @@ create type public.log_level as enum ('info', 'warning', 'error');
 create table public.logs (
   id uuid not null default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
-  organization_address text references public.organizations_addresses(address) on delete cascade,
+  organization_address text,
+  foreign key (organization_id, organization_address) references public.organizations_addresses(organization_id, address) on delete cascade,
   level public.log_level not null,
   category text not null,
   message text not null,

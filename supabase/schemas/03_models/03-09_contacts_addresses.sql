@@ -1,6 +1,7 @@
+/*
 create table public.contacts_addresses (
   organization_id uuid not null,
-  contact_id uuid not null,
+  contact_id uuid,
   service public.service not null,
   address text not null,
   extra jsonb,
@@ -27,7 +28,7 @@ alter table only public.contacts_addresses
 add constraint contacts_addresses_contact_id_fkey
 foreign key (contact_id)
 references public.contacts(id)
-on delete cascade;
+on delete set null;
 
 create index contacts_addresses_contact_id_idx
 on public.contacts_addresses
@@ -47,3 +48,4 @@ before update
 on public.contacts_addresses
 for each row
 execute function public.moddatetime('updated_at');
+*/

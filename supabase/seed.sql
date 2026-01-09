@@ -100,15 +100,13 @@ insert into public.organizations_addresses (organization_id, service, address, e
    '{"waba_id": "123456789012345", "phone_number_id": "123456789012345", "display_name": "Sales Line"}', 'inactive')
 ;
 
--- Contacts & Contact Addresses (for Mountain Peaks)
-insert into public.contacts (id, organization_id, name) values
-  ('c3d4e5f6-a7b8-9c0d-1e2f-3a4b5c6d7e8f', '3a182d8d-d6d8-44bd-b021-029915476b8c', 'Dolphin'),
-  ('d4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f9a', '3a182d8d-d6d8-44bd-b021-029915476b8c', 'Wolf')
-;
-
-insert into public.contacts_addresses (organization_id, contact_id, service, address, extra) values
-  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'c3d4e5f6-a7b8-9c0d-1e2f-3a4b5c6d7e8f', 'whatsapp', '11234567890', '{"profile_name": "Dolphin"}'),
-  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'd4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f9a', 'whatsapp', '19876543210', '{"profile_name": "Wolf"}')
+-- Contacts (for Mountain Peaks)
+-- Note: contact addresses are now stored in contacts.extra.addresses
+insert into public.contacts (id, organization_id, name, extra) values
+  ('c3d4e5f6-a7b8-9c0d-1e2f-3a4b5c6d7e8f', '3a182d8d-d6d8-44bd-b021-029915476b8c', 'Dolphin', 
+   '{"addresses": [{"service": "whatsapp", "address": "11234567890", "profile_name": "Dolphin"}]}'),
+  ('d4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f9a', '3a182d8d-d6d8-44bd-b021-029915476b8c', 'Wolf',
+   '{"addresses": [{"service": "whatsapp", "address": "19876543210", "profile_name": "Wolf"}]}')
 ;
 
 -- Conversations & Messages (for Mountain Peaks)

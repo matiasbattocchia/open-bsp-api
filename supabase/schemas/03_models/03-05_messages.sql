@@ -5,14 +5,15 @@ create table public.messages (
   conversation_id uuid not null,
   id uuid default gen_random_uuid() not null,
   external_id text,
-  service public.service not null,
-  -- there is no foreign key to organizations_addresses and contacts_addresses on purpose
-  -- since messages are related to these models through conversations.
-  organization_address text not null,
-  contact_address text not null,
   direction public.direction not null,
+  agent_id uuid, -- internal sender (should be not null for internal and outgoing)
+  contact_address text, -- external sender (should be not null for incoming)
+  -- denormalized properties
+  service public.service not null,
+  organization_address text not null,
+  group_address text,
+  ----
   content jsonb not null,
-  agent_id uuid,
   status jsonb default jsonb_build_object('pending', now()) not null,
   timestamp timestamp with time zone default now() not null,
   created_at timestamp with time zone default now() not null,
@@ -47,13 +48,17 @@ create index messages_organization_id_idx
 on public.messages
 using btree (organization_id);
 
-create index messages_conversation_id_timestamp_idx
+create index messages_conversation_id_idx
 on public.messages
-using btree (conversation_id, timestamp);
+using btree (conversation_id);
 
-create index messages_conversation_id_created_at_idx
+create index messages_timestamp_idx
 on public.messages
-using btree (conversation_id, created_at);
+using btree (timestamp);
+
+create index messages_updated_at_idx
+on public.messages
+using btree (updated_at);
 
 create trigger handle_new_message
 before insert

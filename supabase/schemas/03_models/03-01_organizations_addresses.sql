@@ -10,17 +10,13 @@ create table public.organizations_addresses (
 
 alter table only public.organizations_addresses
 add constraint organizations_addresses_pkey
-primary key (address);
+primary key (organization_id, address);
 
 alter table only public.organizations_addresses
 add constraint organizations_addresses_organization_id_fkey
 foreign key (organization_id)
 references public.organizations(id)
 on delete cascade;
-
-create index organizations_addresses_organization_id_idx
-on public.organizations_addresses
-using btree (organization_id);
 
 create trigger set_extra
 before update

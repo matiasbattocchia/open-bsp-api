@@ -58,6 +58,7 @@ export type Database = {
           created_at: string
           id: string
           key: string
+          name: string
           organization_id: string
           updated_at: string
         }
@@ -65,6 +66,7 @@ export type Database = {
           created_at?: string
           id?: string
           key: string
+          name: string
           organization_id: string
           updated_at?: string
         }
@@ -72,6 +74,7 @@ export type Database = {
           created_at?: string
           id?: string
           key?: string
+          name?: string
           organization_id?: string
           updated_at?: string
         }
@@ -123,59 +126,12 @@ export type Database = {
           },
         ]
       }
-      contacts_addresses: {
-        Row: {
-          address: string
-          contact_id: string
-          created_at: string
-          extra: Json | null
-          organization_id: string
-          service: Database["public"]["Enums"]["service"]
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          address: string
-          contact_id: string
-          created_at?: string
-          extra?: Json | null
-          organization_id: string
-          service: Database["public"]["Enums"]["service"]
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          address?: string
-          contact_id?: string
-          created_at?: string
-          extra?: Json | null
-          organization_id?: string
-          service?: Database["public"]["Enums"]["service"]
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "contacts_addresses_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contacts_addresses_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       conversations: {
         Row: {
-          contact_address: string
+          contact_address: string | null
           created_at: string
           extra: Json | null
+          group_address: string | null
           id: string
           name: string | null
           organization_address: string
@@ -185,9 +141,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          contact_address: string
+          contact_address?: string | null
           created_at?: string
           extra?: Json | null
+          group_address?: string | null
           id?: string
           name?: string | null
           organization_address: string
@@ -197,9 +154,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          contact_address?: string
+          contact_address?: string | null
           created_at?: string
           extra?: Json | null
+          group_address?: string | null
           id?: string
           name?: string | null
           organization_address?: string
@@ -211,10 +169,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "conversations_organization_address_fkey"
-            columns: ["organization_address"]
+            columns: ["organization_id", "organization_address"]
             isOneToOne: false
             referencedRelation: "organizations_addresses"
-            referencedColumns: ["address"]
+            referencedColumns: ["organization_id", "address"]
           },
           {
             foreignKeyName: "conversations_organization_id_fkey"
@@ -258,30 +216,31 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "logs_organization_address_fkey"
-            columns: ["organization_address"]
-            isOneToOne: false
-            referencedRelation: "organizations_addresses"
-            referencedColumns: ["address"]
-          },
-          {
             foreignKeyName: "logs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "logs_organization_id_organization_address_fkey"
+            columns: ["organization_id", "organization_address"]
+            isOneToOne: false
+            referencedRelation: "organizations_addresses"
+            referencedColumns: ["organization_id", "address"]
+          },
         ]
       }
       messages: {
         Row: {
           agent_id: string | null
-          contact_address: string
+          contact_address: string | null
           content: Json
           conversation_id: string
           created_at: string
           direction: Database["public"]["Enums"]["direction"]
           external_id: string | null
+          group_address: string | null
           id: string
           organization_address: string
           organization_id: string
@@ -292,12 +251,13 @@ export type Database = {
         }
         Insert: {
           agent_id?: string | null
-          contact_address: string
+          contact_address?: string | null
           content: Json
           conversation_id: string
           created_at?: string
           direction: Database["public"]["Enums"]["direction"]
           external_id?: string | null
+          group_address?: string | null
           id?: string
           organization_address: string
           organization_id: string
@@ -308,12 +268,13 @@ export type Database = {
         }
         Update: {
           agent_id?: string | null
-          contact_address?: string
+          contact_address?: string | null
           content?: Json
           conversation_id?: string
           created_at?: string
           direction?: Database["public"]["Enums"]["direction"]
           external_id?: string | null
+          group_address?: string | null
           id?: string
           organization_address?: string
           organization_id?: string
@@ -323,6 +284,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "messages_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "messages_conversation_id_fkey"
             columns: ["conversation_id"]
@@ -482,15 +450,32 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      agent_update_by_owner_rules: {
+        Args: {
+          p_ai: boolean
+          p_extra: Json
+          p_id: string
+          p_organization_id: string
+          p_user_id: string
+        }
+        Returns: boolean
+      }
       change_contact_address: {
         Args: { new_address: string; old_address: string }
         Returns: undefined
       }
       get_authorized_org_by_api_key: { Args: never; Returns: string }
-      get_authorized_orgs:
-        | { Args: never; Returns: string[] }
-        | { Args: { role: string }; Returns: string[] }
-      mass_upsert_contacts: { Args: { payload: Json }; Returns: undefined }
+      get_authorized_orgs: { Args: { role?: string }; Returns: string[] }
+      member_self_update_rules: {
+        Args: {
+          p_ai: boolean
+          p_extra: Json
+          p_id: string
+          p_organization_id: string
+          p_user_id: string
+        }
+        Returns: boolean
+      }
       merge_update_jsonb: {
         Args: { object: Json; path: string[]; target: Json }
         Returns: Json
@@ -1018,26 +1003,44 @@ export type Database = {
         Returns: undefined
       }
       operation: { Args: never; Returns: string }
-      search: {
-        Args: {
-          bucketname: string
-          levels?: number
-          limits?: number
-          offsets?: number
-          prefix: string
-          search?: string
-          sortcolumn?: string
-          sortorder?: string
-        }
-        Returns: {
-          created_at: string
-          id: string
-          last_accessed_at: string
-          metadata: Json
-          name: string
-          updated_at: string
-        }[]
-      }
+      search:
+        | {
+            Args: {
+              bucketname: string
+              levels?: number
+              limits?: number
+              offsets?: number
+              prefix: string
+            }
+            Returns: {
+              created_at: string
+              id: string
+              last_accessed_at: string
+              metadata: Json
+              name: string
+              updated_at: string
+            }[]
+          }
+        | {
+            Args: {
+              bucketname: string
+              levels?: number
+              limits?: number
+              offsets?: number
+              prefix: string
+              search?: string
+              sortcolumn?: string
+              sortorder?: string
+            }
+            Returns: {
+              created_at: string
+              id: string
+              last_accessed_at: string
+              metadata: Json
+              name: string
+              updated_at: string
+            }[]
+          }
       search_legacy_v1: {
         Args: {
           bucketname: string
@@ -1078,27 +1081,45 @@ export type Database = {
           updated_at: string
         }[]
       }
-      search_v2: {
-        Args: {
-          bucket_name: string
-          levels?: number
-          limits?: number
-          prefix: string
-          sort_column?: string
-          sort_column_after?: string
-          sort_order?: string
-          start_after?: string
-        }
-        Returns: {
-          created_at: string
-          id: string
-          key: string
-          last_accessed_at: string
-          metadata: Json
-          name: string
-          updated_at: string
-        }[]
-      }
+      search_v2:
+        | {
+            Args: {
+              bucket_name: string
+              levels?: number
+              limits?: number
+              prefix: string
+              start_after?: string
+            }
+            Returns: {
+              created_at: string
+              id: string
+              key: string
+              metadata: Json
+              name: string
+              updated_at: string
+            }[]
+          }
+        | {
+            Args: {
+              bucket_name: string
+              levels?: number
+              limits?: number
+              prefix: string
+              sort_column?: string
+              sort_column_after?: string
+              sort_order?: string
+              start_after?: string
+            }
+            Returns: {
+              created_at: string
+              id: string
+              key: string
+              last_accessed_at: string
+              metadata: Json
+              name: string
+              updated_at: string
+            }[]
+          }
     }
     Enums: {
       buckettype: "STANDARD" | "ANALYTICS" | "VECTOR"

@@ -1044,12 +1044,11 @@ export type OrganizationAddressExtra = {
 };
 
 export type ConversationExtra = {
-  type?: "personal" | "group" | "test" | "test_run";
   memory?: Memory;
   paused?: string;
   archived?: string;
   pinned?: string;
-  agent_id?: string;
+  default_agent_id?: string;
   /*
   test_run?: {
     reference_conversation: {
@@ -1063,8 +1062,8 @@ export type ConversationExtra = {
 };
 
 export type ContactExtra = {
-  allowed?: boolean;
-  group?: string;
+  whatsapp_synced?: boolean;
+  addresses: string[];
 };
 
 // Function tools have a JSON input (data part).
@@ -1157,10 +1156,22 @@ export type Database = MergeDeep<
           Row: {
             extra: OrganizationExtra | null;
           };
+          Insert: {
+            extra?: OrganizationExtra;
+          };
+          Update: {
+            extra?: OrganizationExtra;
+          };
         };
         organizations_addresses: {
           Row: {
             extra: OrganizationAddressExtra | null;
+          };
+          Insert: {
+            extra?: OrganizationAddressExtra;
+          };
+          Update: {
+            extra?: OrganizationAddressExtra;
           };
         };
         conversations: {
@@ -1168,7 +1179,10 @@ export type Database = MergeDeep<
             extra: ConversationExtra | null;
           };
           Insert: {
-            organization_id?: string;
+            extra?: ConversationExtra;
+          };
+          Update: {
+            extra?: ConversationExtra;
           };
         };
         messages: {
@@ -1215,10 +1229,24 @@ export type Database = MergeDeep<
           Row: {
             extra: ContactExtra | null;
           };
+          Insert: {
+            organization_id?: string;
+            name?: string;
+            extra?: ContactExtra;
+          };
+          Update: {
+            extra?: ContactExtra;
+          };
         };
         agents: {
           Row: {
             extra: AgentExtra | null;
+          };
+          Insert: {
+            extra?: AgentExtra;
+          };
+          Update: {
+            extra?: AgentExtra;
           };
         };
         logs: {
@@ -1235,8 +1263,6 @@ export type MessageRow = Database["public"]["Tables"]["messages"]["Row"];
 export type MessageInsert = Database["public"]["Tables"]["messages"]["Insert"];
 export type MessageUpdate = Database["public"]["Tables"]["messages"]["Update"];
 
-export type ConversationInsert =
-  Database["public"]["Tables"]["conversations"]["Insert"];
 export type ConversationRow =
   Database["public"]["Tables"]["conversations"]["Row"];
 
