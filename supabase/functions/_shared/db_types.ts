@@ -60,6 +60,7 @@ export type Database = {
           key: string
           name: string
           organization_id: string
+          role: Database["public"]["Enums"]["role"]
           updated_at: string
         }
         Insert: {
@@ -68,6 +69,7 @@ export type Database = {
           key: string
           name: string
           organization_id: string
+          role?: Database["public"]["Enums"]["role"]
           updated_at?: string
         }
         Update: {
@@ -76,6 +78,7 @@ export type Database = {
           key?: string
           name?: string
           organization_id?: string
+          role?: Database["public"]["Enums"]["role"]
           updated_at?: string
         }
         Relationships: [
@@ -93,7 +96,7 @@ export type Database = {
           created_at: string
           extra: Json | null
           id: string
-          name: string
+          name: string | null
           organization_id: string
           status: string
           updated_at: string
@@ -102,7 +105,7 @@ export type Database = {
           created_at?: string
           extra?: Json | null
           id?: string
-          name: string
+          name?: string | null
           organization_id: string
           status?: string
           updated_at?: string
@@ -111,7 +114,7 @@ export type Database = {
           created_at?: string
           extra?: Json | null
           id?: string
-          name?: string
+          name?: string | null
           organization_id?: string
           status?: string
           updated_at?: string
@@ -216,18 +219,18 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "logs_organization_address_fkey"
+            columns: ["organization_id", "organization_address"]
+            isOneToOne: false
+            referencedRelation: "organizations_addresses"
+            referencedColumns: ["organization_id", "address"]
+          },
+          {
             foreignKeyName: "logs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "logs_organization_id_organization_address_fkey"
-            columns: ["organization_id", "organization_address"]
-            isOneToOne: false
-            referencedRelation: "organizations_addresses"
-            referencedColumns: ["organization_id", "address"]
           },
         ]
       }
@@ -464,8 +467,10 @@ export type Database = {
         Args: { new_address: string; old_address: string }
         Returns: undefined
       }
-      get_authorized_org_by_api_key: { Args: never; Returns: string }
-      get_authorized_orgs: { Args: { role?: string }; Returns: string[] }
+      get_authorized_orgs: {
+        Args: { role?: Database["public"]["Enums"]["role"] }
+        Returns: string[]
+      }
       member_self_update_rules: {
         Args: {
           p_ai: boolean
@@ -484,6 +489,7 @@ export type Database = {
     Enums: {
       direction: "incoming" | "outgoing" | "internal"
       log_level: "info" | "warning" | "error"
+      role: "owner" | "admin" | "member"
       service: "whatsapp" | "instagram" | "local"
       webhook_operation: "insert" | "update"
       webhook_table: "messages" | "conversations"
@@ -1252,6 +1258,7 @@ export const Constants = {
     Enums: {
       direction: ["incoming", "outgoing", "internal"],
       log_level: ["info", "warning", "error"],
+      role: ["owner", "admin", "member"],
       service: ["whatsapp", "instagram", "local"],
       webhook_operation: ["insert", "update"],
       webhook_table: ["messages", "conversations"],

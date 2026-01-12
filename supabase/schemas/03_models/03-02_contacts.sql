@@ -1,7 +1,7 @@
 create table public.contacts (
   organization_id uuid not null,
   id uuid default gen_random_uuid() not null,
-  name text not null,
+  name text,
   extra jsonb,
   status text default 'active'::text not null,
   created_at timestamp with time zone default now() not null,

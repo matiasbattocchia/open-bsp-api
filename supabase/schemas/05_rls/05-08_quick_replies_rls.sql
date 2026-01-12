@@ -3,7 +3,7 @@ alter table public.quick_replies enable row level security;
 create policy "members can read their orgs quick replies"
 on public.quick_replies
 for select
-to authenticated
+to authenticated, anon
 using (
   organization_id in (
     select public.get_authorized_orgs('member')
@@ -13,7 +13,7 @@ using (
 create policy "admins can manage their orgs quick replies"
 on public.quick_replies
 for all
-to authenticated
+to authenticated, anon
 using (
   organization_id in (
     select public.get_authorized_orgs('admin')

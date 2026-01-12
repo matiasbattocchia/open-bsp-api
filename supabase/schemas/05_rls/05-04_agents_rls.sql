@@ -30,7 +30,7 @@ using (
 create policy "members can read their orgs agents"
 on public.agents
 for select
-to authenticated
+to authenticated, anon
 using (
   organization_id in (
     select public.get_authorized_orgs('member')
@@ -40,7 +40,7 @@ using (
 create policy "admins can manage their orgs ai agents"
 on public.agents
 for all
-to authenticated
+to authenticated, anon
 using (
   organization_id in (
     select public.get_authorized_orgs('admin')
@@ -52,7 +52,7 @@ using (
 create policy "owners can create their orgs ai agents and send invitations"
 on public.agents
 for insert
-to authenticated
+to authenticated, anon
 with check (
   organization_id in (
     select public.get_authorized_orgs('owner')
@@ -70,7 +70,7 @@ with check (
 create policy "owners can update their orgs agents"
 on public.agents
 for update
-to authenticated
+to authenticated, anon
 using (
   organization_id in (
     select public.get_authorized_orgs('owner')
@@ -83,7 +83,7 @@ with check (
 create policy "owners can delete their orgs agents"
 on public.agents
 for delete
-to authenticated
+to authenticated, anon
 using (
   organization_id in (
     select public.get_authorized_orgs('owner')

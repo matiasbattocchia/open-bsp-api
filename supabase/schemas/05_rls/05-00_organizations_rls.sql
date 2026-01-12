@@ -3,7 +3,7 @@ alter table public.organizations enable row level security;
 create policy "users can create orgs"
 on public.organizations
 for insert
-to authenticated
+to authenticated -- orgs cannot be created by api keys
 with check (
   true
 );
@@ -11,7 +11,7 @@ with check (
 create policy "members can read their orgs"
 on public.organizations
 for select
-to authenticated
+to authenticated, anon
 using (
   id in (
     select public.get_authorized_orgs('member')
@@ -21,7 +21,7 @@ using (
 create policy "admins can update their orgs, without changing their name"
 on public.organizations
 for update
-to authenticated
+to authenticated, anon
 using (
   id in (
     select public.get_authorized_orgs('admin')
@@ -39,7 +39,7 @@ with check (
 create policy "owners can delete their orgs"
 on public.organizations
 for delete
-to authenticated
+to authenticated, anon
 using (
   id in (
     select public.get_authorized_orgs('owner')

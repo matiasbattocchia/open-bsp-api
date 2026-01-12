@@ -7,6 +7,8 @@
 
 - [x] Timestamp precision (JS milliseconds vs PostgreSQL microseconds)
 
+- [x] API keys equal agents (same roles and policies)
+
 - [ ] Split supabase.ts into different files
 
 - [ ] Revisit contacts and contacts_addresses

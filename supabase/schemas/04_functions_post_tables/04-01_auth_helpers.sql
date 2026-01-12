@@ -1,52 +1,74 @@
-create function public.get_authorized_org_by_api_key() returns uuid
-language plpgsql
-security definer
-set search_path to ''
-as $$
-declare
-  api_key text := current_setting('request.headers', true)::json->>'x-app-api-key';
-  org_id uuid;
-begin
-  select organization_id from public.api_keys where key = api_key into org_id;
-
-  if org_id is not null then
-    return org_id;
-  end if;
-
-  raise exception using
-    errcode = '42501',
-    message = 'no registered api key found in x-app-api-key header';
-end;
-$$;
-
-create function public.get_authorized_orgs(role text default 'member') returns setof uuid
+create function public.get_authorized_orgs(role public.role default 'member') returns setof uuid
 language plpgsql
 security definer
 set search_path to ''
 as $$
 declare
   req_level int;
+  api_key text;
+  org_id uuid;
 begin
-  req_level := case role
+  req_level := case role::text
     when 'owner' then 3
     when 'admin' then 2
     else 1 -- 'member'
   end;
 
-  return query select organization_id from public.agents
-  where
-    user_id = auth.uid()
-  and (
-    extra->'invitation' is null
-    or extra->'invitation'->>'status' = 'accepted'
-  )
-  and (
-    case (extra->>'role')
-      when 'owner' then 3
-      when 'admin' then 2
-      else 1 -- 'member'
-    end
-  ) >= req_level;
+  -- First, try JWT authentication via auth.uid()
+  if auth.uid() is not null then
+    return query select organization_id from public.agents
+    where
+      user_id = auth.uid()
+    and (
+      extra->'invitation' is null
+      or extra->'invitation'->>'status' = 'accepted'
+    )
+    and (
+      case (extra->>'role')
+        when 'owner' then 3
+        when 'admin' then 2
+        else 1 -- 'member'
+      end
+    ) >= req_level;
+
+    if found then
+      return;
+    end if;
+
+    raise exception using
+      errcode = '42501',
+      message = format('insufficient permissions, %s role required', role::text);
+  end if;
+
+  -- Fallback to API key authentication
+  api_key := current_setting('request.headers', true)::json->>'api-key';
+  
+  if api_key is not null then
+    select a.organization_id into org_id
+    from public.api_keys a
+    where a.key = api_key
+    and (
+      case (a.role::text)
+        when 'owner' then 3
+        when 'admin' then 2
+        else 1 -- 'member'
+      end
+    ) >= req_level;
+
+    if org_id is not null then
+      return next org_id;
+      return;
+    end if;
+
+    raise exception using
+      errcode = '42501',
+      message = format('invalid api key or insufficient permissions, %s role required', role::text);
+  end if;
+
+  raise exception using
+    errcode = '42501',
+    message = 'authentication required',
+    hint = 'use api-key header or jwt authentication';
 end;
 $$;
 
