@@ -4,7 +4,7 @@ The Open Business Service Provider API integrates with the **WhatsApp Business P
 
 Open BSP is designed for both individual businesses and service providers. You can use it to manage your own WhatsApp messaging, or leverage its features to become a [Meta Business Partner](https://developers.facebook.com/docs/whatsapp/solution-providers) and offer WhatsApp messaging services to other organizations.
 
-> **Sign up for a free account (requires a Google account) and try it out at [open-bsp-ui.pages.dev](https://open-bsp-ui.pages.dev)**!
+> **Sign up for a free account (requires a Google account) and try it out at [web.openbsp.dev](https://web.openbsp.dev)**!
 
 🚀 **Powering production-grade AI agents at [Mirlo.com](https://mirlo.com/agentes-ia/whatsapp)**
 

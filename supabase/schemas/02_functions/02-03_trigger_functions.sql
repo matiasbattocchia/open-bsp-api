@@ -248,8 +248,8 @@ begin
 
   select address into _existing_address
   from public.contacts_addresses
-  where organization_address = new.organization_address
-    and contact_address = new.contact_address
+  where organization_id = new.organization_id
+    and address = new.contact_address
   order by created_at desc
   limit 1;
 
