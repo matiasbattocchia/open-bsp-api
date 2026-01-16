@@ -11,6 +11,6 @@
 
 - [ ] Split supabase.ts into different files
 
-- [ ] Revisit contacts and contacts_addresses
+- [x] Revisit contacts and contacts_addresses
 - [ ] Respond to all / non-contacts
 - [ ] Enhanced privacy (optional, do not store messages from contacts)

@@ -235,7 +235,7 @@ create function public.before_insert_on_conversations() returns trigger
 language plpgsql
 as $$
 declare
-  _existing_address uuid;
+  _existing_address text;
 begin
   -- Validate that external services require either contact_address or group_address
   if new.service <> 'local' and new.contact_address is null and new.group_address is null then
