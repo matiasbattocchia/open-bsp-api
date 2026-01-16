@@ -129,6 +129,44 @@ export type Database = {
           },
         ]
       }
+      contacts_addresses: {
+        Row: {
+          address: string
+          created_at: string
+          extra: Json | null
+          organization_id: string
+          service: Database["public"]["Enums"]["service"]
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          address: string
+          created_at?: string
+          extra?: Json | null
+          organization_id: string
+          service: Database["public"]["Enums"]["service"]
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string
+          created_at?: string
+          extra?: Json | null
+          organization_id?: string
+          service?: Database["public"]["Enums"]["service"]
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contacts_addresses_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
           contact_address: string | null
@@ -170,6 +208,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "conversations_contact_address_fkey"
+            columns: ["organization_id", "contact_address"]
+            isOneToOne: false
+            referencedRelation: "contacts_addresses"
+            referencedColumns: ["organization_id", "address"]
+          },
           {
             foreignKeyName: "conversations_organization_address_fkey"
             columns: ["organization_id", "organization_address"]

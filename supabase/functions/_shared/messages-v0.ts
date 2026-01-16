@@ -38,28 +38,28 @@ type GoogleToolInfo = {
 type OpenAIToolInfo = {
   provider: "openai";
   type:
-    | "mcp"
-    | "web_search_preview"
-    | "file_search"
-    | "image_generation"
-    | "code_interpreter"
-    | "computer_use_preview";
+  | "mcp"
+  | "web_search_preview"
+  | "file_search"
+  | "image_generation"
+  | "code_interpreter"
+  | "computer_use_preview";
 };
 
 type AnthropicToolInfo = {
   provider: "anthropic";
   type:
-    | "mcp"
-    | "bash"
-    | "code_execution"
-    | "computer"
-    | "str_replace_based_edit_tool"
-    | "web_search";
+  | "mcp"
+  | "bash"
+  | "code_execution"
+  | "computer"
+  | "str_replace_based_edit_tool"
+  | "web_search";
 };
 
 type ToolInfo = {
   tool?: ToolEventInfo &
-    (LocalToolInfo | GoogleToolInfo | OpenAIToolInfo | AnthropicToolInfo);
+  (LocalToolInfo | GoogleToolInfo | OpenAIToolInfo | AnthropicToolInfo);
 };
 
 type TextPart = {
@@ -113,17 +113,20 @@ type ReferralInfo = {
     source_id: string;
     headline: string;
     body: string;
-    ctwa_clid: string;
+    ctwa_clid?: string; // The ctwa_clid property is omitted entirely for messages originating from an ad in WhatsApp Status
+    welcome_message: {
+      text: string;
+    };
   } & (
     | {
-        media_type: "image";
-        image_url: string;
-      }
+      media_type: "image";
+      image_url: string;
+    }
     | {
-        media_type: "video";
-        video_url: string;
-        thumbnail_url?: string;
-      }
+      media_type: "video";
+      video_url: string;
+      thumbnail_url?: string;
+    }
   );
 };
 
@@ -147,11 +150,11 @@ type AudioMessage = {
   audio: {
     id: string;
     mime_type:
-      | "audio/aac"
-      | "audio/amr"
-      | "audio/mpeg"
-      | "audio/mp4"
-      | "audio/ogg; codecs=opus";
+    | "audio/aac"
+    | "audio/amr"
+    | "audio/mpeg"
+    | "audio/mp4"
+    | "audio/ogg; codecs=opus";
     voice: boolean;
   };
 } & ReferralInfo;
@@ -185,14 +188,14 @@ type DocumentMessage = {
     id: string;
     sha256: string;
     mime_type:
-      | "text/plain"
-      | "application/vnd.ms-excel"
-      | "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-      | "application/msword"
-      | "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-      | "application/vnd.ms-powerpoint"
-      | "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-      | "application/pdf";
+    | "text/plain"
+    | "application/vnd.ms-excel"
+    | "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    | "application/msword"
+    | "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    | "application/vnd.ms-powerpoint"
+    | "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    | "application/pdf";
   };
 } & ReferralInfo;
 
@@ -219,11 +222,11 @@ type ButtonMessage = {
 type InteractiveMessage = {
   type: "interactive";
   interactive:
-    | { type: "button_reply"; button_reply: { id: string; title: string } }
-    | {
-        type: "list_reply";
-        list_reply: { id: string; title: string; description?: string };
-      };
+  | { type: "button_reply"; button_reply: { id: string; title: string } }
+  | {
+    type: "list_reply";
+    list_reply: { id: string; title: string; description?: string };
+  };
 };
 
 type Order = {
@@ -403,21 +406,21 @@ type TemplateButton = {
   type: "button";
   index: string;
 } & (
-  | {
+    | {
       sub_type: "quick_reply";
       parameters: {
         type: "payload";
         payload: string;
       }[];
     }
-  | {
+    | {
       sub_type: "url";
       parameters: {
         type: "url";
         text: string;
       }[];
     }
-);
+  );
 
 type Template = {
   components?: (TemplateHeader | TemplateBody | TemplateButton)[];
@@ -451,16 +454,16 @@ type OutgoingMessageV0 = { version?: "0" } & BaseMessage &
 
 type MergeDeep<T, U> = {
   [K in keyof T | keyof U]: K extends keyof U
-    ? K extends keyof T
-      ? T[K] extends object
-        ? U[K] extends object
-          ? MergeDeep<T[K], U[K]>
-          : U[K]
-        : U[K]
-      : U[K]
-    : K extends keyof T
-      ? T[K]
-      : never;
+  ? K extends keyof T
+  ? T[K] extends object
+  ? U[K] extends object
+  ? MergeDeep<T[K], U[K]>
+  : U[K]
+  : U[K]
+  : U[K]
+  : K extends keyof T
+  ? T[K]
+  : never;
 };
 
 type Database = MergeDeep<
@@ -470,18 +473,18 @@ type Database = MergeDeep<
       Tables: {
         messages: {
           Row:
-            | {
-                direction: "incoming";
-                content: IncomingMessageV0;
-              }
-            | {
-                direction: "outgoing";
-                content: OutgoingMessageV0;
-              }
-            | {
-                direction: "internal";
-                content: FunctionCallMessage | FunctionResponseMessage;
-              };
+          | {
+            direction: "incoming";
+            content: IncomingMessageV0;
+          }
+          | {
+            direction: "outgoing";
+            content: OutgoingMessageV0;
+          }
+          | {
+            direction: "internal";
+            content: FunctionCallMessage | FunctionResponseMessage;
+          };
         };
       };
     };

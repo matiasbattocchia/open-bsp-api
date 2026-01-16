@@ -7,6 +7,7 @@ select vault.create_secret(
 );
 
 -- The service role key is the same for every local project
+-- Note: the new secret auth key is not yet available in the Edge Functions environment variables
 select vault.create_secret(
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU',
   'edge_functions_token',
@@ -26,11 +27,11 @@ select vault.create_secret(
 --
 -- 2. Plains (Org 2) - Passive creatures - For cross-org testing
 --    - sheep@craft.com (owner)
---    - goat@craft.com (admin from Org 1)
+--    - goat@craft.com (admin - from Org 1)
 --
 -- 3. Dark Forest (Org 3) - Aggressive creatures - For invitation testing
 --    - zombie@craft.com (owner)
---    - goat@craft.com (pending admin invitation from Org 1)
+--    - goat@craft.com (pending admin invitation - from Org 1)
 --
 -- ============================================================================
 
@@ -80,8 +81,8 @@ insert into public.agents (name, user_id, organization_id, ai, extra) values
 ;
 
 -- API Keys (for Mountain Peaks)
-insert into public.api_keys (organization_id, key, name) values
-  ('3a182d8d-d6d8-44bd-b021-029915476b8c', '1234567890', 'Default')
+insert into public.api_keys (organization_id, key, role, name) values
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', '1234567890', 'member', 'Default')
 ;
 
 -- AI Agents (for Mountain Peaks)
@@ -95,24 +96,30 @@ insert into public.agents (id, name, user_id, organization_id, ai, extra) values
 -- Organization Addresses - WhatsApp Integration (for Mountain Peaks)
 insert into public.organizations_addresses (organization_id, service, address, extra, status) values
   ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'whatsapp', '1234567890', 
-   '{"waba_id": "123456789012345", "phone_number_id": "987654321098765", "display_name": "Support Line"}', 'active'),
+   '{"waba_id": "123456789012345", "phone_number": "1234567890", "verified_name": "Merchant line"}', 'active'),
   ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'whatsapp', '9876543210',
-   '{"waba_id": "123456789012345", "phone_number_id": "123456789012345", "display_name": "Sales Line"}', 'inactive')
+   '{"waba_id": "123456789012345", "phone_number": "9876543210", "verified_name": "Portal line"}', 'inactive')
 ;
 
 -- Contacts (for Mountain Peaks)
--- Note: contact addresses are now stored in contacts.extra.addresses
+-- Note: contacts.extra.addresses is a string array of contact addresses
 insert into public.contacts (id, organization_id, name, extra) values
   ('c3d4e5f6-a7b8-9c0d-1e2f-3a4b5c6d7e8f', '3a182d8d-d6d8-44bd-b021-029915476b8c', 'Dolphin', 
-   '{"addresses": [{"service": "whatsapp", "address": "11234567890", "profile_name": "Dolphin"}]}'),
+   '{"addresses": ["11234567890"]}'),
   ('d4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f9a', '3a182d8d-d6d8-44bd-b021-029915476b8c', 'Wolf',
-   '{"addresses": [{"service": "whatsapp", "address": "19876543210", "profile_name": "Wolf"}]}')
+   '{"addresses": ["19876543210"]}')
+;
+
+-- Contacts Addresses (for Mountain Peaks) - required for conversations FK
+insert into public.contacts_addresses (organization_id, service, address, extra) values
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'whatsapp', '11234567890', '{"name": "Dolphin"}'),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'whatsapp', '19876543210', '{"name": "Wolf"}')
 ;
 
 -- Conversations & Messages (for Mountain Peaks)
 insert into public.conversations (id, organization_id, organization_address, contact_address, service, status, name, extra) values
-  ('e5f6a7b8-c9d0-1e2f-3a4b-5c6d7e8f9a0b', '3a182d8d-d6d8-44bd-b021-029915476b8c', '1234567890', '11234567890', 'whatsapp', 'active', 'Support Request', null),
-  ('f6a7b8c9-d0e1-2f3a-4b5c-6d7e8f9a0b1c', '3a182d8d-d6d8-44bd-b021-029915476b8c', '1234567890', '19876543210', 'whatsapp', 'closed', 'Trading Inquiry', '{"paused": "2024-01-01T10:00:00Z"}')
+  ('e5f6a7b8-c9d0-1e2f-3a4b-5c6d7e8f9a0b', '3a182d8d-d6d8-44bd-b021-029915476b8c', '1234567890', '11234567890', 'whatsapp', 'active', 'Transport request', null),
+  ('f6a7b8c9-d0e1-2f3a-4b5c-6d7e8f9a0b1c', '3a182d8d-d6d8-44bd-b021-029915476b8c', '1234567890', '19876543210', 'whatsapp', 'closed', 'Trading inquiry', '{"paused": "2024-01-01T10:00:00Z"}')
 ;
 
 insert into public.messages (id, conversation_id, organization_id, organization_address, contact_address, service, direction, agent_id, content, status) values
@@ -135,8 +142,8 @@ insert into public.quick_replies (organization_id, name, content) values
 insert into public.webhooks (organization_id, table_name, operations, url, token) values
   ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'messages', 
    ARRAY['insert', 'update']::webhook_operation[], 
-   'https://example.com/webhooks/messages', 'secret-token-123'),
+   'http://127.0.0.1:54321/rest/v1/messages', 'sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz'),
   ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'conversations',
    ARRAY['insert']::webhook_operation[],
-   'https://example.com/webhooks/conversations', null)
+   'http://127.0.0.1:54321/rest/v1/conversations', 'sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz')
 ;

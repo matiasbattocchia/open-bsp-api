@@ -1,17 +1,19 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import * as log from "../_shared/logger.ts";
 import {
-  type ConversationInsert,
   createUnsecureClient,
   type IncomingMessage,
   type MessageInsert,
-  type MessageUpdate,
+  type ContactInsert,
   type MetaWebhookPayload,
   type OutgoingMessage,
   type WebhookEchoMessage,
-  WebhookError,
+  type WebhookError,
   type WebhookHistoryMessage,
   type WebhookIncomingMessage,
+  type Database,
+  type OrganizationAddressRow,
+  type ContactAddressInsert
 } from "../_shared/supabase.ts";
 import { fetchMedia, uploadToStorage } from "../_shared/media.ts";
 
@@ -19,8 +21,52 @@ const API_VERSION = "v24.0";
 const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN");
 const APP_ID = Deno.env.get("META_APP_ID");
 const APP_SECRET = Deno.env.get("META_APP_SECRET");
-const DEFAULT_ACCESS_TOKEN = Deno.env.get("META_SYSTEM_USER_ACCESS_TOKEN") ||
-  "";
+const DEFAULT_ACCESS_TOKEN = Deno.env.get("META_SYSTEM_USER_ACCESS_TOKEN") || "";
+
+/**
+ * Queries the database for organization addresses and returns a map.
+ * Fetches first active address per address value (ordered by created_at desc).
+ */
+async function buildOrgAddressMap(
+  client: SupabaseClient<Database>,
+  addresses: string[],
+): Promise<Map<string, OrganizationAddressRow>> {
+  const { data } = await client
+    .from("organizations_addresses")
+    .select("*")
+    .in("address", addresses)
+    .eq("status", "active")
+    .order("created_at", { ascending: false })
+    .throwOnError();
+
+  // Build map, keeping only the first (most recent) address per address value
+  const map = new Map<string, typeof data[number]>();
+
+  for (const row of data) {
+    if (!map.has(row.address)) {
+      map.set(row.address, row);
+    }
+  }
+
+  return map;
+}
+
+/**
+ * Collects all unique organization addresses from a webhook payload.
+ */
+function collectOrgAddresses(payload: MetaWebhookPayload): Array<string> {
+  const addresses = new Set<string>();
+
+  for (const entry of payload.entry) {
+    for (const { value } of entry.changes) {
+      if ("metadata" in value && value.metadata?.phone_number_id) {
+        addresses.add(value.metadata.phone_number_id);
+      }
+    }
+  }
+
+  return Array.from(addresses);
+}
 
 Deno.serve(async (request) => {
   switch (request.method) {
@@ -197,59 +243,9 @@ async function downloadMediaItem({
   return message;
 }
 
-/** Patches messages with media local id and file size
- *
- * @param mediaMessages
- * @returns modified messages
- */
-async function downloadMedia(
-  mediaMessages: MessageInsert[],
-  client: SupabaseClient,
-): Promise<MessageInsert[]> {
-  if (!mediaMessages.length) {
-    return [];
-  }
-
-  const unique_number_ids = [
-    ...new Set(mediaMessages.map((m) => m.organization_address)),
-  ]; // organization_address is the WA phone_number_id
-
-  const { data: addresses } = await client
-    .from("organizations_addresses")
-    .select("organization_id, address, extra->>access_token")
-    .in("address", unique_number_ids)
-    .throwOnError();
-
-  addresses.forEach((a) => {
-    a.access_token ||= DEFAULT_ACCESS_TOKEN;
-  });
-
-  const number_ids_to_org_ids: Map<string, string> = new Map(
-    addresses.map((a) => [a.address, a.organization_id]),
-  );
-
-  const number_ids_to_access_tokens: Map<string, string> = new Map(
-    addresses.map((a) => [a.address, a.access_token]),
-  );
-
-  return Promise.all(
-    mediaMessages.map((message) =>
-      downloadMediaItem({
-        organization_id: number_ids_to_org_ids.get(
-          message.organization_address,
-        )!,
-        access_token: number_ids_to_access_tokens.get(
-          message.organization_address,
-        )!,
-        message,
-        client,
-      })
-    ),
-  );
-}
-
 async function webhookMessageToIncomingMessage(
   message: WebhookIncomingMessage | WebhookEchoMessage | WebhookHistoryMessage,
+  organization_id: string,
   client: SupabaseClient,
 ): Promise<IncomingMessage | undefined> {
   let re_message_id: string | undefined;
@@ -260,7 +256,7 @@ async function webhookMessageToIncomingMessage(
     if (message.context.id) {
       re_message_id = message.context.id;
     }
-    if (message.context.forwarded) {
+    if (message.context.forwarded || message.context.frequently_forwarded) {
       forwarded = true;
     }
   }
@@ -274,6 +270,8 @@ async function webhookMessageToIncomingMessage(
     version: "1" as const,
     ...(re_message_id && { re_message_id }),
     ...(forwarded && { forwarded }),
+    ...("referral" in message && { referral: message.referral }),
+    ...("context" in message && message.context?.referred_product && { referred_product: message.context.referred_product }),
   };
 
   switch (message.type) {
@@ -433,6 +431,7 @@ async function webhookMessageToIncomingMessage(
         const new_phone_number = message.system.wa_id;
 
         await client.rpc("change_contact_address", {
+          p_organization_id: organization_id,
           old_address: old_phone_number,
           new_address: new_phone_number,
         })
@@ -471,18 +470,14 @@ async function processMessage(request: Request): Promise<Response> {
     return new Response("Unexpected object", { status: 400 });
   }
 
+  // Collect all unique organization addresses and build lookup map
+  const uniqueOrgAddresses = collectOrgAddresses(payload);
+  const orgAddressMap = await buildOrgAddressMap(client, uniqueOrgAddresses);
+
   const messages: MessageInsert[] = [];
-  const conversations: Set<ConversationInsert> = new Set();
-  const statuses: MessageUpdate[] = [];
-  const contacts: Set<
-    {
-      service: "whatsapp";
-      organization_address: string;
-      contact_address: string;
-      name?: string;
-      status: "active" | "inactive";
-    }
-  > = new Set();
+  const statuses: MessageInsert[] = [];
+  const contacts: ContactInsert[] = [];
+  const contacts_addresses: ContactAddressInsert[] = [];
 
   for (const entry of payload.entry) {
     const _waba_id = entry.id; // WhatsApp business account ID (WABA ID)
@@ -491,11 +486,17 @@ async function processMessage(request: Request): Promise<Response> {
       log.info(`WhatsApp ${field} payload`, value);
 
       if (field === "account_update") {
-        // create_log trigger will find the org id and address
-        // based on metadata.waba_info.waba_id
+        const address = orgAddressMap.values().find((address) => address.extra?.waba_id === value.waba_info.waba_id);
+
+        if (!address?.organization_id) {
+          log.warn("Could not log account update payload: No organization id found for waba_id", value);
+          continue;
+        }
+
         await client
           .from("logs")
           .insert({
+            organization_id: address.organization_id,
             category: "account_update",
             level: "info",
             message: value.event.toLocaleLowerCase(),
@@ -522,20 +523,27 @@ async function processMessage(request: Request): Promise<Response> {
 
       const errors: Omit<WebhookError, "href">[] = [];
 
-      const organization_address = value.metadata!.phone_number_id; // WhatsApp business account phone number id
+      const orgAddressRow = orgAddressMap.get(value.metadata!.phone_number_id); // WhatsApp business account phone number id
 
-      if (!organization_address) {
+      if (!orgAddressRow) {
         log.warn("No organization address");
         continue;
       }
 
+      // TODO: whatsapp coexistence privacy feature: skip storing messages from stored contacts
+
+      const organization_id = orgAddressRow.organization_id;
+      const organization_address = orgAddressRow.address;
+
       if (field === "messages" && "contacts" in value) {
         for (const contact of value.contacts) {
-          conversations.add({
+          contacts_addresses.push({
+            organization_id,
+            address: contact.wa_id,
             service: "whatsapp",
-            organization_address,
-            contact_address: contact.wa_id,
-            name: contact.profile?.name,
+            extra: {
+              name: contact.profile?.name,
+            }
           });
         }
       }
@@ -551,6 +559,7 @@ async function processMessage(request: Request): Promise<Response> {
 
           const content = await webhookMessageToIncomingMessage(
             webhookMessage,
+            organization_id,
             client,
           );
 
@@ -559,6 +568,7 @@ async function processMessage(request: Request): Promise<Response> {
           }
 
           const message = {
+            organization_id,
             // id is the internal (aka surrogate) identifier given by the DB, while
             // external_id is the one given by the service, such as the WhatsApp message id (WAMID)
             external_id: webhookMessage.id,
@@ -577,6 +587,7 @@ async function processMessage(request: Request): Promise<Response> {
       if (field === "messages" && "statuses" in value) {
         for (const status of value.statuses) {
           statuses.push({
+            organization_id: orgAddressMap.get(organization_address)!.organization_id,
             external_id: status.id,
             service: "whatsapp",
             organization_address,
@@ -603,6 +614,7 @@ async function processMessage(request: Request): Promise<Response> {
           await client
             .from("logs")
             .insert({
+              organization_id,
               organization_address,
               category: "messages",
               level: "error",
@@ -617,12 +629,6 @@ async function processMessage(request: Request): Promise<Response> {
         for (const webhookMessage of value.message_echoes) {
           const contact_address = webhookMessage.to;
 
-          conversations.add({
-            service: "whatsapp",
-            organization_address,
-            contact_address,
-          });
-
           if (webhookMessage.type === "errors") {
             errors.push(...webhookMessage.errors);
             continue;
@@ -630,6 +636,7 @@ async function processMessage(request: Request): Promise<Response> {
 
           const content = await webhookMessageToIncomingMessage(
             webhookMessage,
+            organization_id,
             client,
           );
 
@@ -638,6 +645,7 @@ async function processMessage(request: Request): Promise<Response> {
           }
 
           const message = {
+            organization_id,
             // id is the internal (aka surrogate) identifier given by the DB, while
             // external_id is the one given by the service, such as the WhatsApp message id (WAMID)
             external_id: webhookMessage.id,
@@ -668,6 +676,7 @@ async function processMessage(request: Request): Promise<Response> {
             await client
               .from("logs")
               .insert({
+                organization_id,
                 organization_address,
                 category: "history",
                 level: "info",
@@ -678,11 +687,6 @@ async function processMessage(request: Request): Promise<Response> {
               .throwOnError();
 
             for (const thread of history.threads) {
-              conversations.add({
-                service: "whatsapp",
-                organization_address,
-                contact_address: thread.id,
-              });
 
               for (const webhookMessage of thread.messages) {
                 const isEcho = "to" in webhookMessage;
@@ -698,6 +702,7 @@ async function processMessage(request: Request): Promise<Response> {
 
                 const content = await webhookMessageToIncomingMessage(
                   webhookMessage,
+                  organization_id,
                   client,
                 );
 
@@ -722,6 +727,7 @@ async function processMessage(request: Request): Promise<Response> {
 
                 const message = isEcho
                   ? {
+                    organization_id,
                     // id is the internal (aka surrogate) identifier given by the DB, while
                     // external_id is the one given by the service, such as the WhatsApp message id (WAMID)
                     external_id: webhookMessage.id,
@@ -729,7 +735,7 @@ async function processMessage(request: Request): Promise<Response> {
                     organization_address,
                     contact_address,
                     direction: "outgoing" as const,
-                    content: content as OutgoingMessage, // Incoming are a superset of outgoing, except for templates
+                    content: content as OutgoingMessage, // Incoming is a superset of outgoing, except for templates
                     status: {
                       [status]: new Date(
                         webhookMessage.timestamp * 1000,
@@ -740,6 +746,7 @@ async function processMessage(request: Request): Promise<Response> {
                     ).toISOString(),
                   }
                   : {
+                    organization_id,
                     // id is the internal (aka surrogate) identifier given by the DB, while
                     // external_id is the one given by the service, such as the WhatsApp message id (WAMID)
                     external_id: webhookMessage.id,
@@ -747,7 +754,7 @@ async function processMessage(request: Request): Promise<Response> {
                     organization_address,
                     contact_address,
                     direction: "incoming" as const,
-                    content, // Incoming are a superset of outgoing, except for templates
+                    content, // Incoming is a superset of outgoing, except for templates
                     status: {
                       [status]: new Date(
                         webhookMessage.timestamp * 1000,
@@ -768,6 +775,7 @@ async function processMessage(request: Request): Promise<Response> {
               await client
                 .from("logs")
                 .insert({
+                  organization_id,
                   organization_address,
                   category: "history",
                   level: "error",
@@ -782,23 +790,36 @@ async function processMessage(request: Request): Promise<Response> {
 
       if (field === "smb_app_state_sync") {
         for (const syncItem of value.state_sync) {
-          if (syncItem.type === "contact" && syncItem.action === "add") {
-            contacts.add({
-              service: "whatsapp",
-              organization_address,
-              contact_address: syncItem.contact.phone_number,
-              name: syncItem.contact.full_name,
-              status: "active",
+          if (syncItem.type === "contact") {
+            contacts_addresses.push({
+              organization_id,
+              address: syncItem.contact.phone_number,
+              service: "whatsapp" as const,
+              extra: {
+                synced: true,
+              },
             });
-          }
 
-          if (syncItem.type === "contact" && syncItem.action === "remove") {
-            contacts.add({
-              service: "whatsapp",
-              organization_address,
-              contact_address: syncItem.contact.phone_number,
-              status: "inactive",
-            });
+            if (syncItem.action === "add") {
+              contacts.push({
+                organization_id,
+                name: syncItem.contact.full_name,
+                extra: {
+                  addresses: [syncItem.contact.phone_number],
+                },
+                status: "active",
+              });
+            }
+
+            if (syncItem.action === "remove") {
+              contacts.push({
+                organization_id,
+                extra: {
+                  addresses: [syncItem.contact.phone_number],
+                },
+                status: "inactive",
+              });
+            }
           }
         }
       }
@@ -831,6 +852,7 @@ async function processMessage(request: Request): Promise<Response> {
           await client
             .from("logs")
             .insert({
+              organization_id,
               organization_address,
               category: field,
               level: "error",
@@ -844,44 +866,46 @@ async function processMessage(request: Request): Promise<Response> {
     }
   }
 
-  const downloadMediaPromise = downloadMedia(messages, client);
+  const downloadMediaPromise = Promise.all(
+    messages.map((message) => {
+      const orgAddress = orgAddressMap.get(message.organization_address)!;
 
-  if (contacts.size > 0) {
-    await client.rpc("mass_upsert_contacts", {
-      payload: Array.from(contacts),
-    })
-      .throwOnError();
-  }
+      return downloadMediaItem({
+        organization_id: orgAddress.organization_id,
+        access_token: orgAddress.extra?.access_token || DEFAULT_ACCESS_TOKEN,
+        message,
+        client,
+      });
+    }),
+  );
 
-  // Notes:
+  await client
+    .from("contacts_addresses")
+    .upsert(contacts_addresses)
+    .throwOnError();
+
+  await client
+    .from("contacts")
+    .upsert(contacts)
+    .throwOnError();
+
+  // Notes for statuses:
   // 1. Upsert is needed because there is no bulk update
-  // 2. Insert operation is not expected, statuses come
+  // 2. Insert operation is not expected, because statuses come
   //    after outgoing messages are inserted
-  // 3. Only the status field should be updated based on external_id,
+  // 3. Only the `status` field should be updated based on external_id,
   //    but upsert requires records to be prepared for insertion (which won't happen)
-  // 4. message field is present at {}, it will be merged during update (inocuous)
-  await client
-    .from("messages")
-    .upsert(statuses as MessageInsert[], {
-      onConflict: "external_id",
-    })
-    .throwOnError();
+  // 4. `content` field is set to empty object {}, it will be merged
+  //    with existing content during update (inocuous)
 
-  // Conversations table has a before insert trigger which acts as an upsert.
-  // It won't create a new conversation if an active one exists.
-  // It updates the name if provided.
-  await client
-    .from("conversations")
-    .insert(Array.from(conversations))
-    .throwOnError();
-
+  // Notes for messages:
   // Download media before upserting incoming messages
   // Patched messages include media local id and file size
   const patchedMessages = await downloadMediaPromise;
 
   await client
     .from("messages")
-    .upsert(patchedMessages, {
+    .upsert([...statuses, ...patchedMessages], {
       onConflict: "external_id",
     })
     .throwOnError();

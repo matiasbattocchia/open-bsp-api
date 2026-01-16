@@ -194,13 +194,13 @@ create function public.before_insert_on_messages() returns trigger
 language plpgsql
 as $$
 begin
-  -- If both organization_id and conversation_id already provided, proceed as is
-  if new.organization_id is not null and new.conversation_id is not null then
+  -- If conversation_id is already provided, proceed as is
+  if new.conversation_id is not null then
     return new;
   end if;
 
-  -- Look up both organization_id and conversation_id from conversation table
-  select organization_id, id into new.organization_id, new.conversation_id
+  -- Look up conversation_id from conversation table
+  select id into new.conversation_id
   from public.conversations
   where organization_address = new.organization_address
     and contact_address = new.contact_address
@@ -218,20 +218,51 @@ begin
       group_address,
       service
     ) values (
-      (
-        select organization_id
-        from public.organizations_addresses
-        where address = new.organization_address
-          and status = 'active'
-        order by created_at desc
-        limit 1
-      ),
+      new.organization_id,
       new.organization_address,
       new.contact_address,
       new.group_address,
       new.service
     )
-    returning id, organization_id into new.conversation_id, new.organization_id;
+    returning id into new.conversation_id;
+  end if;
+
+  return new;
+end;
+$$;
+
+create function public.before_insert_on_conversations() returns trigger
+language plpgsql
+as $$
+declare
+  _existing_address uuid;
+begin
+  -- Validate that external services require either contact_address or group_address
+  if new.service <> 'local' and new.contact_address is null and new.group_address is null then
+    raise exception 'Conversations with external services require either contact_address or group_address';
+  end if;
+
+  if new.contact_address is null then
+    return new;
+  end if;
+
+  select address into _existing_address
+  from public.contacts_addresses
+  where organization_address = new.organization_address
+    and contact_address = new.contact_address
+  order by created_at desc
+  limit 1;
+
+  if _existing_address is null then
+    insert into public.contacts_addresses (
+      organization_id,
+      address,
+      service
+    ) values (
+      new.organization_id,
+      new.contact_address,
+      new.service
+    );
   end if;
 
   return new;
@@ -304,6 +335,55 @@ begin
       headers := headers
     );
   end loop;
+
+  return new;
+end;
+$$;
+
+create function public.before_insert_on_contacts() returns trigger
+language plpgsql
+as $$
+declare
+  _existing_id uuid;
+  _existing_addresses jsonb;
+  _new_addresses jsonb;
+  _merged_addresses jsonb;
+begin
+  -- Extract addresses from new record
+  _new_addresses := coalesce(new.extra->'addresses', '[]'::jsonb);
+  
+  -- Skip lookup if no addresses provided
+  if jsonb_array_length(_new_addresses) = 0 then
+    return new;
+  end if;
+
+  -- Look up existing contact by matching any address
+  select id, coalesce(extra->'addresses', '[]'::jsonb) into _existing_id, _existing_addresses
+  from public.contacts
+  where organization_id = new.organization_id
+    and extra->'addresses' ?| array(select jsonb_array_elements_text(_new_addresses))
+  limit 1;
+
+  -- If existing contact found, set id and merge addresses
+  if _existing_id is not null then
+    new.id := _existing_id;
+    
+    -- Merge addresses: combine existing and new, remove duplicates
+    select jsonb_agg(distinct addr)
+    into _merged_addresses
+    from (
+      select jsonb_array_elements_text(_existing_addresses) as addr
+      union
+      select jsonb_array_elements_text(_new_addresses) as addr
+    ) combined;
+    
+    -- Update extra.addresses with merged array
+    new.extra := jsonb_set(
+      new.extra,
+      '{addresses}',
+      _merged_addresses
+    );
+  end if;
 
   return new;
 end;

@@ -275,16 +275,17 @@ export type IncomingContextInfo = {
  * - sticker
  */
 export type ReferralInfo = {
-  referral?:
-  & {
+  referral?: {
     source_url: string;
     source_type: "ad" | "post";
     source_id: string;
     headline: string;
     body: string;
-    ctwa_clid: string;
-  }
-  & (
+    ctwa_clid?: string; // The ctwa_clid property is omitted entirely for messages originating from an ad in WhatsApp Status
+    welcome_message: {
+      text: string;
+    };
+  } & (
     | {
       media_type: "image";
       image_url: string;
@@ -809,7 +810,12 @@ export type IncomingMessage =
     version: "1";
     re_message_id?: string; // replied, reacted or forwarded message id
     forwarded?: boolean;
+    referred_product?: {
+      catalog_id: string;
+      product_retailer_id: string;
+    };
   }
+  & ReferralInfo
   & TaskInfo
   & (
     | TextPart
@@ -868,7 +874,7 @@ export type OutgoingReaction = {
 
 export type OutgoingAudio = {
   type: "audio";
-  audio: { id: string } | { link: string };
+  audio: ({ id: string } | { link: string }) & { voice?: boolean };
 };
 
 export type OutgoingImage = {
@@ -1062,9 +1068,13 @@ export type ConversationExtra = {
 };
 
 export type ContactExtra = {
-  whatsapp_synced?: boolean;
   addresses: string[];
 };
+
+export type ContactAddressExtra = {
+  name?: string;
+  synced?: boolean; // True if the contact was synced from WhatsApp
+}
 
 // Function tools have a JSON input (data part).
 export type LocalFunctionToolConfig = {
@@ -1119,7 +1129,7 @@ export type ToolConfig =
   | LocalMCPToolConfig;
 
 export type HumanAgentExtra = {
-  role: "user" | "admin" | "owner";
+  role: Database["public"]["Enums"]["role"];
   invitation?: {
     organization_name: string;
     email: string;
@@ -1204,21 +1214,18 @@ export type Database = MergeDeep<
           };
           Insert:
           | {
-            organization_id?: string;
             conversation_id?: string;
             direction: "incoming";
             content: IncomingMessage;
             status?: IncomingStatus;
           }
           | {
-            organization_id?: string;
             conversation_id?: string;
             direction: "internal";
             content: InternalMessage;
             status?: IncomingStatus;
           }
           | {
-            organization_id?: string;
             conversation_id?: string;
             direction: "outgoing";
             content: OutgoingMessage;
@@ -1230,12 +1237,21 @@ export type Database = MergeDeep<
             extra: ContactExtra | null;
           };
           Insert: {
-            organization_id?: string;
-            name?: string;
             extra?: ContactExtra;
           };
           Update: {
             extra?: ContactExtra;
+          };
+        };
+        contacts_addresses: {
+          Row: {
+            extra: ContactAddressExtra | null;
+          };
+          Insert: {
+            extra?: ContactAddressExtra;
+          };
+          Update: {
+            extra?: ContactAddressExtra;
           };
         };
         agents: {
@@ -1247,11 +1263,6 @@ export type Database = MergeDeep<
           };
           Update: {
             extra?: AgentExtra;
-          };
-        };
-        logs: {
-          Insert: {
-            organization_id?: string;
           };
         };
       };
@@ -1272,7 +1283,15 @@ export type OrganizationRow =
 export type ContactRow = Database["public"]["Tables"]["contacts"]["Row"];
 export type ContactInsert = Database["public"]["Tables"]["contacts"]["Insert"];
 
+export type ContactAddressRow =
+  Database["public"]["Tables"]["contacts_addresses"]["Row"];
+export type ContactAddressInsert =
+  Database["public"]["Tables"]["contacts_addresses"]["Insert"];
+
 export type AgentRow = Database["public"]["Tables"]["agents"]["Row"];
+
+export type OrganizationAddressRow =
+  Database["public"]["Tables"]["organizations_addresses"]["Row"];
 
 export function createClient(req: Request) {
   if (!Deno.env.get("SUPABASE_URL")) {
@@ -1313,7 +1332,7 @@ export function createApiClient(token?: string) {
       auth: { persistSession: false },
       global: {
         headers: {
-          "x-app-api-key": token || "",
+          "api-key": token || "",
         },
       },
     },

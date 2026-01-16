@@ -2,8 +2,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import * as log from "../_shared/logger.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import {
-  type AgentRow,
   createUnsecureClient,
+  type ContactRow,
   type DataPart,
   type InternalMessage,
   type LocalMCPToolConfig,
@@ -113,20 +113,25 @@ Deno.serve(async (req) => {
 
   const { organizations: org, ...conversation } = conv;
 
+  const organization_id = org.id;
+
   if (!org.extra) {
     org.extra = {};
   }
 
   const { agents, ...organization } = org;
 
-  const { data: contactAddress } = await client
-    .from("contacts_addresses")
-    .select(`*, contacts (*)`)
-    .eq("address", incoming.contact_address)
+  let contact: ContactRow | undefined;
+
+  const { data } = await client
+    .from("contacts")
+    .select()
+    .eq("organization_id", incoming.organization_id)
+    .contains("extra->addresses", [incoming.contact_address])
     .maybeSingle()
     .throwOnError();
 
-  const contact = contactAddress?.contacts;
+  contact = data || undefined;
 
   // CHECK IF CONTACT IS ALLOWED
 
@@ -255,7 +260,7 @@ Deno.serve(async (req) => {
         version: "1",
         type: "text",
         kind: "text",
-        text: org.extra.welcome_message.replaceAll("**", "*"), // TODO: Deprecate
+        text: org.extra.welcome_message
       },
     };
 
@@ -774,6 +779,7 @@ Deno.serve(async (req) => {
         for (const part of parts) {
           const message = part.type === "file"
             ? {
+              organization_id,
               service: conv.service,
               organization_address: conv.organization_address,
               contact_address: conv.contact_address,
@@ -786,6 +792,7 @@ Deno.serve(async (req) => {
               } as OutgoingMessage,
             }
             : {
+              organization_id,
               service: conv.service,
               organization_address: conv.organization_address,
               contact_address: conv.contact_address,
@@ -812,6 +819,7 @@ Deno.serve(async (req) => {
 
       response.messages = [
         {
+          organization_id,
           service: conv.service,
           organization_address: conv.organization_address,
           contact_address: conv.contact_address,
@@ -839,15 +847,12 @@ Deno.serve(async (req) => {
         conversation_id: conv.id,
         organization_address: conv.organization_address,
         contact_address: conv.contact_address,
-        // Disambiguate by milliseconds to ensure the insertion order.
+        // Disambiguate by microseconds + padded index to ensure the insertion order.
         timestamp: (() => {
-          const timeMs = performance.timeOrigin + performance.now() + index;
-          const decimalPart = timeMs - Math.trunc(timeMs);
-          // Extract first 3 digits of the decimal part (microseconds)
-          const microseconds = decimalPart.toFixed(3).slice(2, 5);
-          const isoString = new Date(Math.trunc(timeMs)).toISOString();
-          // Insert microseconds before the 'Z'
-          return isoString.slice(0, -1) + microseconds + 'Z';
+          const isoString = new Date().toISOString();
+          const paddedIndex = index.toString().padStart(3, '0');
+          // Format: 2024-01-13T12:00:00.000<paddedIndex>Z
+          return isoString.slice(0, -1) + paddedIndex + 'Z';
         })(),
       }));
 

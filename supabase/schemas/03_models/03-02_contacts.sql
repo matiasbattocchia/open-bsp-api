@@ -40,3 +40,9 @@ execute function public.moddatetime('updated_at');
 create index contacts_extra_addresses_idx
 on public.contacts
 using gin ((extra -> 'addresses'));
+
+create trigger lookup_and_merge_by_address
+before insert
+on public.contacts
+for each row
+execute function public.before_insert_on_contacts();

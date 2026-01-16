@@ -28,13 +28,11 @@ foreign key (organization_id, organization_address)
 references public.organizations_addresses(organization_id, address)
 on delete no action;
 
-/*
 alter table only public.conversations
 add constraint conversations_contact_address_fkey
-foreign key (contact_address)
-references public.contacts_addresses(address)
+foreign key (organization_id, contact_address)
+references public.contacts_addresses(organization_id, address)
 on delete no action;
-*/
 
 create index conversations_organization_id_idx
 on public.conversations
@@ -55,6 +53,12 @@ using btree (contact_address);
 create index conversations_group_address_idx
 on public.conversations
 using btree (group_address);
+
+create trigger handle_new_conversation
+before insert
+on public.conversations
+for each row
+execute function public.before_insert_on_conversations();
 
 create trigger notify_webhook_conversations
 after insert or update

@@ -131,8 +131,8 @@ async function outgoingMessageToEndpointMessage({
     recipient_type: "individual" as const,
     to,
     ...(content.kind !== "reaction" && // From the docs: You cannot send a reaction message as a contextual reply.
-        content.re_message_id &&
-        !content.forwarded
+      content.re_message_id &&
+      !content.forwarded
       ? { context: { message_id: content.re_message_id } }
       : {}),
   };
@@ -281,9 +281,16 @@ Deno.serve(async (req) => {
 
   log.info(`Dispatching message ${message.id}`, message);
 
+  if (!message.contact_address) {
+    throw new Error(
+      `Cannot dispatch message with id ${message.id} because contact_address is missing`,
+    );
+  }
+
   const { data: account } = await client
     .from("organizations_addresses")
     .select("extra->>access_token")
+    .eq("organization_id", message.organization_id)
     .eq("address", message.organization_address)
     .single()
     .throwOnError();
