@@ -203,8 +203,8 @@ begin
   select id into new.conversation_id
   from public.conversations
   where organization_address = new.organization_address
-    and contact_address = new.contact_address
-    and group_address = new.group_address
+    and contact_address is not distinct from new.contact_address
+    and group_address is not distinct from new.group_address
     and status = 'active'
   order by created_at desc
   limit 1;

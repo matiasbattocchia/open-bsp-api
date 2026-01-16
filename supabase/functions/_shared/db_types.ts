@@ -509,7 +509,11 @@ export type Database = {
         Returns: boolean
       }
       change_contact_address: {
-        Args: { new_address: string; old_address: string }
+        Args: {
+          new_address: string
+          old_address: string
+          p_organization_id: string
+        }
         Returns: undefined
       }
       get_authorized_orgs: {
@@ -1054,44 +1058,26 @@ export type Database = {
         Returns: undefined
       }
       operation: { Args: never; Returns: string }
-      search:
-        | {
-            Args: {
-              bucketname: string
-              levels?: number
-              limits?: number
-              offsets?: number
-              prefix: string
-            }
-            Returns: {
-              created_at: string
-              id: string
-              last_accessed_at: string
-              metadata: Json
-              name: string
-              updated_at: string
-            }[]
-          }
-        | {
-            Args: {
-              bucketname: string
-              levels?: number
-              limits?: number
-              offsets?: number
-              prefix: string
-              search?: string
-              sortcolumn?: string
-              sortorder?: string
-            }
-            Returns: {
-              created_at: string
-              id: string
-              last_accessed_at: string
-              metadata: Json
-              name: string
-              updated_at: string
-            }[]
-          }
+      search: {
+        Args: {
+          bucketname: string
+          levels?: number
+          limits?: number
+          offsets?: number
+          prefix: string
+          search?: string
+          sortcolumn?: string
+          sortorder?: string
+        }
+        Returns: {
+          created_at: string
+          id: string
+          last_accessed_at: string
+          metadata: Json
+          name: string
+          updated_at: string
+        }[]
+      }
       search_legacy_v1: {
         Args: {
           bucketname: string
@@ -1132,45 +1118,27 @@ export type Database = {
           updated_at: string
         }[]
       }
-      search_v2:
-        | {
-            Args: {
-              bucket_name: string
-              levels?: number
-              limits?: number
-              prefix: string
-              start_after?: string
-            }
-            Returns: {
-              created_at: string
-              id: string
-              key: string
-              metadata: Json
-              name: string
-              updated_at: string
-            }[]
-          }
-        | {
-            Args: {
-              bucket_name: string
-              levels?: number
-              limits?: number
-              prefix: string
-              sort_column?: string
-              sort_column_after?: string
-              sort_order?: string
-              start_after?: string
-            }
-            Returns: {
-              created_at: string
-              id: string
-              key: string
-              last_accessed_at: string
-              metadata: Json
-              name: string
-              updated_at: string
-            }[]
-          }
+      search_v2: {
+        Args: {
+          bucket_name: string
+          levels?: number
+          limits?: number
+          prefix: string
+          sort_column?: string
+          sort_column_after?: string
+          sort_order?: string
+          start_after?: string
+        }
+        Returns: {
+          created_at: string
+          id: string
+          key: string
+          last_accessed_at: string
+          metadata: Json
+          name: string
+          updated_at: string
+        }[]
+      }
     }
     Enums: {
       buckettype: "STANDARD" | "ANALYTICS" | "VECTOR"

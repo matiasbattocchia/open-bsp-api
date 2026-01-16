@@ -127,7 +127,7 @@ Deno.serve(async (req) => {
     .from("contacts")
     .select()
     .eq("organization_id", incoming.organization_id)
-    .contains("extra->addresses", [incoming.contact_address])
+    .contains("extra->addresses", JSON.stringify([incoming.contact_address]))
     .maybeSingle()
     .throwOnError();
 
