@@ -448,6 +448,7 @@ export class ChatCompletionsHandler
         }
 
         return {
+          organization_id: conversation.organization_id,
           service: conversation.service,
           organization_address: conversation.organization_address,
           contact_address: conversation.contact_address,
@@ -481,6 +482,7 @@ export class ChatCompletionsHandler
       return {
         messages: [
           {
+            organization_id: conversation.organization_id,
             service: conversation.service,
             organization_address: conversation.organization_address,
             contact_address: conversation.contact_address,

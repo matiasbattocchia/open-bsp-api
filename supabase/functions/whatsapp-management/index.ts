@@ -23,6 +23,12 @@ import {
 } from "./embedded_signup.ts";
 import { type User } from "@supabase/supabase-js";
 
+type TemplatePayload = {
+  organization_id: string;
+  organization_address: string;
+  template?: TemplateData;
+};
+
 type AppEnv = { Variables: { supabase: ReturnType<typeof createClient>, user: User, authorized_organizations: string[] } };
 
 const app = new Hono<AppEnv>();
@@ -95,14 +101,13 @@ function requireRoles(
 // Templates routes
 
 app.get("/whatsapp-management/templates", requireRoles(["member", "admin", "owner"]), async (c) => {
-  const { organization_address } = await c.req.json<{
-    organization_address: string;
-  }>();
+  const { organization_id, organization_address } = await c.req.json<TemplatePayload>();
 
   const client = c.get("supabase");
 
   const { waba_id, access_token } = await getBusinessCredentials(
     client,
+    organization_id,
     organization_address,
   );
 
@@ -112,55 +117,49 @@ app.get("/whatsapp-management/templates", requireRoles(["member", "admin", "owne
 });
 
 app.post("/whatsapp-management/templates", requireRoles(["admin", "owner"]), async (c) => {
-  const { organization_address, template } = await c.req.json<{
-    organization_address: string;
-    template: TemplateData;
-  }>();
+  const { organization_id, organization_address, template } = await c.req.json<TemplatePayload>();
 
   const client = c.get("supabase");
 
   const { waba_id, access_token } = await getBusinessCredentials(
     client,
+    organization_id,
     organization_address,
   );
 
-  const response = await createTemplate(waba_id, access_token, template);
+  const response = await createTemplate(waba_id, access_token, template!);
 
   return c.json(response);
 });
 
 app.patch("/whatsapp-management/templates", requireRoles(["admin", "owner"]), async (c) => {
-  const { organization_address, template } = await c.req.json<{
-    organization_address: string;
-    template: TemplateData;
-  }>();
+  const { organization_id, organization_address, template } = await c.req.json<TemplatePayload>();
 
   const client = c.get("supabase");
 
   const { access_token } = await getBusinessCredentials(
     client,
+    organization_id,
     organization_address,
   );
 
-  const response = await editTemplate(access_token, template);
+  const response = await editTemplate(access_token, template!);
 
   return c.json(response);
 });
 
 app.delete("/whatsapp-management/templates", requireRoles(["admin", "owner"]), async (c) => {
-  const { organization_address, template } = await c.req.json<{
-    organization_address: string;
-    template: TemplateData;
-  }>();
+  const { organization_id, organization_address, template } = await c.req.json<TemplatePayload>();
 
   const client = c.get("supabase");
 
   const { waba_id, access_token } = await getBusinessCredentials(
     client,
+    organization_id,
     organization_address,
   );
 
-  const response = await deleteTemplate(waba_id, access_token, template);
+  const response = await deleteTemplate(waba_id, access_token, template!);
 
   return c.json(response);
 });

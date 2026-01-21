@@ -440,13 +440,14 @@ async function deregisterPhoneNumber(
 
 export async function deleteSignup(
   client: ReturnType<typeof createClient>,
-  payload: { phone_number_id: string },
+  payload: { phone_number_id: string; organization_id: string },
 ) {
-  const { phone_number_id } = payload;
+  const { phone_number_id, organization_id } = payload;
 
   const { data: organization_address } = await client
     .from("organizations_addresses")
     .select()
+    .eq("organization_id", organization_id)
     .eq("address", phone_number_id)
     .single()
     .throwOnError();
@@ -467,6 +468,7 @@ export async function deleteSignup(
     .update({
       status: "disconnected",
     })
+    .eq("organization_id", organization_id)
     .eq("address", phone_number_id)
     .select()
     .single()

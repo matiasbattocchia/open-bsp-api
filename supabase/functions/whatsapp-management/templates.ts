@@ -8,11 +8,13 @@ const API_VERSION = "v24.0";
 
 export async function getBusinessCredentials(
   client: SupabaseClient,
+  organization_id: string,
   organization_address: string,
 ): Promise<{ waba_id: string; access_token: string }> {
   const { data, error } = await client
     .from("organizations_addresses")
     .select("extra->>waba_id, extra->>access_token")
+    .eq("organization_id", organization_id)
     .eq("address", organization_address)
     .single();
 

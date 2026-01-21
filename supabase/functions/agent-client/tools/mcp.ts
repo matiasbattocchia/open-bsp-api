@@ -172,15 +172,15 @@ export async function callTool(
 
   const parts = result.structuredContent
     ? [
-        {
-          type: "data" as const,
-          kind: "data" as const,
-          data: result.structuredContent as Json,
-        },
-      ]
+      {
+        type: "data" as const,
+        kind: "data" as const,
+        data: result.structuredContent as Json,
+      },
+    ]
     : await Promise.all(
-        result.content.map((part) => fromMCP(part, context, client))
-      );
+      result.content.map((part) => fromMCP(part, context, client))
+    );
 
   return parts.map((outPart) => ({
     ...outPart,

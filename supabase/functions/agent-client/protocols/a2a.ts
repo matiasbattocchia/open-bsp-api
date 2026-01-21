@@ -23,8 +23,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Json } from "../../_shared/db_types.ts";
 
 export class A2AHandler
-  implements AgentProtocolHandler<SendTaskRequest, SendTaskResponse>
-{
+  implements AgentProtocolHandler<SendTaskRequest, SendTaskResponse> {
   private context: RequestContext;
   private client: SupabaseClient;
 
@@ -276,7 +275,8 @@ export class A2AHandler
       responseStatus.message.parts.map(this.fromA2a),
     );
 
-    const outputMessagesV1 = parts.map((part: Part) => ({
+    const messages = parts.map((part: Part) => ({
+      organization_id: conversation.organization_id,
       service: conversation.service,
       organization_address: conversation.organization_address,
       contact_address: conversation.contact_address,
@@ -300,7 +300,7 @@ export class A2AHandler
     return {
       // @ts-ignore TODO: data parts are not included in the type definitions
       // of outgoing messages (they are allowed in internal messages)
-      messages: outputMessagesV1,
+      messages
     };
   }
 }
