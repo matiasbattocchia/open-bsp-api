@@ -149,7 +149,7 @@ Deno.serve(async (req) => {
     // TODO: && !contact?.extra?.allowed
   ) {
     log.info(
-      `Conversation ${conv.name} does not correspond to an authorized contact. Skipping response.`,
+      `Conversation ${conv.id} does not correspond to an authorized contact. Skipping response.`,
     );
 
     return new Response("ok", { headers: corsHeaders });
@@ -161,7 +161,7 @@ Deno.serve(async (req) => {
     conv.extra.paused &&
     +new Date(conv.extra.paused) > +new Date() - PAUSED_CONV_WINDOW
   ) {
-    log.info(`Conversation with ${conv.name} is paused. Skipping response.`);
+    log.info(`Conversation ${conv.id} is paused. Skipping response.`);
 
     return new Response("ok", { headers: corsHeaders });
   }
@@ -205,7 +205,7 @@ Deno.serve(async (req) => {
   if (newestMessage.id !== incoming.id) {
     // Then the newest message is not the incoming one that triggered this edge function.
     log.info(
-      `Newer message ${newestMessage.id} found for conversation ${conv.name}. Skipping response.`,
+      `Newer message ${newestMessage.id} found for conversation ${conv.id}. Skipping response.`,
     );
 
     return new Response("ok", { headers: corsHeaders });
@@ -282,7 +282,7 @@ Deno.serve(async (req) => {
 
   if (!aiAgents.length) {
     log.info(
-      `No AI agents found for conversation ${conv.name}. Skipping response.`,
+      `No AI agents found for conversation ${conv.id}. Skipping response.`,
     );
     return new Response("ok", { headers: corsHeaders });
   }
@@ -324,7 +324,7 @@ Deno.serve(async (req) => {
 
   if (!agent) {
     log.info(
-      `No active AI agents found for conversation ${conv.name}. Skipping response.`,
+      `No active AI agents found for conversation ${conv.id}. Skipping response.`,
     );
     return new Response("ok", { headers: corsHeaders });
   }
@@ -467,7 +467,7 @@ Deno.serve(async (req) => {
 
       if (new_messages_v0.length) {
         log.info(
-          `Newer message for conversation ${conv.name} found while waiting for pending annotations. Skipping response.`,
+          `Newer message for conversation ${conv.id} found while waiting for pending annotations. Skipping response.`,
         );
 
         return new Response("ok", { headers: corsHeaders });

@@ -81,7 +81,7 @@ function requireRoles(
       );
       throw new HTTPException(403, {
         message:
-          `User ${user.id} not authorized for organization ${organization_id}`,
+          `User ${user.id} not authorized!`,
         cause: agentError,
       });
     }
@@ -189,6 +189,7 @@ app.post("/whatsapp-management/signup", requireRoles(["owner"]), async (c) => {
       await client
         .from("logs")
         .insert({
+          organization_id: payload.organization_id,
           category: "signup",
           level: "error",
           message: error.message,

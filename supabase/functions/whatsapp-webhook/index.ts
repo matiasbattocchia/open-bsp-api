@@ -35,7 +35,7 @@ async function buildOrgAddressMap(
     .from("organizations_addresses")
     .select("*")
     .in("address", addresses)
-    .eq("status", "active")
+    .eq("status", "connected")
     .order("created_at", { ascending: false })
     .throwOnError();
 

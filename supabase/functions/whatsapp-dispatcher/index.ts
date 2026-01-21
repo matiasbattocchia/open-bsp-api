@@ -67,6 +67,13 @@ class WhatsAppError extends Error {
  * @param access_token
  * @returns WA media id
  */
+/**
+ * Checks if a URI uses an external protocol (http/https)
+ */
+function isExternalUri(uri: string): boolean {
+  return uri.startsWith("http://") || uri.startsWith("https://");
+}
+
 async function uploadMediaItem({
   message,
   access_token,
@@ -77,6 +84,11 @@ async function uploadMediaItem({
   client: SupabaseClient;
 }): Promise<MessageRow> {
   if (message.content.type !== "file") {
+    return message;
+  }
+
+  // Skip upload for external URLs - they will be sent as 'link' instead of 'id'
+  if (isExternalUri(message.content.file.uri)) {
     return message;
   }
 
@@ -158,42 +170,53 @@ async function outgoingMessageToEndpointMessage({
       };
     }
     case "audio": {
+      const mediaRef = isExternalUri(content.file.uri)
+        ? { link: content.file.uri }
+        : { id: content.file.uri };
       return {
         ...baseMessage,
         type: "audio",
-        audio: { id: content.file.uri },
+        audio: mediaRef,
       };
     }
     case "image": {
+      const mediaRef = isExternalUri(content.file.uri)
+        ? { link: content.file.uri, caption: content.text }
+        : { id: content.file.uri, caption: content.text };
       return {
         ...baseMessage,
         type: "image",
-        image: { id: content.file.uri, caption: content.text },
+        image: mediaRef,
       };
     }
     case "video": {
+      const mediaRef = isExternalUri(content.file.uri)
+        ? { link: content.file.uri, caption: content.text }
+        : { id: content.file.uri, caption: content.text };
       return {
         ...baseMessage,
         type: "video",
-        video: { id: content.file.uri, caption: content.text },
+        video: mediaRef,
       };
     }
     case "sticker": {
+      const mediaRef = isExternalUri(content.file.uri)
+        ? { link: content.file.uri }
+        : { id: content.file.uri };
       return {
         ...baseMessage,
         type: "sticker",
-        sticker: { id: content.file.uri },
+        sticker: mediaRef,
       };
     }
     case "document": {
+      const mediaRef = isExternalUri(content.file.uri)
+        ? { link: content.file.uri, caption: content.text, filename: content.file.name }
+        : { id: content.file.uri, caption: content.text, filename: content.file.name };
       return {
         ...baseMessage,
         type: "document",
-        document: {
-          id: content.file.uri,
-          caption: content.text,
-          filename: content.file.name,
-        },
+        document: mediaRef,
       };
     }
     case "contacts": {

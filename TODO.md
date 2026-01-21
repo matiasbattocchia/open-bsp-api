@@ -1,5 +1,7 @@
 # TODO
 
+- [ ] Langfuse integration
+
 - [ ] Encrypt API keys
 
 - [ ] Improved error handling
