@@ -534,6 +534,10 @@ export type Database = {
         Args: { object: Json; path: string[]; target: Json }
         Returns: Json
       }
+      org_update_by_admin_rules: {
+        Args: { p_id: string; p_name: string }
+        Returns: boolean
+      }
     }
     Enums: {
       direction: "incoming" | "outgoing" | "internal"

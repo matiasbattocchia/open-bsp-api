@@ -31,9 +31,7 @@ with check (
   id in (
     select public.get_authorized_orgs('admin')
   )
-  and name = (
-    select name from public.organizations as o where o.id = id
-  )
+  and public.org_update_by_admin_rules(id, name)
 );
 
 create policy "owners can delete their orgs"

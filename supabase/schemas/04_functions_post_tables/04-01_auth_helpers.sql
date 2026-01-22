@@ -127,3 +127,22 @@ begin
   );
 end;
 $$;
+
+-- Check if organization name is unchanged (for admin updates)
+create function public.org_update_by_admin_rules(
+  p_id uuid,
+  p_name text
+) returns boolean
+language plpgsql
+security definer -- avoid RLS infinite recursion
+set search_path to ''
+as $$
+begin
+  return exists (
+    select 1 from public.organizations
+    where id = p_id
+      -- name cannot be changed by admins
+      and name = p_name
+  );
+end;
+$$;
