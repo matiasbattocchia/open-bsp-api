@@ -68,9 +68,8 @@ calculator—are also made available through the MCP server.
 > No local environment is required to deploy this project. This is a close approach to a one-click deploy to Supabase.
 
 1. Create a [Supabase](https://supabase.com) project (5 min)
-2. [Fork me](https://github.com/matiasbattocchia/open-bsp-api/fork) (1 min)
-3. Configure the following secrets and variables for GitHub Actions in your
-   repository settings (7 min)
+2. [Fork me](https://github.com/matiasbattocchia/open-bsp-api/fork) from the `main` branch (1 min)
+3. Configure the following secrets and variables for GitHub Actions in your repository settings (7 min)
 4. Re-run the _Release_ action (1 min)
 
 You are live! 🚀
