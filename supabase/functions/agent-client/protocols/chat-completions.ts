@@ -376,19 +376,55 @@ export class ChatCompletionsHandler
       maxRetries: 2,
     });
 
-    const response = await openai.chat.completions.create({
-      model,
-      temperature: agent.extra.temperature ?? undefined,
-      max_completion_tokens: agent.extra.max_tokens ?? undefined,
-      messages: request.messages,
-      // TOOLS
-      tools: request.tools.length ? request.tools : undefined,
-      parallel_tool_calls: request.tools.length ? true : undefined,
-      // THINKING
-      // ts-expect-error
-      //thinking: { type: "enabled", budget_tokens: 2000 },
-      //reasoning_effort: agent.extra.thinking || "low",
-    });
+    let response;
+
+    let retries = 0;
+    const maxRetries = 2;
+
+    while (true) {
+      try {
+        response = await openai.chat.completions.create({
+          model,
+          temperature: agent.extra.temperature ?? undefined,
+          max_completion_tokens: agent.extra.max_tokens ?? undefined,
+          messages: request.messages,
+          // TOOLS
+          tools: request.tools.length ? request.tools : undefined,
+          parallel_tool_calls: request.tools.length ? true : undefined,
+          // THINKING
+          // ts-expect-error
+          //thinking: { type: "enabled", budget_tokens: 2000 },
+          //reasoning_effort: agent.extra.thinking || "low",
+        });
+
+        break;
+      } catch (error) {
+        if (
+          retries < maxRetries &&
+          error instanceof Error &&
+          "status" in error &&
+          error.status === 400
+        ) {
+          log.warn(`Retrying with error context... ${error.message}`);
+
+          // Create a defensive copy of messages to ensure we don't mutate the original request
+          const messages = [...request.messages];
+
+          messages.push({
+            role: "assistant", // Phantom message
+            content: `Previous request failed with error: ${error.message}`,
+          });
+
+          // Update the request reference to use the new messages array for the next iteration
+          request = { ...request, messages };
+
+          retries++;
+          continue;
+        }
+
+        throw error;
+      }
+    }
 
     return {
       finish_reason: response.choices[0].finish_reason,

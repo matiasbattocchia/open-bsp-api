@@ -27,6 +27,14 @@ import { AttachFileTool } from "./tools/attachment.ts";
 import { getFileMetadata } from "../_shared/media.ts";
 import { type MessageRowV0, toV1 } from "../_shared/messages-v0.ts";
 
+const sanitizeLabel = (label: string) => {
+  return label
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9_-]/g, "_");
+};
+
 export type AgentTool = {
   provider: "local";
   type: "function" | "custom" | "mcp" | "http" | "sql";
@@ -374,6 +382,14 @@ Deno.serve(async (req) => {
     contact,
     agent: agent as AgentRowWithExtra,
   };
+
+  if (agent.extra.tools) {
+    for (const tool of agent.extra.tools) {
+      if ("label" in tool) {
+        tool.label = sanitizeLabel(tool.label);
+      }
+    }
+  }
 
   // REQUEST LOOP
 

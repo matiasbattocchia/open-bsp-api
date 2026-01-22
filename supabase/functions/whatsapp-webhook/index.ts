@@ -33,7 +33,7 @@ async function buildOrgAddressMap(
 ): Promise<Map<string, OrganizationAddressRow>> {
   const { data } = await client
     .from("organizations_addresses")
-    .select("*")
+    .select()
     .in("address", addresses)
     .eq("status", "connected")
     .order("created_at", { ascending: false })
@@ -101,9 +101,10 @@ function verifyToken(request: Request): Response {
 /**
  * Validates the WhatsApp webhook signature to ensure the request comes from Meta
  * @param request The incoming request
+ * @param body The raw body of the request
  * @returns Promise<boolean> true if signature is valid, false otherwise
  */
-async function validateWebhookSignature(request: Request): Promise<boolean> {
+async function validateWebhookSignature(request: Request, body: string): Promise<boolean> {
   if (!APP_ID || !APP_SECRET) {
     log.warn("META_APP_ID or META_APP_SECRET environment variable not set");
     return false;
@@ -149,10 +150,6 @@ async function validateWebhookSignature(request: Request): Promise<boolean> {
   const signatureValue = signature.replace("sha256=", "");
 
   try {
-    // Clone the request to read the body without consuming it
-    const clonedRequest = request.clone();
-    const body = await clonedRequest.text();
-
     // Create HMAC-SHA256 signature
     const encoder = new TextEncoder();
     const key = encoder.encode(secrets[idIndex]);
@@ -230,6 +227,12 @@ async function downloadMediaItem({
     file_size: number;
     id: string;
   };
+
+  log.info("Downloading media", {
+    media_id,
+    file_size: mediaMetadata.file_size,
+    mime_type: mediaMetadata.mime_type,
+  });
 
   // Fetch part 2: Get the file using the download url
   const file = await fetchMedia(mediaMetadata.url, access_token);
@@ -453,8 +456,10 @@ async function webhookMessageToIncomingMessage(
 }
 
 async function processMessage(request: Request): Promise<Response> {
+  const body = await request.text();
+
   // Validate that the request comes from Meta
-  const isValidSignature = await validateWebhookSignature(request);
+  const isValidSignature = await validateWebhookSignature(request, body);
 
   if (!isValidSignature) {
     return new Response("Unauthorized: Invalid webhook signature", {
@@ -464,7 +469,7 @@ async function processMessage(request: Request): Promise<Response> {
 
   const client = createUnsecureClient();
 
-  const payload = (await request.json()) as MetaWebhookPayload;
+  const payload = JSON.parse(body) as MetaWebhookPayload;
 
   if (payload.object !== "whatsapp_business_account") {
     return new Response("Unexpected object", { status: 400 });
@@ -486,12 +491,26 @@ async function processMessage(request: Request): Promise<Response> {
       log.info(`WhatsApp ${field} payload`, value);
 
       if (field === "account_update") {
-        const address = orgAddressMap.values().find((address) => address.extra?.waba_id === value.waba_info.waba_id);
+        // Query directly since account_update events do not populate orgAddressMap
+        const { data: address } = await client
+          .from("organizations_addresses")
+          .select()
+          .eq("extra->>waba_id", value.waba_info.waba_id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+          .throwOnError();
 
         if (!address?.organization_id) {
-          log.warn("Could not log account update payload: No organization id found for waba_id", value);
+          log.warn("Could not log account update payload: No organization found for WABA", value);
           continue;
         }
+
+        log.info("Account update event", {
+          organization_id: address.organization_id,
+          event: value.event,
+          waba_id: value.waba_info.waba_id,
+        });
 
         await client
           .from("logs")
@@ -509,9 +528,11 @@ async function processMessage(request: Request): Promise<Response> {
             "Partner removed, disconnecting organization address",
             value,
           );
+
           await client
             .from("organizations_addresses")
             .update({ status: "disconnected" })
+            .eq("organization_id", address.organization_id)
             .eq("extra->>waba_id", value.waba_info.waba_id)
             .throwOnError();
         }
@@ -548,7 +569,7 @@ async function processMessage(request: Request): Promise<Response> {
         }
       }
 
-      if (field === "messages" && "messages" in value) {
+      if ((field === "messages" || field === "history") && "messages" in value) {
         for (const webhookMessage of value.messages) {
           const contact_address = webhookMessage.from;
 
@@ -606,10 +627,12 @@ async function processMessage(request: Request): Promise<Response> {
 
       if (field === "messages" && "errors" in value) {
         for (const error of value.errors) {
-          log.error(
-            `WhatsApp error for organization address (phone number id) ${organization_address}`,
-            error,
-          );
+          log.error("WhatsApp messages error", {
+            organization_id,
+            organization_address,
+            error_code: error.code,
+            error_title: error.title,
+          });
 
           await client
             .from("logs")
@@ -625,7 +648,7 @@ async function processMessage(request: Request): Promise<Response> {
         }
       }
 
-      if (field === "smb_message_echoes") {
+      if ((field === "smb_message_echoes" || field === "history") && "message_echoes" in value) {
         for (const webhookMessage of value.message_echoes) {
           const contact_address = webhookMessage.to;
 
@@ -664,7 +687,7 @@ async function processMessage(request: Request): Promise<Response> {
         }
       }
 
-      if (field === "history") {
+      if (field === "history" && "history" in value) {
         for (const history of value.history) {
           if ("threads" in history) {
             const convCount = history.threads.length;
@@ -672,6 +695,13 @@ async function processMessage(request: Request): Promise<Response> {
               (acc, thread) => acc + thread.messages.length,
               0,
             );
+
+            log.info("History sync (threaded)", {
+              organization_id,
+              organization_address,
+              conversations: convCount,
+              messages: msgCount,
+            });
 
             await client
               .from("logs")
@@ -772,6 +802,13 @@ async function processMessage(request: Request): Promise<Response> {
 
           if ("errors" in history) {
             for (const error of history.errors) {
+              log.error("History sync error", {
+                organization_id,
+                organization_address,
+                error_code: error.code,
+                error_message: error.message,
+              });
+
               await client
                 .from("logs")
                 .insert({
@@ -844,10 +881,12 @@ async function processMessage(request: Request): Promise<Response> {
         );
 
         for (const { count, error } of Object.values(errorCounts)) {
-          log.error(
-            `Received ${count} error messages with code ${error.code}`,
-            error,
-          );
+          log.error(`Received ${count} error messages with code ${error.code}`, {
+            organization_id,
+            organization_address,
+            error_code: error.code,
+            error_message: error.message,
+          });
 
           await client
             .from("logs")
@@ -866,6 +905,13 @@ async function processMessage(request: Request): Promise<Response> {
     }
   }
 
+  log.info("Webhook processing summary", {
+    messages: messages.length,
+    statuses: statuses.length,
+    contacts: contacts.length,
+    contacts_addresses: contacts_addresses.length,
+  });
+
   const downloadMediaPromise = Promise.all(
     messages.map((message) => {
       const orgAddress = orgAddressMap.get(message.organization_address)!;
@@ -879,15 +925,23 @@ async function processMessage(request: Request): Promise<Response> {
     }),
   );
 
-  await client
-    .from("contacts_addresses")
-    .upsert(contacts_addresses)
-    .throwOnError();
+  if (contacts_addresses.length > 0) {
+    await client
+      .from("contacts_addresses")
+      .upsert(contacts_addresses)
+      .throwOnError();
 
-  await client
-    .from("contacts")
-    .upsert(contacts)
-    .throwOnError();
+    log.info("Persisted contacts_addresses", { count: contacts_addresses.length });
+  }
+
+  if (contacts.length > 0) {
+    await client
+      .from("contacts")
+      .upsert(contacts)
+      .throwOnError();
+
+    log.info("Persisted contacts", { count: contacts.length });
+  }
 
   // Notes for statuses:
   // 1. Upsert is needed because there is no bulk update
@@ -903,12 +957,22 @@ async function processMessage(request: Request): Promise<Response> {
   // Patched messages include media local id and file size
   const patchedMessages = await downloadMediaPromise;
 
-  await client
-    .from("messages")
-    .upsert([...statuses, ...patchedMessages], {
-      onConflict: "external_id",
-    })
-    .throwOnError();
+  const allMessages = [...statuses, ...patchedMessages];
+
+  if (allMessages.length > 0) {
+    await client
+      .from("messages")
+      .upsert(allMessages, {
+        onConflict: "external_id",
+      })
+      .throwOnError();
+
+    log.info("Persisted messages", {
+      total: allMessages.length,
+      statuses: statuses.length,
+      messages: patchedMessages.length,
+    });
+  }
 
   return new Response();
 }

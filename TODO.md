@@ -21,12 +21,8 @@
 
 ---
 
-* Revisar la seguridad de whatsapp-management
+- [ ] Revisar la seguridad de whatsapp-management
 
-* Errores de OpenAI client que no se manejan
+- [x] Sanitize tool names 
 
-Error: 400 Tool call validation failed: tool call validation failed: attempted to call tool 'calendario__list_events' which was not in request.tools
-
-* organization_id no encuentra en account_update porque no se buscan orgs accounts por waba_id
-
-* download media failures while history messages sync
+Error: 400 Invalid 'tools[0].function.name': string does not match pattern. Expected a string that matches the pattern '^[a-zA-Z0-9_-]+$'.
