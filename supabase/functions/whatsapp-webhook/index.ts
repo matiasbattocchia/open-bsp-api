@@ -16,6 +16,7 @@ import {
   type ContactAddressInsert
 } from "../_shared/supabase.ts";
 import { fetchMedia, uploadToStorage } from "../_shared/media.ts";
+import { whatsappToMarkdown } from "../_shared/markdown.ts";
 
 const API_VERSION = "v24.0";
 const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN");
@@ -283,7 +284,7 @@ async function webhookMessageToIncomingMessage(
         ...baseMessage,
         type: "text",
         kind: "text",
-        text: message.text.body,
+        text: whatsappToMarkdown(message.text.body),
       };
     }
 
@@ -319,7 +320,7 @@ async function webhookMessageToIncomingMessage(
           uri: message.image.id, // Will be replaced with internal URI after download
           size: 0, // Will be updated after download
         },
-        ...(message.image.caption && { text: message.image.caption }),
+        ...(message.image.caption && { text: whatsappToMarkdown(message.image.caption) }),
       };
     }
 
@@ -334,7 +335,7 @@ async function webhookMessageToIncomingMessage(
           name: message.video.filename,
           size: 0, // Will be updated after download
         },
-        ...(message.video.caption && { text: message.video.caption }),
+        ...(message.video.caption && { text: whatsappToMarkdown(message.video.caption) }),
       };
     }
 
@@ -349,7 +350,7 @@ async function webhookMessageToIncomingMessage(
           name: message.document.filename,
           size: 0, // Will be updated after download
         },
-        ...(message.document.caption && { text: message.document.caption }),
+        ...(message.document.caption && { text: whatsappToMarkdown(message.document.caption) }),
       };
     }
 

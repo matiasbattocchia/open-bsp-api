@@ -12,6 +12,7 @@ import {
 } from "../_shared/supabase.ts";
 import { downloadFromStorage } from "../_shared/media.ts";
 import { Json } from "../_shared/db_types.ts";
+import { markdownToWhatsApp } from "../_shared/markdown.ts";
 
 const API_VERSION = "v24.0";
 const DEFAULT_ACCESS_TOKEN = Deno.env.get("META_SYSTEM_USER_ACCESS_TOKEN") ||
@@ -155,7 +156,7 @@ async function outgoingMessageToEndpointMessage({
         ...baseMessage,
         type: "text",
         text: {
-          body: content.text,
+          body: markdownToWhatsApp(content.text),
         },
       };
     }
@@ -181,8 +182,8 @@ async function outgoingMessageToEndpointMessage({
     }
     case "image": {
       const mediaRef = isExternalUri(content.file.uri)
-        ? { link: content.file.uri, caption: content.text }
-        : { id: content.file.uri, caption: content.text };
+        ? { link: content.file.uri, caption: content.text ? markdownToWhatsApp(content.text) : undefined }
+        : { id: content.file.uri, caption: content.text ? markdownToWhatsApp(content.text) : undefined };
       return {
         ...baseMessage,
         type: "image",
@@ -191,8 +192,8 @@ async function outgoingMessageToEndpointMessage({
     }
     case "video": {
       const mediaRef = isExternalUri(content.file.uri)
-        ? { link: content.file.uri, caption: content.text }
-        : { id: content.file.uri, caption: content.text };
+        ? { link: content.file.uri, caption: content.text ? markdownToWhatsApp(content.text) : undefined }
+        : { id: content.file.uri, caption: content.text ? markdownToWhatsApp(content.text) : undefined };
       return {
         ...baseMessage,
         type: "video",
@@ -211,8 +212,8 @@ async function outgoingMessageToEndpointMessage({
     }
     case "document": {
       const mediaRef = isExternalUri(content.file.uri)
-        ? { link: content.file.uri, caption: content.text, filename: content.file.name }
-        : { id: content.file.uri, caption: content.text, filename: content.file.name };
+        ? { link: content.file.uri, caption: content.text ? markdownToWhatsApp(content.text) : undefined, filename: content.file.name }
+        : { id: content.file.uri, caption: content.text ? markdownToWhatsApp(content.text) : undefined, filename: content.file.name };
       return {
         ...baseMessage,
         type: "document",

@@ -863,13 +863,8 @@ Deno.serve(async (req) => {
         conversation_id: conv.id,
         organization_address: conv.organization_address,
         contact_address: conv.contact_address,
-        // Disambiguate by microseconds + padded index to ensure the insertion order.
-        timestamp: (() => {
-          const isoString = new Date().toISOString();
-          const paddedIndex = index.toString().padStart(3, '0');
-          // Format: 2024-01-13T12:00:00.000<paddedIndex>Z
-          return isoString.slice(0, -1) + paddedIndex + 'Z';
-        })(),
+        // Disambiguate by milliseconds index to ensure the insertion order.
+        timestamp: new Date(Date.now() + index).toISOString(),
       }));
 
       // Insert and select the inserted messages
