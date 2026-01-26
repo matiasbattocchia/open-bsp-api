@@ -43,15 +43,19 @@ export async function initMCP(tool: LocalMCPToolConfig): Promise<MCPServer> {
     }
   );
 
-  await client.connect(transport);
+  try {
+    await client.connect(transport);
 
-  const toolsResult: ListToolsResult = await client.listTools();
+    const toolsResult: ListToolsResult = await client.listTools();
 
-  return {
-    label: tool.label,
-    client,
-    tools: toolsResult.tools,
-  };
+    return {
+      label: tool.label,
+      client,
+      tools: toolsResult.tools,
+    };
+  } catch (error) {
+    throw new Error(`MCP client ${tool.label} - ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 export async function fromMCP(
@@ -62,12 +66,27 @@ export async function fromMCP(
   const org = context.organization;
 
   switch (part.type) {
-    case "text":
+    case "text": {
+      try {
+        const data = JSON.parse(part.text);
+
+        if (typeof data === "object" && data !== null) {
+          return {
+            type: "data",
+            kind: "data",
+            data,
+          };
+        }
+      } catch {
+        // Not JSON, fall through to text
+      }
+
       return {
         type: "text",
         kind: "text",
         text: part.text,
       };
+    }
     case "image": {
       const file = base64ToBlob(part.data, part.mimeType);
       const uri = await uploadToStorage(client, org.id, file);

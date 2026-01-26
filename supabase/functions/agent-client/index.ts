@@ -845,7 +845,7 @@ Deno.serve(async (req) => {
             version: "1" as const,
             type: "text",
             kind: "text",
-            text: (error as Error).toString(),
+            text: error instanceof Error ? error.message : String(error)
           },
         },
       ];
