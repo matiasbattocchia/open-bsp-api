@@ -21,7 +21,7 @@
 
 ---
 
-- [ ] Revisar la seguridad de whatsapp-management
+- [ ] Revisit whatsapp-management security
 
 - [x] Sanitize tool names 
 

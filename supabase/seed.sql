@@ -87,48 +87,48 @@ insert into public.api_keys (organization_id, key, role, name) values
 
 -- AI Agents (for Mountain Peaks)
 insert into public.agents (id, name, user_id, organization_id, ai, extra) values
-  ('a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d', 'GPT-4 Assistant', null, '3a182d8d-d6d8-44bd-b021-029915476b8c', true, 
-   '{"provider": "openai", "model": "gpt-4", "instructions": "You are a helpful customer support assistant.", "mode": "active"}'),
-  ('b2c3d4e5-f6a7-8b9c-0d1e-2f3a4b5c6d7e', 'Claude Assistant', null, '3a182d8d-d6d8-44bd-b021-029915476b8c', true,
-   '{"provider": "anthropic", "model": "claude-3-sonnet-20240229", "instructions": "You are a professional support agent.", "mode": "draft"}')
+  ('a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d', 'Creeper', null, '3a182d8d-d6d8-44bd-b021-029915476b8c', true, 
+   '{"api_url": "groq", "protocol": "chat_completions", "instructions": "You are a Creeper. You hiss and threaten to explode if anyone gets too close.", "mode": "inactive"}'),
+  ('b2c3d4e5-f6a7-8b9c-0d1e-2f3a4b5c6d7e', 'Cartographer', null, '3a182d8d-d6d8-44bd-b021-029915476b8c', true,
+   '{"api_url": "groq", "protocol": "chat_completions", "instructions": "You are a Cartographer villager. You trade emeralds for maps.", "mode": "active", "tools": [{"name": "calculator", "type": "function", "provider": "local"}, {"type": "http", "label": "Fetch", "config": {}, "provider": "local"}]}')
 ;
 
 -- Organization Addresses - WhatsApp Integration (for Mountain Peaks)
 insert into public.organizations_addresses (organization_id, service, address, extra, status) values
-  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'whatsapp', '1234567890', 
-   '{"waba_id": "123456789012345", "phone_number": "1234567890", "verified_name": "Merchant line"}', 'active'),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'whatsapp', '318232498042593', 
+   '{"waba_id": "309222208943804", "phone_number": "+54 9 260 423 7115", "access_token": "EAAEKlp6x6a...GZC", "flow_type": "existing_phone_number"}', 'connected'),
   ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'whatsapp', '9876543210',
-   '{"waba_id": "123456789012345", "phone_number": "9876543210", "verified_name": "Portal line"}', 'inactive')
+   '{"waba_id": "309222208943804", "phone_number": "+54 9 260 423 7116", "access_token": "EAAEKlp6x6a...GZC", "flow_type": "new_phone_number"}', 'disconnected')
 ;
 
 -- Contacts (for Mountain Peaks)
 -- Note: contacts.extra.addresses is a string array of contact addresses
 insert into public.contacts (id, organization_id, name, extra) values
   ('c3d4e5f6-a7b8-9c0d-1e2f-3a4b5c6d7e8f', '3a182d8d-d6d8-44bd-b021-029915476b8c', 'Dolphin', 
-   '{"addresses": ["11234567890"]}'),
+   '{"addresses": ["541133525394"]}'),
   ('d4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f9a', '3a182d8d-d6d8-44bd-b021-029915476b8c', 'Wolf',
-   '{"addresses": ["19876543210"]}')
+   '{"addresses": ["541133525395"]}')
 ;
 
 -- Contacts Addresses (for Mountain Peaks) - required for conversations FK
 insert into public.contacts_addresses (organization_id, service, address, extra) values
-  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'whatsapp', '11234567890', '{"name": "Dolphin"}'),
-  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'whatsapp', '19876543210', '{"name": "Wolf"}')
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'whatsapp', '541133525394', '{"name": "Dolphin"}'),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'whatsapp', '541133525395', '{"name": "Wolf"}')
 ;
 
 -- Conversations & Messages (for Mountain Peaks)
 insert into public.conversations (id, organization_id, organization_address, contact_address, service, status, name, extra) values
-  ('e5f6a7b8-c9d0-1e2f-3a4b-5c6d7e8f9a0b', '3a182d8d-d6d8-44bd-b021-029915476b8c', '1234567890', '11234567890', 'whatsapp', 'active', 'Transport request', null),
-  ('f6a7b8c9-d0e1-2f3a-4b5c-6d7e8f9a0b1c', '3a182d8d-d6d8-44bd-b021-029915476b8c', '1234567890', '19876543210', 'whatsapp', 'closed', 'Trading inquiry', '{"paused": "2024-01-01T10:00:00Z"}')
+  ('e5f6a7b8-c9d0-1e2f-3a4b-5c6d7e8f9a0b', '3a182d8d-d6d8-44bd-b021-029915476b8c', '318232498042593', '541133525394', 'whatsapp', 'active', 'Map trade', '{"default_agent_id": "b2c3d4e5-f6a7-8b9c-0d1e-2f3a4b5c6d7e"}'),
+  ('f6a7b8c9-d0e1-2f3a-4b5c-6d7e8f9a0b1c', '3a182d8d-d6d8-44bd-b021-029915476b8c', '318232498042593', '541133525395', 'whatsapp', 'closed', 'Emerald exchange', '{"paused": "2024-01-01T10:00:00Z", "default_agent_id": "b2c3d4e5-f6a7-8b9c-0d1e-2f3a4b5c6d7e"}')
 ;
 
-insert into public.messages (id, conversation_id, organization_id, organization_address, contact_address, service, direction, agent_id, content, status) values
-  ('a7b8c9d0-e1f2-3a4b-5c6d-7e8f9a0b1c2d', 'e5f6a7b8-c9d0-1e2f-3a4b-5c6d7e8f9a0b', '3a182d8d-d6d8-44bd-b021-029915476b8c', '1234567890', '11234567890', 'whatsapp', 'incoming', null,
-   '{"kind": "text", "text": "I need help finding diamonds", "type": "text", "version": "1"}', '{"delivered": "2024-01-01T09:00:00Z"}'),
-  ('b8c9d0e1-f2a3-4b5c-6d7e-8f9a0b1c2d3e', 'e5f6a7b8-c9d0-1e2f-3a4b-5c6d7e8f9a0b', '3a182d8d-d6d8-44bd-b021-029915476b8c', '1234567890', '11234567890', 'whatsapp', 'outgoing', 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
-   '{"kind": "text", "text": "Diamonds can be found at Y-level -59. Happy mining!", "type": "text", "version": "1"}', '{"sent": "2024-01-01T09:01:00Z", "delivered": "2024-01-01T09:01:05Z"}'),
-  ('c9d0e1f2-a3b4-5c6d-7e8f-9a0b1c2d3e4f', 'f6a7b8c9-d0e1-2f3a-4b5c-6d7e8f9a0b1c', '3a182d8d-d6d8-44bd-b021-029915476b8c', '1234567890', '19876543210', 'whatsapp', 'incoming', null,
-   '{"kind": "text", "text": "Do you trade emeralds?", "type": "text", "version": "1"}', '{"delivered": "2024-01-01T14:00:00Z"}')
+insert into public.messages (id, conversation_id, organization_id, organization_address, contact_address, service, direction, agent_id, content, status, timestamp) values
+  ('a7b8c9d0-e1f2-3a4b-5c6d-7e8f9a0b1c2d', 'e5f6a7b8-c9d0-1e2f-3a4b-5c6d7e8f9a0b', '3a182d8d-d6d8-44bd-b021-029915476b8c', '318232498042593', '541133525394', 'whatsapp', 'incoming', null,
+   '{"kind": "text", "text": "Do you have any ocean explorer maps?", "type": "text", "version": "1"}', '{"delivered": "2024-01-01T09:00:00Z"}', now() - interval '10 minutes'),
+  ('b8c9d0e1-f2a3-4b5c-6d7e-8f9a0b1c2d3e', 'e5f6a7b8-c9d0-1e2f-3a4b-5c6d7e8f9a0b', '3a182d8d-d6d8-44bd-b021-029915476b8c', '318232498042593', '541133525394', 'whatsapp', 'outgoing', 'b2c3d4e5-f6a7-8b9c-0d1e-2f3a4b5c6d7e',
+   '{"kind": "text", "text": "Yes, for 13 emeralds and a compass.", "type": "text", "version": "1"}', '{"sent": "2024-01-01T09:01:00Z", "delivered": "2024-01-01T09:01:05Z"}', now() - interval '5 minutes'),
+  ('c9d0e1f2-a3b4-5c6d-7e8f-9a0b1c2d3e4f', 'f6a7b8c9-d0e1-2f3a-4b5c-6d7e8f9a0b1c', '3a182d8d-d6d8-44bd-b021-029915476b8c', '318232498042593', '541133525395', 'whatsapp', 'incoming', null,
+   '{"kind": "text", "text": "I have 32 rotten flesh to trade.", "type": "text", "version": "1"}', '{"delivered": "2024-01-01T14:00:00Z"}', now() - interval '1 minute')
 ;
 
 -- Quick Replies (for Mountain Peaks)
