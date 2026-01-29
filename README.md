@@ -322,7 +322,7 @@ export type OrganizationExtra = {
    welcome_message?: string;
    authorized_contacts_only?: boolean;
    default_agent_id?: string;
-   annotations?: {
+   media_preprocessing?: {
       mode?: "active" | "inactive";
       model?: "gemini-2.5-pro" | "gemini-2.5-flash"; // default: gemini-2.5-flash
       api_key: string; // default GOOGLE_API_KEY env var
@@ -414,7 +414,7 @@ Two more tools:
 - Calendar (date calculator)
 - Code execution (E2B)
 
-An improved annotator (more/different providers por document type) and more
+An improved media preprocessor (more/different providers por document type) and more
 types:
 
 - DOC

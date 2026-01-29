@@ -51,8 +51,8 @@ const PAUSED_CONV_WINDOW = 12 * 60 * 60 * 1000; // 12 hours
 const MESSAGES_TIME_LIMIT = 7 * 24 * 60 * 60 * 1000; // 7 days
 const MESSAGES_QUANTITY_LIMIT = 50;
 const RESPONSE_DELAY_SECS = 3; // 3 seconds
-const ANNOTATION_TIMEOUT = 30 * 1000; // 30 seconds
-const ANNOTATION_POLLING_INTERVAL = 5 * 1000; // 5 seconds
+const MEDIA_PREPROCESSING_TIMEOUT = 30 * 1000; // 30 seconds
+const MEDIA_PREPROCESSING_POLLING_INTERVAL = 5 * 1000; // 5 seconds
 
 /**
  * timestamp vs created_at
@@ -421,45 +421,45 @@ Deno.serve(async (req) => {
         throw new Error("Max LLM iterations reached!");
       }
 
-      // CHECK FOR PENDING ANNOTATIONS
+      // CHECK FOR PENDING PREPROCESSING
 
-      while (org.extra.annotations?.mode === "active") {
-        const pendingAnnotations = messages.filter(
+      while (org.extra.media_preprocessing?.mode === "active") {
+        const pendingPreprocessing = messages.filter(
           (m) =>
             m.content.type === "file" &&
-            m.status.pending && // Note: not using status.annotating to avoid race conditions with the annotator Edge Function.
-            !m.status.annotated &&
-            +new Date(m.status.pending) > +new Date() - ANNOTATION_TIMEOUT,
+            m.status.pending && // Note: not using status.preprocessing to avoid race conditions with the media preprocessor Edge Function.
+            !m.status.preprocessed &&
+            +new Date(m.status.pending) > +new Date() - MEDIA_PREPROCESSING_TIMEOUT,
         );
 
-        if (!pendingAnnotations.length) {
+        if (!pendingPreprocessing.length) {
           break;
         }
 
-        // WAIT FOR THE ANNOTATIONS TO COMPLETE
+        // WAIT FOR THE PREPROCESSING TO COMPLETE
 
         log.info(
-          `Waiting ${ANNOTATION_POLLING_INTERVAL}ms for pending annotations to complete...`,
+          `Waiting ${MEDIA_PREPROCESSING_POLLING_INTERVAL}ms for pending preprocessing to complete...`,
         );
 
         await new Promise((resolve) =>
-          setTimeout(resolve, ANNOTATION_POLLING_INTERVAL)
+          setTimeout(resolve, MEDIA_PREPROCESSING_POLLING_INTERVAL)
         );
 
         // Note: we could check for newer messages here too, but it would bloat the code.
 
-        // RETRIEVE ANNOTATIONS
+        // RETRIEVE PROCESSED MESSAGES
 
         const { data: pending_messages } = await client
           .from("messages")
           .select()
           .in(
             "id",
-            pendingAnnotations.map((m) => m.id),
+            pendingPreprocessing.map((m) => m.id),
           )
           .throwOnError();
 
-        // Update the messages with the pending annotations.
+        // Update the messages with the pending processing.
         for (const pm of pending_messages) {
           const index = messages.findIndex((m) => m.id === pm.id);
 
@@ -483,7 +483,7 @@ Deno.serve(async (req) => {
 
       if (new_messages_v0.length) {
         log.info(
-          `Newer message for conversation ${conv.id} found while waiting for pending annotations. Skipping response.`,
+          `Newer message for conversation ${conv.id} found while waiting for pending preprocessing. Skipping response.`,
         );
 
         return new Response("ok", { headers: corsHeaders });

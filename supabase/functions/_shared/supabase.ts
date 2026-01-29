@@ -986,8 +986,8 @@ export type IncomingStatus = {
   pending?: string; // new Date().toISOString()
   read?: string;
   typing?: string;
-  annotating?: string;
-  annotated?: string;
+  preprocessing?: string;
+  preprocessed?: string;
 };
 
 export type OutgoingStatus = {
@@ -998,8 +998,8 @@ export type OutgoingStatus = {
   delivered?: string;
   read?: string;
   failed?: string;
-  annotating?: string;
-  annotated?: string;
+  preprocessing?: string;
+  preprocessed?: string;
   errors?: WebhookError[];
 };
 
@@ -1024,7 +1024,7 @@ export type Memory = {
   [key: string]: string | undefined | Memory;
 };
 
-export type AnnotationConfig = {
+export type PreprocessingConfig = {
   mode?: "active" | "inactive";
   model?: "gemini-2.5-pro" | "gemini-2.5-flash";
   api_key?: string;
@@ -1037,7 +1037,7 @@ export type OrganizationExtra = {
   welcome_message?: string;
   authorized_contacts_only?: boolean;
   default_agent_id?: string;
-  annotations?: AnnotationConfig;
+  media_preprocessing?: PreprocessingConfig;
   error_messages_direction?: "internal" | "outgoing";
 };
 

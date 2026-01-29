@@ -37,9 +37,9 @@ select vault.create_secret(
 
 -- Create all 3 organizations
 insert into public.organizations (id, name, extra) values
-  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'Mountain Peaks', '{"response_delay_seconds": 0, "annotations": {"mode": "active"}}'),
-  ('4b293e9e-5f4a-5b7c-9d0e-1f2a3b4c5d6e', 'Plains', '{"response_delay_seconds": 0, "annotations": {"mode": "active"}}'),
-  ('5c3a4f0f-6e5b-6c8d-0e1f-2a3b4c5d6e7f', 'Dark Forest', '{"response_delay_seconds": 0, "annotations": {"mode": "active"}}')
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'Mountain Peaks', '{"response_delay_seconds": 0, "media_preprocessing": {"mode": "active"}}'),
+  ('4b293e9e-5f4a-5b7c-9d0e-1f2a3b4c5d6e', 'Plains', '{"response_delay_seconds": 0, "media_preprocessing": {"mode": "active"}}'),
+  ('5c3a4f0f-6e5b-6c8d-0e1f-2a3b4c5d6e7f', 'Dark Forest', '{"response_delay_seconds": 0, "media_preprocessing": {"mode": "active"}}')
 ;
 
 -- Create all users
@@ -90,7 +90,7 @@ insert into public.agents (id, name, user_id, organization_id, ai, extra) values
   ('a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d', 'Creeper', null, '3a182d8d-d6d8-44bd-b021-029915476b8c', true, 
    '{"api_url": "groq", "protocol": "chat_completions", "instructions": "You are a Creeper. You hiss and threaten to explode if anyone gets too close.", "mode": "inactive"}'),
   ('b2c3d4e5-f6a7-8b9c-0d1e-2f3a4b5c6d7e', 'Cartographer', null, '3a182d8d-d6d8-44bd-b021-029915476b8c', true,
-   '{"api_url": "groq", "protocol": "chat_completions", "instructions": "You are a Cartographer villager. You trade emeralds for maps.", "mode": "active", "tools": [{"name": "calculator", "type": "function", "provider": "local"}, {"type": "http", "label": "Fetch", "config": {}, "provider": "local"}]}')
+   '{"api_url": "groq", "protocol": "chat_completions", "instructions": "You are a Cartographer villager. You trade emeralds for maps.", "mode": "active", "tools": [{"name": "calculator", "type": "function", "provider": "local"}, {"type": "http", "label": "Fetch", "config": {"methods": ["GET"], "url": "https://www.wikiloc.com"}, "provider": "local"}]}')
 ;
 
 -- Organization Addresses - WhatsApp Integration (for Mountain Peaks)

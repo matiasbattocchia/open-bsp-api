@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
 
     await client
       .from("messages")
-      .update({ status: { annotated: new Date().toISOString() } })
+      .update({ status: { preprocessed: new Date().toISOString() } })
       .eq("id", incoming.id)
       .throwOnError();
 
@@ -103,12 +103,12 @@ Deno.serve(async (req) => {
     org.extra = {};
   }
 
-  const config = org.extra.annotations || {};
+  const config = org.extra.media_preprocessing || {};
 
   if (config.mode !== "active") {
     return log_update_and_respond(
       "info",
-      "Annotation mode is not active. Skipping annotation.",
+      "Media preprocessing mode is not active. Skipping preprocessing.",
     );
   }
 
@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
   if (!apiKey) {
     return log_update_and_respond(
       "warn",
-      "GOOGLE_API_KEY not set. Skipping annotation.",
+      "GOOGLE_API_KEY not set. Skipping preprocessing.",
     );
   }
 
@@ -134,7 +134,7 @@ Deno.serve(async (req) => {
   if (content.type !== "file") {
     return log_update_and_respond(
       "error",
-      "Incoming message is not a file. Skipping annotation.",
+      "Incoming message is not a file. Skipping preprocessing.",
     );
   }
 
@@ -193,7 +193,7 @@ Deno.serve(async (req) => {
   if (!isSupportedMimeType) {
     return log_update_and_respond(
       "warn",
-      `Unsupported mime type ${mimeType} for media type ${mediaType}. Skipping annotation.`,
+      `Unsupported mime type ${mimeType} for media type ${mediaType}. Skipping preprocessing.`,
     );
   }
 
@@ -211,7 +211,7 @@ Deno.serve(async (req) => {
 
   await client
     .from("messages")
-    .update({ status: { annotating: new Date().toISOString() } })
+    .update({ status: { preprocessing: new Date().toISOString() } })
     .eq("id", incoming.id)
     .throwOnError();
 
@@ -314,20 +314,20 @@ Deno.serve(async (req) => {
     const retryableErrors = [429, 500, 503]; // RESOURCE_EXHAUSTED, INTERNAL, UNAVAILABLE
 
     if (retryableErrors.includes((error as ApiError).status)) {
-      log.error("Retryable Gemini API error in annotation", error);
+      log.error("Retryable Gemini API error in preprocessing", error);
       throw error;
     }
 
     return log_update_and_respond(
       "error",
-      `Gemini API error in annotation. Skipping annotation. ${error}`,
+      `Gemini API error in preprocessing. Skipping preprocessing. ${error}`,
     );
   }
 
   if (!response?.text) {
     return log_update_and_respond(
       "error",
-      "No response text received from the annotation model. Skipping annotation.",
+      "No response text received from the preprocessing model. Skipping preprocessing.",
     );
   }
 
@@ -342,7 +342,7 @@ Deno.serve(async (req) => {
   } catch (_error) {
     return log_update_and_respond(
       "error",
-      "Failed to parse the response text from the annotation model into a JSON object. Skipping annotation.",
+      "Failed to parse the response text from the preprocessing model into a JSON object. Skipping preprocessing.",
     );
   }
 
@@ -411,7 +411,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  const annotated = {
+  const preprocessed = {
     ...incoming,
     content: {
       ...content,
@@ -419,13 +419,13 @@ Deno.serve(async (req) => {
     },
     status: {
       ...status,
-      annotated: new Date().toISOString(),
+      preprocessed: new Date().toISOString(),
     },
   };
 
   await client
     .from("messages")
-    .update(annotated)
+    .update(preprocessed)
     .eq("id", incoming.id)
     .throwOnError();
 

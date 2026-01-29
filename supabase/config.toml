@@ -16,10 +16,10 @@ verify_jwt = false
 import_map = "./functions/deno.json"
 entrypoint = "./functions/whatsapp-management/index.ts"
 
-[functions.annotator]
+[functions.media-preprocessor]
 verify_jwt = false
 import_map = "./functions/deno.json"
-entrypoint = "./functions/annotator/index.ts"
+entrypoint = "./functions/media-preprocessor/index.ts"
 
 [functions.agent-client]
 verify_jwt = false
