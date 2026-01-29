@@ -49,7 +49,18 @@ using (
   and ai = true
 );
 
-create policy "owners can create their orgs ai agents and send invitations"
+create policy "admins can create their orgs ai agents"
+on public.agents
+for insert
+to authenticated, anon
+with check (
+  organization_id in (
+    select public.get_authorized_orgs('admin')
+  )
+  and ai = true
+);
+
+create policy "owners can send invitations"
 on public.agents
 for insert
 to authenticated, anon
@@ -57,14 +68,9 @@ with check (
   organization_id in (
     select public.get_authorized_orgs('owner')
   )
-  and (
-    ai = true
-    or (
-      ai = false
-      and extra->'invitation'->>'status' = 'pending'
-      and extra->'invitation'->>'email' is not null
-    )
-  )
+  and ai = false
+  and extra->'invitation'->>'status' = 'pending'
+  and extra->'invitation'->>'email' is not null
 );
 
 create policy "owners can update their orgs agents"

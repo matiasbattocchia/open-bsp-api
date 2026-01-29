@@ -68,8 +68,8 @@ insert into public.agents (name, user_id, organization_id, ai, extra) values
   -- Mountain Peaks (Org 1) - Neutral creatures - Complete setup
   ('Goat', '185f2f83-d63a-4c9b-b4a0-7e4a885799e2', '3a182d8d-d6d8-44bd-b021-029915476b8c', false, '{"role": "owner"}'),
   ('Spider', '7c8a9b2d-4e3f-5a6b-8c9d-0e1f2a3b4c5d', '3a182d8d-d6d8-44bd-b021-029915476b8c', false, '{"role": "admin"}'),
-  ('Enderman', '9d0e1f2a-3b4c-5d6e-7f8a-9b0c1d2e3f4a', '3a182d8d-d6d8-44bd-b021-029915476b8c', false, '{"role": "user"}'),
-  ('Bat', null, '3a182d8d-d6d8-44bd-b021-029915476b8c', false, '{"role": "user", "invitation": {"organization_name": "Mountain Peaks", "email": "bat@craft.com", "status": "pending"}}'),
+  ('Enderman', '9d0e1f2a-3b4c-5d6e-7f8a-9b0c1d2e3f4a', '3a182d8d-d6d8-44bd-b021-029915476b8c', false, '{"role": "member"}'),
+  ('Bat', null, '3a182d8d-d6d8-44bd-b021-029915476b8c', false, '{"role": "member", "invitation": {"organization_name": "Mountain Peaks", "email": "bat@craft.com", "status": "pending"}}'),
   
   -- Plains (Org 2) - Passive creatures - Owner + Goat as admin
   ('Sheep', '296f4de0-7f6c-7d9e-1f2a-3b4c5d6e7f8a', '4b293e9e-5f4a-5b7c-9d0e-1f2a3b4c5d6e', false, '{"role": "owner"}'),
