@@ -96,9 +96,9 @@ insert into public.agents (id, name, user_id, organization_id, ai, extra) values
 -- Organization Addresses - WhatsApp Integration (for Mountain Peaks)
 insert into public.organizations_addresses (organization_id, service, address, extra, status) values
   ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'whatsapp', '318232498042593', 
-   '{"waba_id": "309222208943804", "phone_number": "+54 9 260 423 7115", "access_token": "EAAEKlp6x6a...GZC", "flow_type": "existing_phone_number"}', 'connected'),
+   '{"waba_id": "309222208943804", "phone_number": "5492604237115", "access_token": "EAAEKlp6x6a...GZC", "flow_type": "existing_phone_number", "verified_name": "Jaspers Market"}', 'connected'),
   ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'whatsapp', '9876543210',
-   '{"waba_id": "309222208943804", "phone_number": "+54 9 260 423 7116", "access_token": "EAAEKlp6x6a...GZC", "flow_type": "new_phone_number"}', 'disconnected')
+   '{"waba_id": "309222208943804", "phone_number": "5492604237116", "access_token": "EAAEKlp6x6a...GZC", "flow_type": "new_phone_number"}', 'disconnected')
 ;
 
 -- Contacts (for Mountain Peaks)

@@ -7,6 +7,11 @@ const API_VERSION = "v24.0";
 const APP_ID = Deno.env.get("META_APP_ID");
 const APP_SECRET = Deno.env.get("META_APP_SECRET");
 
+/** Normalize phone number to digits only (e.g., "+54 9 260 423 7115" -> "5492604237115") */
+function normalizePhoneNumber(phone: string): string {
+  return phone.replace(/\D/g, "");
+}
+
 // Step 1
 async function getBusinessAccessToken(
   app_id: string,
@@ -377,7 +382,7 @@ export async function performEmbeddedSignup(
       extra: {
         waba_id: payload.waba_id,
         access_token: business_access_token,
-        phone_number: phone_number.display_phone_number,
+        phone_number: normalizePhoneNumber(phone_number.display_phone_number),
         verified_name: phone_number.verified_name,
       },
     })
