@@ -1,5 +1,6 @@
 import type {
   LocalMCPToolConfig,
+  LocalToolInfo,
   Part,
   ToolInfo,
 } from "../../_shared/supabase.ts";
@@ -48,10 +49,21 @@ export async function initMCP(tool: LocalMCPToolConfig): Promise<MCPServer> {
 
     const toolsResult: ListToolsResult = await client.listTools();
 
+    let tools = toolsResult.tools;
+
+    if (
+      tool.config.allowed_tools &&
+      tool.config.allowed_tools.length > 0
+    ) {
+      tools = tools.filter((t) =>
+        tool.config.allowed_tools!.includes(t.name)
+      );
+    }
+
     return {
       label: tool.label,
       client,
-      tools: toolsResult.tools,
+      tools,
     };
   } catch (error) {
     throw new Error(`MCP client ${tool.label} - ${error instanceof Error ? error.message : String(error)}`);
@@ -116,7 +128,7 @@ export async function fromMCP(
       };
     }
     case "resource": {
-      if (part.resource.type === "text") {
+      if ("text" in part.resource) {
         const file = new Blob([part.resource.text as string], {
           type: part.resource.mimeType || "text/plain",
         });
@@ -133,7 +145,7 @@ export async function fromMCP(
         };
       }
 
-      if (part.resource.type === "blob") {
+      if ("blob" in part.resource) {
         const file = base64ToBlob(
           part.resource.blob as string,
           part.resource.mimeType
@@ -184,8 +196,19 @@ export async function callTool(
     throw new Error("Invalid tool info or data");
   }
 
+  const tool = part.tool as LocalToolInfo;
+
+  // Check if the tool is in the list of allowed tools for this server
+  // This list is already filtered by initMCP if allowed_tools is set
+  // but the LLM can still request a tool that is not in the list
+  const toolExists = mcp.tools.some((t) => t.name === tool.name);
+
+  if (!toolExists) {
+    throw new Error(`Tool ${tool.name} is not available or not allowed.`);
+  }
+
   const result = (await mcp.client.callTool({
-    name: part.tool.name,
+    name: tool.name,
     arguments: part.data,
   } as CallToolRequest["params"])) as CallToolResult;
 
