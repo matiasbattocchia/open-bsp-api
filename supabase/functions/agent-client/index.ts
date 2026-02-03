@@ -675,7 +675,9 @@ Deno.serve(async (req) => {
           const valid = ajv.validate(schema, input);
 
           if (!valid) {
-            throw new Error(`Tool input validation failed: ${ajv.errors}`);
+            throw new Error(
+              `Tool input validation failed: ${JSON.stringify(ajv.errors)}`,
+            );
           }
 
           switch (toolInfo.type) {
