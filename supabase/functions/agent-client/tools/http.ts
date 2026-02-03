@@ -75,6 +75,39 @@ export async function requestToolImplementation(
 ): Promise<z.infer<typeof RequestToolOutputSchema>> {
   // TODO: $context.conversation.contact_address value-like replacement
 
+  // Security check: URL restriction
+  if (config.url) {
+    if (config.url.endsWith("/*")) {
+      const baseUrl = config.url.slice(0, -2);
+      if (!input.url.startsWith(baseUrl)) {
+        return {
+          status: 403,
+          isError: true,
+          message: `URL not allowed. Must start with ${baseUrl}`,
+        };
+      }
+    } else {
+      if (input.url !== config.url) {
+        return {
+          status: 403,
+          isError: true,
+          message: `URL not allowed. Must match ${config.url}`,
+        };
+      }
+    }
+  }
+
+  // Security check: Method restriction
+  if (config.methods && config.methods.length > 0) {
+    if (!config.methods.includes(input.method)) {
+      return {
+        status: 403,
+        isError: true,
+        message: `Method ${input.method} not allowed. Allowed: ${config.methods.join(", ")}`,
+      };
+    }
+  }
+
   const response = await ky(input.url, {
     method: input.method,
     headers: { ...input.headers, ...config.headers },

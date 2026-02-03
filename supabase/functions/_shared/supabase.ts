@@ -1100,8 +1100,11 @@ export type LocalMCPToolConfig = {
   label: string; // server label
   config: {
     url: string;
+    product?: "calendar" | "sheets";
     headers?: Record<string, string>;
     allowed_tools?: string[];
+    files?: string[];
+    email?: string;
   };
 };
 
@@ -1118,6 +1121,8 @@ export type LocalHTTPToolConfig = {
   label: string; // client label
   config: {
     headers?: Record<string, string>;
+    url?: string;
+    methods?: string[];
   };
 };
 
