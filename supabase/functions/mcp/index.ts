@@ -1,114 +1,286 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-
-import { McpServer } from "npm:@modelcontextprotocol/sdk/server/mcp.js";
-import type { CallToolResult } from "npm:@modelcontextprotocol/sdk/types.js";
-import { StreamableHTTPTransport } from "@hono/mcp";
 import { Hono } from "@hono/hono";
-import { createApiClient } from "../_shared/supabase.ts";
-import { z } from "npm:zod@^3.23.8";
+import { cors } from "jsr:@hono/hono/cors";
+import { streamSSE } from "jsr:@hono/hono/streaming";
+import { createApiClient, type Database } from "../_shared/supabase.ts";
+import * as log from "../_shared/logger.ts";
+import { validateApiKey } from "./auth.ts";
+import * as tools from "./tools.ts";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-const app = new Hono();
+// Hono context variables set by auth middleware
+type Variables = {
+  orgId: string;
+  supabase: SupabaseClient<Database>;
+};
 
-const server = new McpServer({
-  name: "open-bsp-api",
-  version: "1.0.0",
+const app = new Hono<{ Variables: Variables }>();
+
+app.use("*", cors());
+
+// Auth middleware - validates API key and sets context variables
+app.use("/mcp/*", async (c, next) => {
+  try {
+    const { orgId, token } = await validateApiKey(c.req.raw);
+    c.set("orgId", orgId);
+    c.set("supabase", createApiClient(token));
+    await next();
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Authentication failed";
+    return c.json({ error: message }, 401);
+  }
 });
 
-let token: string | undefined = undefined;
-let config: string | undefined = undefined;
+// SSE Endpoint for MCP Connection
+app.get("/mcp/sse", (c) => {
+  return streamSSE(c, async (stream) => {
+    const url = new URL(c.req.url);
+    const messagesUrl = `${url.origin}/mcp/messages`;
 
-/*
-# Exposing built-in tools through the MCP server
+    log.info(`MCP Client connected`, { endpoint: messagesUrl });
 
-Each "tool" (toolkit, really) such as sql, http, etc. might require dedicated MCP server
-in order to keep the tools organized. For example, mcp/sql, mcp/http, etc.
-
-TODO: Because tools do not connect to the database, the token should be checked against the api_keys table.
-
-For tools that need a config object, we can use the following approach (client-side):
-1. Set config object.
-   For mcp/http it would be `const config = { headers: { Authorization: "Bearer <token>" }`
-2. Stringify the config object, then encode it to URL-safe.
-3. Pass the encoded config object as a query parameter to the MCP server.
-   For example, `http://localhost:3000/mcp/http?config=...`
-
-```ts
-server.registerTool(
-  RequestTool.name,
-  {
-    title: RequestTool.name,
-    description: RequestTool.description || "",
-    inputSchema: {
-      url: z.string(),
-      method: z.string(),
-    },
-  },
-  RequestTool.implementation
-);
-```
-
-This kinda works but not quite. MCP SDK is stuck at Zod v3. We are using v4.
-TODO: wait a month or so... https://github.com/modelcontextprotocol/typescript-sdk/pull/869
-*/
-
-// TODO: This is a work in progress.
-server.tool(
-  "send-message",
-  "Sends a message to the user.",
-  {
-    organization_address: z.string(),
-    contact_address: z.string(),
-    message: z.string(),
-  },
-  async ({
-    organization_address,
-    contact_address,
-    message,
-  }): Promise<CallToolResult> => {
-    if (config) {
-      config = JSON.parse(config);
-    }
-
-    const client = createApiClient(token);
-
-    const { data, error } = await client.from("messages").insert({
-      direction: "outgoing",
-      organization_address,
-      contact_address,
-      service: "local",
-      content: { type: "text", kind: "text", text: message, version: "1" },
+    await stream.writeSSE({
+      event: "endpoint",
+      data: messagesUrl,
     });
 
-    if (error) {
-      return {
-        content: [{ type: "text", text: error.message }],
-      };
+    // Keep connection open
+    while (true) {
+      await stream.sleep(10000);
+    }
+  });
+});
+
+// JSON-RPC Endpoint
+app.post("/mcp/messages", async (c) => {
+  const orgId = c.get("orgId");
+  const supabase = c.get("supabase");
+
+  const body = await c.req.json();
+  const { id, method, params } = body;
+
+  log.info(`MCP Request: ${method}`, params);
+
+  // deno-lint-ignore no-explicit-any
+  let result: any;
+
+  try {
+    switch (method) {
+      case "initialize":
+        result = {
+          protocolVersion: "2024-11-05",
+          capabilities: {
+            tools: {},
+          },
+          serverInfo: {
+            name: "open-bsp-mcp",
+            version: "1.0.0",
+          },
+        };
+        break;
+
+      case "notifications/initialized":
+        // No response needed for notifications, but we return OK for the HTTP request
+        return c.text("ok");
+
+      case "ping":
+        result = {};
+        break;
+
+      case "tools/list":
+        result = {
+          tools: [
+            {
+              name: "list_conversations",
+              description: "Get recent active conversations with context (WhatsApp only).",
+              inputSchema: {
+                type: "object",
+                properties: {
+                  limit: { type: "number", description: "Max conversations (default: 10)" },
+                },
+              },
+              outputSchema: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string", description: "Contact name" },
+                    phone: { type: "string", description: "Contact phone number" },
+                    account_phone: { type: "string", description: "Account phone (only if >1 account)" },
+                    unread: { type: "number", description: "Unread message count" },
+                    last_message: {
+                      type: "object",
+                      properties: {
+                        direction: { type: "string", enum: ["incoming", "outgoing"] },
+                        content: { type: "string" },
+                        timestamp: { type: "string", format: "date-time" },
+                        status: { type: "string" },
+                        errors: { type: "array" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            {
+              name: "get_conversation",
+              description: "Get messages from a specific conversation.",
+              inputSchema: {
+                type: "object",
+                properties: {
+                  contact_phone: { type: "string", description: "Contact's phone number" },
+                  account_phone: { type: "string", description: "Account phone (required if >1 account)" },
+                  limit: { type: "number", description: "Max messages (default: 10)" },
+                },
+                required: ["contact_phone"],
+              },
+              outputSchema: {
+                type: "object",
+                properties: {
+                  messages: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        direction: { type: "string", enum: ["incoming", "outgoing"] },
+                        content: { type: "string" },
+                        timestamp: { type: "string", format: "date-time" },
+                        status: { type: "string" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            {
+              name: "search_contacts",
+              description: "Find contacts by name or phone number (one required).",
+              inputSchema: {
+                type: "object",
+                properties: {
+                  name: { type: "string", description: "Name to search (case-insensitive, partial match)" },
+                  number: { type: "string", description: "Phone number to search (partial match)" },
+                },
+              },
+              outputSchema: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    phone: { type: "string" },
+                  },
+                },
+              },
+            },
+            {
+              name: "list_accounts",
+              description: "List connected WhatsApp accounts for this organization.",
+              inputSchema: {
+                type: "object",
+                properties: {},
+              },
+              outputSchema: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string", description: "Account verified name" },
+                    phone: { type: "string", description: "Account phone number" },
+                  },
+                },
+              },
+            },
+            {
+              name: "send_message",
+              description: "Send a text message to a contact.",
+              inputSchema: {
+                type: "object",
+                properties: {
+                  contact_phone: { type: "string", description: "Contact's phone number" },
+                  text: { type: "string", description: "Message text content" },
+                  account_phone: { type: "string", description: "Account phone (required if >1 account)" },
+                },
+                required: ["contact_phone", "text"],
+              },
+              outputSchema: {
+                type: "object",
+                properties: {
+                  status: { type: "string", enum: ["sent", "error"] },
+                },
+              },
+            },
+          ],
+        };
+        break;
+
+      case "tools/call":
+        if (!params || !params.name) {
+          throw new Error("Missing tool name");
+        }
+
+        // Dispatch tools
+        switch (params.name) {
+          case "list_conversations":
+            result = await tools.listConversations(supabase, orgId, params.arguments?.limit);
+            break;
+          case "get_conversation":
+            result = await tools.getConversation(
+              supabase,
+              orgId,
+              params.arguments?.contact_phone,
+              params.arguments?.limit,
+              params.arguments?.account_phone
+            );
+            break;
+          case "search_contacts":
+            result = await tools.searchContacts(
+              supabase,
+              orgId,
+              params.arguments?.name,
+              params.arguments?.number
+            );
+            break;
+          case "list_accounts":
+            result = await tools.listAccounts(supabase, orgId);
+            break;
+          case "send_message":
+            result = await tools.sendMessage(
+              supabase,
+              orgId,
+              params.arguments?.contact_phone,
+              params.arguments?.text,
+              params.arguments?.account_phone
+            );
+            break;
+          default:
+            throw new Error(`Unknown tool: ${params.name}`);
+        }
+        break;
+
+      default:
+        throw new Error(`Method not supported: ${method}`);
     }
 
-    return {
-      content: [
-        {
-          type: "text",
-          text: "Message sent",
-        },
-      ],
-    };
-  },
-);
+    return c.json({
+      jsonrpc: "2.0",
+      id: id,
+      result: result,
+    });
 
-/**
- * TODO: Change polling to pushing. MCP SDK does not support pushing yet.
- * https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/1192
- */
-
-app.all("/mcp", async (c) => {
-  token = c.req.header("Authorization")?.replace("Bearer ", "");
-  let config = c.req.query("config");
-
-  const transport = new StreamableHTTPTransport();
-  await server.connect(transport);
-  // @ts-ignore inocuous type error
-  return transport.handleRequest(c);
+  } catch (error: unknown) {
+    log.error("MCP Error", error);
+    const message = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : undefined;
+    return c.json({
+      jsonrpc: "2.0",
+      id: id,
+      error: {
+        code: -32603,
+        message: message,
+        data: stack,
+      },
+    });
+  }
 });
 
 Deno.serve(app.fetch);

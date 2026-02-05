@@ -3,7 +3,7 @@ create table public.organizations_addresses (
   service public.service not null,
   address text not null,
   extra jsonb,
-  status text default 'active'::text not null,
+  status text default 'connected'::text not null,
   created_at timestamp with time zone default now() not null,
   updated_at timestamp with time zone default now() not null
 );
@@ -36,4 +36,10 @@ execute function public.moddatetime('updated_at');
 create index organizations_addresses_waba_id_idx
 on public.organizations_addresses
 using btree ((extra->>'waba_id'))
+where service = 'whatsapp';
+
+-- Index for efficient phone number lookups (used by MCP server)
+create index organizations_addresses_phone_number_idx
+on public.organizations_addresses
+using btree ((extra->>'phone_number'))
 where service = 'whatsapp';
