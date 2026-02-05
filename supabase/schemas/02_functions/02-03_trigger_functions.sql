@@ -231,8 +231,105 @@ begin
 end;
 $$;
 
+create function public.manage_contact_on_address_sync() returns trigger
+language plpgsql
+set search_path = ''
+as $$
+declare
+  _contact_id_to_check uuid;
+  _other_active_count int;
+begin
+  -- Case 1: Synced Action = ADD
+  if new.extra->'synced'->>'action' = 'add' then
+    -- Check if we can reuse existing contact from OLD (if updating)
+    if (TG_OP = 'UPDATE') and old.contact_id is not null then
+      new.contact_id := old.contact_id;
+    end if;
+
+    -- If still no contact linked, create one
+    if new.contact_id is null then
+      insert into public.contacts (
+        organization_id,
+        name
+      ) values (
+        new.organization_id,
+        new.extra->'synced'->>'name'
+      ) returning id into new.contact_id;
+    end if;
+    
+    return new;
+  end if;
+
+  -- Case 2: Synced Action = REMOVE
+  if new.extra->'synced'->>'action' = 'remove' then
+    -- Identify the contact we might be orphaning (from OLD state)
+    _contact_id_to_check := old.contact_id;
+
+    -- If there was a contact linked, check if it becomes orphaned
+    if _contact_id_to_check is not null then
+       -- Count OTHER active addresses for this contact
+       select count(*) into _other_active_count
+       from public.contacts_addresses
+       where contact_id = _contact_id_to_check
+         and status = 'active'
+         -- Exclude the current address being processed
+         and not (organization_id = new.organization_id and address = new.address);
+       
+       -- If no other addresses reference it, delete the contact
+       if _other_active_count = 0 then
+         delete from public.contacts where id = _contact_id_to_check;
+       end if;
+    end if;
+
+    -- Check if we should delete this address (no conversations)
+    if not exists (
+      select 1 from public.conversations c 
+      where c.organization_id = new.organization_id 
+        and c.contact_address = new.address
+    ) then
+      -- Delete self and cancel update
+      delete from public.contacts_addresses
+      where organization_id = new.organization_id
+        and address = new.address;
+      return null; 
+    end if;
+
+    -- Otherwise, just unlink
+    new.contact_id := null;
+    return new;
+  end if;
+
+  return new;
+end;
+$$;
+
+
+create or replace function public.cleanup_addresses_before_contact_delete()
+returns trigger
+language plpgsql
+as $$
+begin
+  -- Delete addresses linked to this contact that have NO conversations
+  delete from public.contacts_addresses ca
+  where ca.contact_id = old.id
+    and not exists (
+      select 1 from public.conversations c
+      where c.organization_id = ca.organization_id
+        and c.contact_address = ca.address
+    )
+    -- Do not delete synced addresses (externally managed)
+    and not (ca.extra ? 'synced');
+  
+  -- Remaining addresses will have contact_id set to NULL (via ON DELETE SET NULL FK)
+  -- because they have history (conversations) and must be preserved.
+  
+  return old;
+end;
+$$;
+
 create function public.before_insert_on_conversations() returns trigger
 language plpgsql
+set search_path = ''
 as $$
 declare
   _existing_address text;
@@ -271,6 +368,7 @@ $$;
 
 create function public.pause_conversation_on_human_message() returns trigger
 language plpgsql
+set search_path = ''
 as $$
 declare
   agent_is_ai boolean;
@@ -297,6 +395,7 @@ $$;
 
 create function public.notify_webhook() returns trigger
 language plpgsql
+set search_path = ''
 as $$
 declare
   webhook_record record;
@@ -335,55 +434,6 @@ begin
       headers := headers
     );
   end loop;
-
-  return new;
-end;
-$$;
-
-create function public.before_insert_on_contacts() returns trigger
-language plpgsql
-as $$
-declare
-  _existing_id uuid;
-  _existing_addresses jsonb;
-  _new_addresses jsonb;
-  _merged_addresses jsonb;
-begin
-  -- Extract addresses from new record
-  _new_addresses := coalesce(new.extra->'addresses', '[]'::jsonb);
-  
-  -- Skip lookup if no addresses provided
-  if jsonb_array_length(_new_addresses) = 0 then
-    return new;
-  end if;
-
-  -- Look up existing contact by matching any address
-  select id, coalesce(extra->'addresses', '[]'::jsonb) into _existing_id, _existing_addresses
-  from public.contacts
-  where organization_id = new.organization_id
-    and extra->'addresses' ?| array(select jsonb_array_elements_text(_new_addresses))
-  limit 1;
-
-  -- If existing contact found, set id and merge addresses
-  if _existing_id is not null then
-    new.id := _existing_id;
-    
-    -- Merge addresses: combine existing and new, remove duplicates
-    select jsonb_agg(distinct addr)
-    into _merged_addresses
-    from (
-      select jsonb_array_elements_text(_existing_addresses) as addr
-      union
-      select jsonb_array_elements_text(_new_addresses) as addr
-    ) combined;
-    
-    -- Update extra.addresses with merged array
-    new.extra := jsonb_set(
-      new.extra,
-      '{addresses}',
-      _merged_addresses
-    );
-  end if;
 
   return new;
 end;

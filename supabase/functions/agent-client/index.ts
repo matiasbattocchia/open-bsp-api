@@ -110,7 +110,11 @@ Deno.serve(async (req) => {
 
   const { data: conv } = await client
     .from("conversations")
-    .select(`*, organizations (*, agents (*))`)
+    .select(`
+      *,
+      organizations (*, agents (*)),
+      contacts_addresses (*, contacts (*))
+    `)
     .eq("id", incoming.conversation_id)
     .single()
     .throwOnError();
@@ -119,7 +123,7 @@ Deno.serve(async (req) => {
     conv.extra = {};
   }
 
-  const { organizations: org, ...conversation } = conv;
+  const { organizations: org, contacts_addresses: contact_address, ...conversation } = conv;
 
   const organization_id = org.id;
 
@@ -131,15 +135,13 @@ Deno.serve(async (req) => {
 
   let contact: ContactRow | undefined;
 
-  const { data } = await client
-    .from("contacts")
-    .select()
-    .eq("organization_id", incoming.organization_id)
-    .contains("extra->addresses", JSON.stringify([incoming.contact_address]))
-    .maybeSingle()
-    .throwOnError();
+  if (contact_address) {
+    contact = contact_address.contacts || undefined;
 
-  contact = data || undefined;
+    if (!contact_address.extra) {
+      contact_address.extra = {};
+    }
+  }
 
   // CHECK IF CONTACT IS ALLOWED
 

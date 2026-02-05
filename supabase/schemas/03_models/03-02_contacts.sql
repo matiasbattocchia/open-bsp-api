@@ -37,12 +37,7 @@ on public.contacts
 for each row
 execute function public.moddatetime('updated_at');
 
-create index contacts_extra_addresses_idx
-on public.contacts
-using gin ((extra -> 'addresses'));
-
-create trigger lookup_and_merge_by_address
-before insert
-on public.contacts
+create trigger cleanup_addresses_before_contact_delete
+before delete on public.contacts
 for each row
-execute function public.before_insert_on_contacts();
+execute function public.cleanup_addresses_before_contact_delete();

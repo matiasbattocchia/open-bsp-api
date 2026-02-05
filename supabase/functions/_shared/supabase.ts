@@ -1067,13 +1067,16 @@ export type ConversationExtra = {
   */
 };
 
-export type ContactExtra = {
-  addresses: string[];
-};
+export type ContactExtra = Record<PropertyKey, never>;
 
 export type ContactAddressExtra = {
   name?: string;
-  synced?: boolean; // True if the contact was synced from WhatsApp
+  synced?: { // if the contact address was synced from WhatsApp
+    name: string;
+    action: "add" | "remove";
+  }
+  replaces_address?: string;
+  replaced_by_address?: string;
 }
 
 // Function tools have a JSON input (data part).

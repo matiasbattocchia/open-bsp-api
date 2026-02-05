@@ -9,10 +9,11 @@ security invoker
 set search_path to ''
 as $$
 declare
+  _contact_id uuid;
   _service public.service;
 begin
-  -- 1. Search for old contact address
-  select service into _service
+  -- 1. Search for old contact address and get service & contact_id
+  select service, contact_id into _service, _contact_id
   from public.contacts_addresses
   where organization_id = p_organization_id
     and address = old_address;
@@ -21,26 +22,37 @@ begin
     return; -- Exit if not found
   end if;
 
-  -- 2. Create new contact address
-  insert into public.contacts_addresses (organization_id, service, address, status)
-  values (p_organization_id, _service, new_address, 'active')
-  on conflict (organization_id, address) do nothing; -- Handle potential race conditions or re-delivery
+  -- 2. Create new contact address (linked to same contact if it exists)
+  -- Add extra.replaces_address
+  insert into public.contacts_addresses (
+    organization_id, service, address, contact_id, status, extra
+  )
+  values (
+    p_organization_id, 
+    _service, 
+    new_address, 
+    _contact_id, 
+    'active',
+    jsonb_build_object('replaces_address', old_address)
+  )
+  on conflict (organization_id, address) do update set
+    contact_id = EXCLUDED.contact_id,
+    status = 'active',
+    extra = jsonb_set(
+      coalesce(public.contacts_addresses.extra, '{}'::jsonb),
+      '{replaces_address}',
+      to_jsonb(old_address)
+    );
 
-  -- 3. Update old contact address status
-  update public.contacts_addresses
-  set status = 'inactive'
+  -- 3. Update old contact address status and add reference to new address
+  update public.contacts_addresses set 
+    status = 'inactive',
+    extra = jsonb_set(
+      coalesce(extra, '{}'::jsonb),
+      '{replaced_by_address}',
+      to_jsonb(new_address)
+    )
   where organization_id = p_organization_id
     and address = old_address;
-
-  -- 4. Update contacts.extra.addresses: add new address (keep old for history)
-  update public.contacts
-  set extra = jsonb_set(
-    extra,
-    '{addresses}',
-    (extra->'addresses') || to_jsonb(new_address)
-  )
-  where organization_id = p_organization_id
-    and extra->'addresses' ? old_address
-    and not extra->'addresses' ? new_address; -- avoid duplicates
 end;
 $$;

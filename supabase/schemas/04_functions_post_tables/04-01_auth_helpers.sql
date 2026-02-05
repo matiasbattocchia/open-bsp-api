@@ -146,3 +146,26 @@ begin
   );
 end;
 $$;
+
+-- Check if contact address fields are unchanged (for contact_id updates)
+create function public.contact_address_update_rules(
+  p_organization_id uuid,
+  p_service public.service,
+  p_address text,
+  p_extra jsonb,
+  p_status text
+) returns boolean
+language plpgsql
+set search_path to ''
+as $$
+begin
+  return exists (
+    select 1 from public.contacts_addresses
+    where organization_id = p_organization_id
+      and address = p_address
+      and service = p_service
+      and status = p_status
+      and extra = p_extra
+  );
+end;
+$$;

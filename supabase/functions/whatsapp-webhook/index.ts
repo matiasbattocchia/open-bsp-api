@@ -482,7 +482,6 @@ async function processMessage(request: Request): Promise<Response> {
 
   const messages: MessageInsert[] = [];
   const statuses: MessageInsert[] = [];
-  const contacts: ContactInsert[] = [];
   const contacts_addresses: ContactAddressInsert[] = [];
 
   for (const entry of payload.entry) {
@@ -834,30 +833,12 @@ async function processMessage(request: Request): Promise<Response> {
               address: syncItem.contact.phone_number,
               service: "whatsapp" as const,
               extra: {
-                synced: true,
+                synced: {
+                  name: syncItem.contact.full_name,
+                  action: syncItem.action,
+                },
               },
             });
-
-            if (syncItem.action === "add") {
-              contacts.push({
-                organization_id,
-                name: syncItem.contact.full_name,
-                extra: {
-                  addresses: [syncItem.contact.phone_number],
-                },
-                status: "active",
-              });
-            }
-
-            if (syncItem.action === "remove") {
-              contacts.push({
-                organization_id,
-                extra: {
-                  addresses: [syncItem.contact.phone_number],
-                },
-                status: "inactive",
-              });
-            }
           }
         }
       }
@@ -909,7 +890,6 @@ async function processMessage(request: Request): Promise<Response> {
   log.info("Webhook processing summary", {
     messages: messages.length,
     statuses: statuses.length,
-    contacts: contacts.length,
     contacts_addresses: contacts_addresses.length,
   });
 
@@ -933,15 +913,6 @@ async function processMessage(request: Request): Promise<Response> {
       .throwOnError();
 
     log.info("Persisted contacts_addresses", { count: contacts_addresses.length });
-  }
-
-  if (contacts.length > 0) {
-    await client
-      .from("contacts")
-      .upsert(contacts)
-      .throwOnError();
-
-    log.info("Persisted contacts", { count: contacts.length });
   }
 
   // Notes for statuses:
