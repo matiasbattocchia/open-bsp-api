@@ -236,18 +236,12 @@ language plpgsql
 set search_path = ''
 as $$
 declare
-  _contact_id_to_check uuid;
   _other_active_count int;
 begin
   -- Case 1: Synced Action = ADD
   if new.extra->'synced'->>'action' = 'add' then
-    -- Check if we can reuse existing contact from OLD (if updating)
-    if (TG_OP = 'UPDATE') and old.contact_id is not null then
-      new.contact_id := old.contact_id;
-    end if;
-
-    -- If still no contact linked, create one
-    if new.contact_id is null then
+    -- If no contact linked (neither from old row nor provided in new data), create one
+    if (old is null or old.contact_id is null) and new.contact_id is null then
       insert into public.contacts (
         organization_id,
         name
@@ -256,74 +250,57 @@ begin
         new.extra->'synced'->>'name'
       ) returning id into new.contact_id;
     end if;
-    
-    return new;
   end if;
 
   -- Case 2: Synced Action = REMOVE
   if new.extra->'synced'->>'action' = 'remove' then
-    -- Identify the contact we might be orphaning (from OLD state)
-    _contact_id_to_check := old.contact_id;
-
     -- If there was a contact linked, check if it becomes orphaned
-    if _contact_id_to_check is not null then
+    if old.contact_id is not null then
        -- Count OTHER active addresses for this contact
        select count(*) into _other_active_count
        from public.contacts_addresses
-       where contact_id = _contact_id_to_check
+       where contact_id = old.contact_id
          and status = 'active'
          -- Exclude the current address being processed
          and not (organization_id = new.organization_id and address = new.address);
        
        -- If no other addresses reference it, delete the contact
        if _other_active_count = 0 then
-         delete from public.contacts where id = _contact_id_to_check;
+         delete from public.contacts where id = old.contact_id;
        end if;
     end if;
 
-    -- Check if we should delete this address (no conversations)
-    if not exists (
-      select 1 from public.conversations c 
-      where c.organization_id = new.organization_id 
-        and c.contact_address = new.address
-    ) then
-      -- Delete self and cancel update
-      delete from public.contacts_addresses
-      where organization_id = new.organization_id
-        and address = new.address;
-      return null; 
-    end if;
-
-    -- Otherwise, just unlink
+    -- Unlink
+    -- Note: the address might be deleted by cleanup_unlinked_address_if_empty
     new.contact_id := null;
-    return new;
   end if;
 
   return new;
 end;
 $$;
 
-
-create or replace function public.cleanup_addresses_before_contact_delete()
-returns trigger
+-- 1. Manual unlink by user
+-- 2. Unlink caused by contact deletion (via ON DELETE SET NULL constraint)
+create function public.cleanup_unlinked_address_if_empty() returns trigger
 language plpgsql
+set search_path = ''
 as $$
 begin
-  -- Delete addresses linked to this contact that have NO conversations
-  delete from public.contacts_addresses ca
-  where ca.contact_id = old.id
-    and not exists (
-      select 1 from public.conversations c
-      where c.organization_id = ca.organization_id
-        and c.contact_address = ca.address
-    )
-    -- Do not delete synced addresses (externally managed)
-    and not (ca.extra ? 'synced');
-  
-  -- Remaining addresses will have contact_id set to NULL (via ON DELETE SET NULL FK)
-  -- because they have history (conversations) and must be preserved.
-  
-  return old;
+  -- Only if we became unlinked (contact_id IS NULL)
+  if new.contact_id is null and old.contact_id is not null then
+    -- If no conversations, delete the address
+    if not exists (
+      select 1 from public.conversations c 
+      where c.organization_id = new.organization_id 
+        and c.contact_address = new.address
+    ) then
+      delete from public.contacts_addresses
+      where organization_id = new.organization_id
+        and address = new.address;
+    end if;
+  end if;
+
+  return null;
 end;
 $$;
 

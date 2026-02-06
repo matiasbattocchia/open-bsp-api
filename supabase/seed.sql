@@ -102,18 +102,26 @@ insert into public.organizations_addresses (organization_id, service, address, e
 ;
 
 -- Contacts (for Mountain Peaks)
--- Note: contacts.extra.addresses is a string array of contact addresses
-insert into public.contacts (id, organization_id, name, extra) values
-  ('c3d4e5f6-a7b8-9c0d-1e2f-3a4b5c6d7e8f', '3a182d8d-d6d8-44bd-b021-029915476b8c', 'Dolphin', 
-   '{"addresses": ["541133525394"]}'),
-  ('d4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f9a', '3a182d8d-d6d8-44bd-b021-029915476b8c', 'Wolf',
-   '{"addresses": ["541133525395"]}')
+insert into public.contacts (id, organization_id, name) values
+  ('c3d4e5f6-a7b8-9c0d-1e2f-3a4b5c6d7e8f', '3a182d8d-d6d8-44bd-b021-029915476b8c', 'Dolphin'),
+  ('d4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f9a', '3a182d8d-d6d8-44bd-b021-029915476b8c', 'Wolf'),
+  ('e5f6a7b8-c9d0-1e2f-3a4b-5c6d7e8f9a1b', '3a182d8d-d6d8-44bd-b021-029915476b8c', 'Fox'),
+  ('f6a7b8c9-d0e1-2f3a-4b5c-6d7e8f9a1b2c', '3a182d8d-d6d8-44bd-b021-029915476b8c', 'Bee'),
+  ('a7b8c9d0-e1f2-3a4b-5c6d-7e8f9a1b2c3d', '3a182d8d-d6d8-44bd-b021-029915476b8c', 'Polar Bear'),
+  ('b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e', '3a182d8d-d6d8-44bd-b021-029915476b8c', 'Jaguar'), -- No address
+  ('c2d3e4f5-a6b7-8c9d-0e1f-2a3b4c5d6e7f', '3a182d8d-d6d8-44bd-b021-029915476b8c', 'Axolotl') -- Two addresses
 ;
 
 -- Contacts Addresses (for Mountain Peaks) - required for conversations FK
-insert into public.contacts_addresses (organization_id, service, address, extra) values
-  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'whatsapp', '541133525394', '{"name": "Dolphin"}'),
-  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'whatsapp', '541133525395', '{"name": "Wolf"}')
+insert into public.contacts_addresses (organization_id, service, address, extra, contact_id) values
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'whatsapp', '541133525394', '{"name": "Dolphin"}', 'c3d4e5f6-a7b8-9c0d-1e2f-3a4b5c6d7e8f'),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'whatsapp', '541133525395', '{"name": "Wolf"}', 'd4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f9a'),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'whatsapp', '541133525396', '{"name": "Fox"}', 'e5f6a7b8-c9d0-1e2f-3a4b-5c6d7e8f9a1b'),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'whatsapp', '541133525397', '{"name": "Bee", "synced": {"name": "Bee", "action": "add"}}', 'f6a7b8c9-d0e1-2f3a-4b5c-6d7e8f9a1b2c'),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'whatsapp', '541133525398', '{"name": "Polar Bear", "synced": {"name": "Polar Bear", "action": "add"}}', 'a7b8c9d0-e1f2-3a4b-5c6d-7e8f9a1b2c3d'),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'whatsapp', '541133525399', '{"name": "Ocelot"}', null), -- Address without contact (Ocelot)
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'whatsapp', '541133525400', '{"name": "Axolotl 1"}', 'c2d3e4f5-a6b7-8c9d-0e1f-2a3b4c5d6e7f'), -- Axolotl Address 1
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'whatsapp', '541133525401', '{"name": "Axolotl 2"}', 'c2d3e4f5-a6b7-8c9d-0e1f-2a3b4c5d6e7f') -- Axolotl Address 2
 ;
 
 -- Conversations & Messages (for Mountain Peaks)

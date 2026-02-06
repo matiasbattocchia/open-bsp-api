@@ -37,7 +37,4 @@ on public.contacts
 for each row
 execute function public.moddatetime('updated_at');
 
-create trigger cleanup_addresses_before_contact_delete
-before delete on public.contacts
-for each row
-execute function public.cleanup_addresses_before_contact_delete();
+

@@ -1,3 +1,7 @@
+-- FRONTEND NOTE: PostgreSQL checks INSERT policy BEFORE conflict detection.
+-- Upsert with synced.action='add' in payload fails even if row exists.
+-- Use .upsert() for linking, .update() for unlinking.
+
 create table public.contacts_addresses (
   organization_id uuid not null,
   contact_id uuid,
@@ -43,7 +47,7 @@ on public.contacts_addresses
 for each row
 execute function public.moddatetime('updated_at');
 
-create trigger manage_contact_on_address_sync
+create trigger manage_contact_on_address_sync -- Should execute before merge_update
 before insert or update
 on public.contacts_addresses
 for each row
@@ -51,3 +55,14 @@ when (
   new.extra->'synced' is not null -- Performance optimization
 )
 execute function public.manage_contact_on_address_sync();
+
+create trigger cleanup_unlinked_address_if_empty
+after update
+on public.contacts_addresses
+for each row
+when (
+  old.contact_id is not null
+  and new.contact_id is null
+  and new.extra->'synced'->>'action' is distinct from 'add' -- Ignore active synced addresses
+)
+execute function public.cleanup_unlinked_address_if_empty();

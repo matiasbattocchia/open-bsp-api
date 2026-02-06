@@ -8,30 +8,30 @@ import type { Part } from "../../_shared/supabase.ts";
  * Note: We assume artifacts are only present in file parts, not in text or data parts.
  */
 export function serializePartAsXML(part: Part): string {
+  const lines: string[] = [];
+
   switch (part.type) {
     case "text": {
       if (part.kind === "text") {
         return part.text;
       }
 
-      const lines = [`<${part.kind}>`, part.text, `</${part.kind}>`];
+      lines.push(`<${part.kind}>`, part.text, `</${part.kind}>`);
 
-      return lines.join("\n");
+      break;
     }
 
     case "data": {
-      const lines = [
+      lines.push(
         `<${part.kind}>`,
         JSON.stringify(part.data, null, 2),
         `</${part.kind}>`,
-      ];
+      );
 
-      return lines.join("\n");
+      break
     }
 
     case "file": {
-      const lines = [];
-
       lines.push(`<${part.kind}>`);
 
       lines.push(`<uri>`, part.file.uri, `</uri>`);
@@ -48,17 +48,19 @@ export function serializePartAsXML(part: Part): string {
         lines.push(`<caption>`, part.text, `</caption>`);
       }
 
-      if (part.artifacts?.length) {
-        lines.push(`<artifacts>`);
-        for (const artifact of part.artifacts) {
-          lines.push(serializePartAsXML(artifact));
-        }
-        lines.push(`</artifacts>`);
-      }
-
       lines.push(`</${part.kind}>`);
 
-      return lines.join("\n");
+      break
     }
   }
+
+  if (part.artifacts?.length) {
+    lines.push(`<artifacts>`);
+    for (const artifact of part.artifacts) {
+      lines.push(serializePartAsXML(artifact));
+    }
+    lines.push(`</artifacts>`);
+  }
+
+  return lines.join("\n");
 }

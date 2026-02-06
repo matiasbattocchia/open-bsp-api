@@ -165,7 +165,7 @@ begin
       and address = p_address
       and service = p_service
       and status = p_status
-      and extra = p_extra
+      and extra is not distinct from p_extra
   );
 end;
 $$;

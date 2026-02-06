@@ -1036,6 +1036,9 @@ export type Database = {
               limits?: number
               offsets?: number
               prefix: string
+              search?: string
+              sortcolumn?: string
+              sortorder?: string
             }
             Returns: {
               created_at: string
@@ -1053,9 +1056,6 @@ export type Database = {
               limits?: number
               offsets?: number
               prefix: string
-              search?: string
-              sortcolumn?: string
-              sortorder?: string
             }
             Returns: {
               created_at: string

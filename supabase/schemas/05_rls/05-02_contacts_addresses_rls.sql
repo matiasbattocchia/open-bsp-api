@@ -19,7 +19,7 @@ with check (
   organization_id in (
     select public.get_authorized_orgs('member')
   )
-  and not (extra->'synced'->>'action' = 'add')
+  and (extra->'synced'->>'action') is distinct from 'add'
 );
 
 -- Members can update contacts addresses
@@ -55,5 +55,5 @@ using (
   organization_id in (
     select public.get_authorized_orgs('member')
   )
-  and not (extra->'synced'->>'action' = 'add')
+  and (extra->'synced'->>'action') is distinct from 'add'
 );
