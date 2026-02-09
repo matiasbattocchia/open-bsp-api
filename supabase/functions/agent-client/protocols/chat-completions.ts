@@ -363,7 +363,9 @@ export class ChatCompletionsHandler
         baseURL = undefined;
       /* falls through */
       default:
-        baseURL ||= undefined;
+        // remove /chat/completions from the base URL if it exists,
+        // the client appends it automatically.
+        baseURL = baseURL?.replace("/chat/completions", "") || undefined;
         apiKey ||= undefined;
         model ||= "gpt-4.1-mini";
     }
@@ -374,6 +376,14 @@ export class ChatCompletionsHandler
       apiKey,
       timeout: 30000, // 30 seconds
       maxRetries: 2,
+      defaultHeaders: {
+        "organization-id": this.context.organization.id,
+        "organization-address": this.context.conversation.organization_address,
+        "conversation-id": this.context.conversation.id,
+        "agent-id": this.context.agent.id,
+        "contact-id": this.context.contact?.id,
+        "contact-address": this.context.conversation.contact_address,
+      },
     });
 
     let response;
