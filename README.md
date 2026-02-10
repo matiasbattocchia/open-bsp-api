@@ -353,7 +353,7 @@ export type AgentExtra = {
    description?: string;
    api_url?: "openai" | "anthropic" | "google" | "groq" | string; // default: openai
    api_key?: string; // default: provider env var, i.e. OPENAI_API_KEY
-   model?: string; // default: gpt-5-mini
+   model?: string; // default: gpt-5.2-chat-latest
    // TODO: Add responses (openai), messages (anthropic), generate-content (gemini).
    protocol?: "chat_completions" | "a2a"; // default: chat_completions
    assistant_id?: string;

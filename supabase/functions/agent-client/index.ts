@@ -141,6 +141,10 @@ Deno.serve(async (req) => {
     if (!contact_address.extra) {
       contact_address.extra = {};
     }
+
+    if (contact) {
+      contact.name ||= contact_address.extra.name || null;
+    }
   }
 
   // CHECK IF CONTACT IS ALLOWED

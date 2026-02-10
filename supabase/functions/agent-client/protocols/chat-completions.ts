@@ -25,6 +25,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AgentTool } from "../index.ts";
 import * as log from "../../_shared/logger.ts";
 import { serializePartAsXML } from "./serializer.ts";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc"
+import { inspect } from "node:util";
+dayjs.extend(utc);
 
 export interface ChatCompletionsRequest {
   messages: ChatCompletionMessageParam[];
@@ -299,13 +303,24 @@ export class ChatCompletionsHandler
 
     const chatCompletionMessages = this.mergeToolUseMessages(messages);
 
-    if (agent.extra.instructions) {
-      // TODO: dynamic variables
-      chatCompletionMessages.unshift({
-        role: "system",
-        content: agent.extra.instructions,
-      });
+    const context = {
+      now: dayjs().utc().format("dddd, YYYY-MM-DD HH:mm [UTC]"),
+      user: {
+        name: this.context.contact?.name,
+        phone: "+" + this.context.conversation.contact_address
+      }
     }
+
+    let content = inspect(context, { compact: false, depth: Infinity, colors: false });
+
+    if (agent.extra.instructions) {
+      content = agent.extra.instructions + "\n\n" + content;
+    }
+
+    chatCompletionMessages.unshift({
+      role: "system",
+      content,
+    });
 
     const chatCompletionTools = this.tools.map((tool) => ({
       type: "function" as const,
@@ -367,7 +382,7 @@ export class ChatCompletionsHandler
         // the client appends it automatically.
         baseURL = baseURL?.replace("/chat/completions", "") || undefined;
         apiKey ||= undefined;
-        model ||= "gpt-4.1-mini";
+        model ||= "gpt-5.2-chat-latest";
     }
     // Note: for Bedrock, the base URL is https://${bedrock-runtime-endpoint}/openai/v1
 

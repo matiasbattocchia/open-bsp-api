@@ -1,4 +1,5 @@
 import type { Part } from "../../_shared/supabase.ts";
+import { inspect } from "node:util";
 
 /**
  * Recursively serializes Parts (including artifacts) as XML.
@@ -24,7 +25,7 @@ export function serializePartAsXML(part: Part): string {
     case "data": {
       lines.push(
         `<${part.kind}>`,
-        JSON.stringify(part.data, null, 2),
+        inspect(part.data, { compact: false, depth: Infinity, colors: false }),
         `</${part.kind}>`,
       );
 

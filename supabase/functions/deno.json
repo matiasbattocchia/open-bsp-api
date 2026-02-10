@@ -12,6 +12,9 @@
     "ajv": "https://esm.sh/ajv@8.17/dist/2020",
     "@hono/mcp": "npm:@hono/mcp",
     "@hono/hono": "jsr:@hono/hono",
-    "@std/encoding/base64url": "jsr:@std/encoding@1.0.10/base64url"
+    "openai/resources/chat/completions": "npm:openai@^5.12.2/resources/chat/completions",
+    "@std/encoding/base64url": "jsr:@std/encoding@1.0.10/base64url",
+    "dayjs": "npm:dayjs@^1.11.10",
+    "dayjs/plugin/utc": "npm:dayjs@^1.11.10/plugin/utc.js"
   }
 }
