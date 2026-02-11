@@ -1,11 +1,6 @@
 import { createUnsecureClient } from "../_shared/supabase.ts";
 
-interface AuthResult {
-  orgId: string;
-  token: string;
-}
-
-export async function validateApiKey(req: Request): Promise<AuthResult> {
+export async function validateApiKey(req: Request) {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) {
     throw new Error("Missing Authorization header");
@@ -21,7 +16,7 @@ export async function validateApiKey(req: Request): Promise<AuthResult> {
 
   const { data, error } = await supabase
     .from("api_keys")
-    .select("organization_id")
+    .select()
     .eq("key", token)
     .single();
 
@@ -30,5 +25,5 @@ export async function validateApiKey(req: Request): Promise<AuthResult> {
     throw new Error("Invalid API Key");
   }
 
-  return { orgId: data.organization_id, token };
+  return data
 }

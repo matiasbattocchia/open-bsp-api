@@ -1,262 +1,460 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../_shared/supabase.ts";
+import type { Database, IncomingStatus, OutgoingStatus, OutgoingMessage, MessageRow } from "../_shared/supabase.ts";
+import dayjs from "dayjs";
+import { fetchTemplates, fetchTemplate } from "../whatsapp-management/templates.ts";
 
 // Helper: Normalize phone number to digits only
 function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, "");
 }
 
-/**
- * Resolves a WhatsApp account for the organization.
- * 
- * Logic:
- * 1. Fetches all connected WhatsApp accounts for the org
- * 2. If accountPhone provided: validates it exists and returns that account
- * 3. If no accountPhone: returns the account only if there's exactly one
- * 
- * @throws Error if no accounts, account not found, or multiple accounts without specifying which one
- */
-async function resolveAccount(
-  supabase: SupabaseClient<Database>,
-  orgId: string,
-  accountPhone?: string
-) {
-  // Fetch all connected accounts for this org
-  const { data: accounts } = await supabase
-    .from("organizations_addresses")
-    .select()
-    .eq("organization_id", orgId)
-    .eq("service", "whatsapp")
-    .eq("status", "connected")
-    .throwOnError()
+// Helper: Format time to WhatsApp style
+function formatTime(timestamp: string): string {
+  const dayjsTs = dayjs(timestamp);
+  const now = dayjs();
 
-  if (accounts.length === 0) {
-    throw new Error("No connected WhatsApp accounts found for this organization");
+  // Difference in calendar days
+  const diffDays = now.startOf('day').diff(dayjsTs.startOf('day'), 'day');
+
+  if (diffDays === 0) return dayjsTs.format("HH:mm");
+  if (diffDays === 1) return "yesterday";
+  if (diffDays < 7) return dayjsTs.format("dddd"); // e.g. Thursday
+
+  return dayjsTs.format("YYYY-MM-DD");
+}
+
+// Helper: Format status to the most recent status name
+function formatStatus(status: IncomingStatus | OutgoingStatus): keyof (IncomingStatus & OutgoingStatus) {
+  const entries = Object.entries(status);
+  const validEntries = entries.filter((entry): entry is [string, string] => {
+    const [k, v] = entry;
+    return k !== "errors" && typeof v === "string";
+  });
+
+  const sorted = validEntries.sort(([_ak, av], [_bk, bv]) => new Date(av).getTime() - new Date(bv).getTime());
+  const last = sorted[sorted.length - 1];
+
+  // Default to 'pending' if no status found, though technically should allow undefined if status is empty
+  return (last ? last[0] : "pending") as keyof (IncomingStatus & OutgoingStatus);
+}
+
+// Helper: Count unread messages.
+// Note: messages are sorted by timestamp descending
+function countUnread(messages: MessageRow[] | undefined | null): number {
+  if (!messages) { return 0; }
+
+  const index = messages.findIndex((m) => m.direction === "outgoing")
+
+  if (index === -1) { return 0; }
+
+  return index;
+}
+
+interface ResolveAccountParams {
+  supabase: SupabaseClient<Database>;
+  orgId: string;
+  accountPhone?: string;
+  allowedAccounts: string[];
+}
+
+/**
+ * Resolves a WhatsApp account for the organization, applying allowedAccounts filter.
+ */
+async function resolveAccount(params: ResolveAccountParams) {
+  const accountPhone = params.accountPhone;
+  const allowedAccounts = params.allowedAccounts;
+
+  let query = params.supabase
+    .from("organizations_addresses")
+    .select("address, phone:extra->>phone_number, name:extra->>verified_name")
+    .eq("organization_id", params.orgId)
+    .eq("service", "whatsapp")
+    .eq("status", "connected");
+
+  if (allowedAccounts.length) {
+    query = query.in("extra->>'phone_number'", allowedAccounts);
   }
 
-  // Transform to Account type
-  const accountList = accounts.map((oa) => ({
-    address: oa.address,
-    phone: oa.extra?.phone_number,
-    name: oa.extra?.verified_name
-  }));
+  const { data: accounts } = await query.throwOnError();
+
+  if (!accounts.length) {
+    throw new Error("No connected WhatsApp accounts found for this organization.");
+  }
+
+  const availablePhones = accounts.map((a) => `${a.name} (${a.phone})`).join(", ");
 
   if (accountPhone) {
-    // Validate the provided account phone exists
-    const normalized = normalizePhone(accountPhone);
-    const found = accountList.find((a) => a.phone === normalized);
+    const found = accounts.find((a) => a.phone === accountPhone);
 
     if (!found) {
-      const availablePhones = accountList.map((a) => a.phone).join(", ");
-
-      throw new Error(
-        `Account phone ${accountPhone} not found. Available accounts: ${availablePhones}`
-      );
+      if (allowedAccounts.length) {
+        throw new Error(`Account phone ${accountPhone} not found in allowed accounts. Allowed accounts: ${allowedAccounts.join(", ")}`);
+      } else {
+        throw new Error(`Account phone ${accountPhone} not found in available accounts. Available accounts: ${availablePhones}`);
+      }
     }
 
     return found;
   }
 
-  // No account phone provided - must have exactly one account
-  if (accountList.length > 1) {
-    const availablePhones = accountList.map((a) => `${a.name} (${a.phone})`).join(", ");
-
+  // No account provided
+  if (accounts.length > 1) {
     throw new Error(
-      `Multiple accounts found. Please specify account_phone. Available: ${availablePhones}`
+      `Multiple accounts found. Please specify account_phone. Available accounts: ${availablePhones}`
     );
   }
 
-  return accountList[0];
+  return accounts[0];
 }
 
-export async function listConversations(
-  supabase: SupabaseClient<Database>,
-  orgId: string,
-  limit: number = 10
-) {
-  // Use RPC for complex nested JSON query
-  const { data, error } = await supabase.rpc("mcp_list_conversations", {
-    p_org_id: orgId,
-    p_limit: limit,
+interface ListConversationsParams {
+  supabase: SupabaseClient<Database>;
+  orgId: string;
+  limit?: number;
+  allowedAccounts: string[];
+  allowedContacts: string[];
+  accountPhone?: string;
+}
+
+export async function listConversations(params: ListConversationsParams) {
+  const accountPhone = params.accountPhone ? normalizePhone(params.accountPhone) : undefined;
+  const allowedAccounts = params.allowedAccounts;
+  const allowedContacts = params.allowedContacts;
+
+  const account = await resolveAccount({
+    supabase: params.supabase,
+    orgId: params.orgId,
+    accountPhone,
+    allowedAccounts
   });
 
-  if (error) throw error;
-  // Unwrap the JSONB wrapper - RPC returns {conversation: {...}} objects
-  type ConversationRow = { conversation: Record<string, unknown> };
-  return (data as ConversationRow[]).map((d) => d.conversation);
+  let convQuery = params.supabase
+    .from("conversations")
+    .select(`
+      *,
+      messages(*),
+      contact_address:contacts_addresses(*, contact:contacts(*))
+    `)
+    .eq("organization_id", params.orgId)
+    .eq("organization_address", account.address)
+    .eq("service", "whatsapp")
+    .eq("status", "active")
+    .order("messages(timestamp)", { ascending: false }) // sort convs by messages
+    .order("timestamp", { referencedTable: "messages", ascending: false }) // also sort messages
+    .limit(params.limit || 10)
+    .limit(10, { referencedTable: "messages" }) // get the last 10 messages for the unread count
+
+  if (allowedContacts.length) {
+    convQuery = convQuery.in("contact_address", allowedContacts);
+  }
+
+  const { data: conversations } = await convQuery.throwOnError();
+
+  return {
+    account: {
+      name: account.name,
+      phone: account.address
+    },
+    conversations: conversations.map((c) => ({
+      contact: {
+        name: c.contact_address?.contact?.name || c.contact_address?.extra?.name || "Unknown",
+        phone: c.contact_address?.address
+      },
+      unread: countUnread(c.messages),
+      last_message: c.messages?.length ? {
+        direction: c.messages[0].direction,
+        content: c.messages[0].content,
+        timestamp: formatTime(c.messages[0].timestamp),
+        status: formatStatus(c.messages[0].status)
+      } : null
+    }))
+  };
 }
 
-export async function getConversation(
-  supabase: SupabaseClient<Database>,
-  orgId: string,
-  contactPhone: string,
-  limit: number = 10,
-  accountPhone?: string
-) {
-  const contactAddress = normalizePhone(contactPhone);
+interface FetchConversationParams {
+  supabase: SupabaseClient<Database>;
+  orgId: string;
+  contactPhone: string;
+  limit?: number;
+  allowedAccounts: string[];
+  allowedContacts: string[];
+  accountPhone?: string;
+}
 
-  const { address: organizationAddress } = await resolveAccount(supabase, orgId, accountPhone);
+export async function fetchConversation(params: FetchConversationParams) {
+  const contactPhone = normalizePhone(params.contactPhone);
+  const accountPhone = params.accountPhone ? normalizePhone(params.accountPhone) : undefined;
+  const allowedAccounts = params.allowedAccounts;
+  const allowedContacts = params.allowedContacts;
 
-  const { data } = await supabase
-    .from("messages")
+  if (allowedContacts.length && !allowedContacts.includes(contactPhone)) {
+    throw new Error(`Contact ${contactPhone} is not allowed. Allowed contacts: ${allowedContacts.join(", ")}`);
+  }
+
+  const account = await resolveAccount({
+    supabase: params.supabase,
+    orgId: params.orgId,
+    accountPhone,
+    allowedAccounts
+  });
+
+  const { data: conversation } = await params.supabase
+    .from("conversations")
     .select(`
-      direction,
-      content,
-      timestamp,
-      status,
-      conversations!inner(organization_id, contact_address, organization_address, service, status)
+      *,
+      messages(direction, content, timestamp, status),
+      contacts_addresses(*, contacts(*))
     `)
-    .eq("conversations.organization_id", orgId)
-    .eq("conversations.contact_address", contactAddress)
-    .eq("conversations.organization_address", organizationAddress)
-    .eq("conversations.service", "whatsapp")
-    .eq("conversations.status", "active")
-    .order("timestamp", { ascending: false })
-    .limit(limit)
+    .eq("organization_id", params.orgId)
+    .eq("contact_address", contactPhone)
+    .eq("organization_address", account.address)
+    .eq("service", "whatsapp")
+    .eq("status", "active")
+    .order("created_at", { ascending: false })
+    .order("timestamp", { ascending: false, referencedTable: "messages" })
+    .limit(1)
+    .limit(params.limit || 10, { referencedTable: "messages" })
+    .maybeSingle()
     .throwOnError();
 
-  // Format response - extract reduced content (file, data, or text)
-  const messages = data.map((m) => {
-    // Get most recent status key (status values are timestamps)
-    const status = Object.entries(m.status)
-      // deno-lint-ignore no-explicit-any
-      .sort((a: any, b: any) => new Date(b[1]).getTime() - new Date(a[1]).getTime())
-      .at(0)
-      ?.at(0);
+  if (!conversation) {
+    throw new Error(`Conversation with contact ${contactPhone} not found`);
+  }
 
-    // deno-lint-ignore no-explicit-any
-    const content = { ...m.content } as any;
-    delete content.type;
-    delete content.version;
-    delete content.task;
-    delete content.tool;
-    delete content.artifacts;
+  // Service Window Logic
+  const lastIncoming = conversation.messages?.findLast(m => m.direction === 'incoming')
+
+  let serviceWindow = "closed";
+
+  if (lastIncoming) {
+    const diffHours = dayjs().diff(dayjs(lastIncoming.timestamp), 'hour');
+
+    if (diffHours < 24) { serviceWindow = "open" };
+  }
+
+  const lightweightMessages = conversation.messages?.toReversed().map(m => {
+    if ("task" in m.content) {
+      delete m.content.task;
+    }
+
+    if ("tool" in m.content) {
+      delete m.content.tool;
+    }
 
     return {
       direction: m.direction,
-      content,
-      timestamp: m.timestamp,
-      status,
-      ...("errors" in m.status && { errors: m.status.errors }),
+      content: m.content,
+      time: formatTime(m.timestamp),
+      status: formatStatus(m.status),
+      ...("errors" in m.status && { errors: m.status.errors })
     };
   });
 
-  return { messages };
+  return {
+    account: { name: account.name, phone: account.phone },
+    contact: { name: conversation.contacts_addresses?.contacts?.name || conversation.contacts_addresses?.extra?.name, phone: contactPhone },
+    service_window: serviceWindow,
+    messages: lightweightMessages
+  };
 }
 
-export async function searchContacts(
-  supabase: SupabaseClient<Database>,
-  orgId: string,
-  name?: string,
-  number?: string
-) {
-  if (!name && !number) {
+interface SearchContactsParams {
+  supabase: SupabaseClient<Database>;
+  orgId: string;
+  name?: string;
+  number?: string;
+  allowedContacts: string[];
+}
+
+export async function searchContacts(params: SearchContactsParams) {
+  const number = params.number ? normalizePhone(params.number) : undefined;
+  const allowedContacts = params.allowedContacts;
+
+  if (!params.name && !number) {
     throw new Error("One of 'name' or 'number' is required");
   }
 
-  // Since there's no FK relationship between contacts_addresses and contacts
-  // (relationship is via JSONB containment), we need separate queries:
+  let dbQuery = params.supabase
+    .from("contacts_addresses")
+    .select(`
+      *,
+      contact:contacts(*)
+    `)
+    .eq("organization_id", params.orgId)
+    .eq("service", "whatsapp")
+    .eq("status", "active");
 
-  if (name) {
-    // Search by name: query contacts table, then extract addresses from extra.addresses
-    const { data: contacts } = await supabase
-      .from("contacts")
-      .select("name, extra")
-      .eq("organization_id", orgId)
-      .ilike("name", `%${name}%`)
-      .throwOnError()
-
-    // Extract addresses from contacts.extra.addresses array
-    type ContactRow = { name: string | null; extra: { addresses?: string[] } | null };
-    const results = (contacts as ContactRow[] || []).flatMap((c) => {
-      const addresses = c.extra?.addresses || [];
-      return addresses.map((addr: string) => ({
-        name: c.name || "Unknown",
-        phone: addr,
-      }));
-    });
-
-    // Deduplicate by phone
-    const seen = new Set<string>();
-    return results.filter((r) => {
-      if (seen.has(r.phone)) return false;
-      seen.add(r.phone);
-      return true;
-    });
-  } else {
-    // Search by number: query contacts_addresses table
-    const normalizedNumber = normalizePhone(number!);
-
-    const { data: addresses } = await supabase
-      .from("contacts_addresses")
-      .select("address, extra")
-      .eq("organization_id", orgId)
-      .eq("service", "whatsapp")
-      .eq("status", "active")
-      .ilike("address", `%${normalizedNumber}%`)
-      .throwOnError()
-
-    // Format results using name from extra if available
-    type AddressRow = { address: string; extra: { name?: string } | null };
-    const results = (addresses as AddressRow[] || []).map((ca) => ({
-      name: ca.extra?.name || "Unknown",
-      phone: ca.address,
-    }));
-
-    // Deduplicate by phone
-    const seen = new Set<string>();
-    return results.filter((r) => {
-      if (seen.has(r.phone)) return false;
-      seen.add(r.phone);
-      return true;
-    });
+  if (allowedContacts.length) {
+    dbQuery = dbQuery.in("address", allowedContacts);
   }
+
+  if (number) {
+    dbQuery = dbQuery.like("address", `%${number}%`);
+  }
+
+  if (params.name) {
+    dbQuery = dbQuery.or(`contact.name.ilike.%${params.name}%,extra.name.ilike.%${params.name}%`);
+  }
+
+  const { data: results } = await dbQuery.throwOnError();
+
+  return { contacts: results.map(r => ({ name: r.contact?.name || r.extra?.name, phone: r.address })) };
 }
 
-export async function listAccounts(
-  supabase: SupabaseClient<Database>,
-  orgId: string
-) {
-  // Fetch all connected accounts for this org
-  const { data: accounts } = await supabase
+interface ListAccountsParams {
+  supabase: SupabaseClient<Database>;
+  orgId: string;
+  allowedAccounts: string[];
+}
+
+export async function listAccounts(params: ListAccountsParams) {
+  const allowedAccounts = params.allowedAccounts;
+
+  const { data: accounts } = await params.supabase
     .from("organizations_addresses")
-    .select()
-    .eq("organization_id", orgId)
+    .select("phone:extra->>phone_number, name:extra->>verified_name")
+    .eq("organization_id", params.orgId)
     .eq("service", "whatsapp")
     .eq("status", "connected")
-    .throwOnError()
+    .in("extra->>phone_number", allowedAccounts)
+    .throwOnError();
 
-  // Transform to Account type
-  const accountList = accounts.map((oa) => ({
-    phone: oa.extra?.phone_number,
-    name: oa.extra?.verified_name
-  }));
-
-  return accountList
+  return { accounts };
 }
 
-export async function sendMessage(
-  supabase: SupabaseClient<Database>,
-  orgId: string,
-  contactPhone: string,
-  text: string,
-  accountPhone?: string
-) {
-  const contactAddress = normalizePhone(contactPhone);
+interface SendMessageParams {
+  supabase: SupabaseClient<Database>;
+  orgId: string;
+  content: OutgoingMessage;
+  contactPhone: string;
+  accountPhone?: string;
+  allowedAccounts: string[];
+  allowedContacts: string[];
+}
 
-  const { address: organizationAddress } = await resolveAccount(supabase, orgId, accountPhone);
+export async function sendMessage(params: SendMessageParams) {
+  const contactPhone = normalizePhone(params.contactPhone);
+  const accountPhone = params.accountPhone ? normalizePhone(params.accountPhone) : undefined;
+  const allowedAccounts = params.allowedAccounts;
+  const allowedContacts = params.allowedContacts;
 
-  await supabase
+  if (allowedContacts.length && !allowedContacts.includes(contactPhone)) {
+    throw new Error(`Contact ${contactPhone} not allowed. Allowed contacts: ${allowedContacts.join(", ")}`);
+  }
+
+  const account = await resolveAccount({
+    supabase: params.supabase,
+    orgId: params.orgId,
+    accountPhone,
+    allowedAccounts
+  });
+
+  // Check service window if type is text
+  if (params.content.kind !== 'template') {
+    const { data: lastMsg } = await params.supabase
+      .from("messages")
+      .select("timestamp")
+      .eq("organization_id", params.orgId)
+      .eq("organization_address", account.address)
+      .eq("contact_address", contactPhone)
+      .eq("direction", "incoming")
+      .order("timestamp", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!lastMsg) {
+      throw new Error("Service window is closed (no prior incoming message). You must send a template content to open the service window.");
+    }
+
+    const diff = dayjs().diff(dayjs(lastMsg.timestamp), 'hour');
+
+    if (diff >= 24) {
+      throw new Error("Service window is closed (24h+ since last user message). You must send a template content to re-open it.");
+    }
+  }
+
+  // Validate content type is actively supported for sending via this tool
+  const isSupported =
+    (params.content.type === 'text') ||
+    (params.content.type === 'data' && params.content.kind === 'template');
+
+  if (!isSupported) {
+    throw new Error("Unsupported content type. Only 'text' and 'template' (data/kind=template) are supported.");
+  }
+
+  await params.supabase
     .from("messages")
     .insert({
-      organization_id: orgId,
-      organization_address: organizationAddress,
-      contact_address: contactAddress,
+      organization_id: params.orgId,
+      organization_address: account.address,
+      contact_address: contactPhone,
       service: "whatsapp",
       direction: "outgoing",
-      content: { version: "1", type: "text", kind: "text", text },
+      content: params.content,
     })
     .throwOnError();
 
-  return { status: "ok" };
+  return { status: "sent" };
+}
+
+interface ListTemplatesParams {
+  supabase: SupabaseClient<Database>;
+  orgId: string;
+  accountPhone?: string;
+  allowedAccounts: string[];
+}
+
+export async function listTemplates(params: ListTemplatesParams) {
+  const accountPhone = params.accountPhone ? normalizePhone(params.accountPhone) : undefined;
+  const allowedAccounts = params.allowedAccounts;
+
+  const account = await resolveAccount({
+    supabase: params.supabase,
+    orgId: params.orgId,
+    accountPhone,
+    allowedAccounts
+  });
+
+  const templates = await fetchTemplates(params.supabase, params.orgId, account.address);
+
+  return {
+    templates: templates.map(t => ({
+      id: t.id,
+      name: t.name,
+      status: t.status,
+      category: t.category,
+      language: t.language
+    }))
+  };
+}
+
+interface FetchTemplateDetailsParams {
+  supabase: SupabaseClient<Database>;
+  orgId: string;
+  templateId: string;
+  accountPhone?: string;
+  allowedAccounts: string[];
+}
+
+export async function fetchTemplateDetails(params: FetchTemplateDetailsParams) {
+  const accountPhone = params.accountPhone ? normalizePhone(params.accountPhone) : undefined;
+  const allowedAccounts = params.allowedAccounts;
+
+  const account = await resolveAccount({
+    supabase: params.supabase,
+    orgId: params.orgId,
+    accountPhone,
+    allowedAccounts
+  });
+
+  const t = await fetchTemplate(params.supabase, params.orgId, params.templateId, account.address);
+
+  return {
+    id: t.id,
+    name: t.name,
+    status: t.status,
+    category: t.category,
+    language: t.language,
+    components: t.components
+  };
 }

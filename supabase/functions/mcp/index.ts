@@ -9,6 +9,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Hono context variables set by auth middleware
 type Variables = {
+  allowedContacts: string[];
+  allowedAccounts: string[];
   orgId: string;
   supabase: SupabaseClient<Database>;
 };
@@ -20,9 +22,21 @@ app.use("*", cors());
 // Auth middleware - validates API key and sets context variables
 app.use("/mcp/*", async (c, next) => {
   try {
-    const { orgId, token } = await validateApiKey(c.req.raw);
-    c.set("orgId", orgId);
-    c.set("supabase", createApiClient(token));
+    const apiKeyData = await validateApiKey(c.req.raw);
+
+    // Parse allowed headers
+    const allowedContactsHeader = c.req.header("Allowed-Contacts");
+    const allowedAccountsHeader = c.req.header("Allowed-Accounts");
+
+    const allowedContacts = allowedContactsHeader?.split(",").map((p) => p.replace(/\D/g, "")).filter(Boolean) || [];
+    const allowedAccounts = allowedAccountsHeader?.split(",").map((p) => p.replace(/\D/g, "")).filter(Boolean) || [];
+
+    c.set("allowedContacts", allowedContacts);
+    c.set("allowedAccounts", allowedAccounts);
+
+    c.set("orgId", apiKeyData.organization_id);
+    c.set("supabase", createApiClient(apiKeyData.key));
+
     await next();
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Authentication failed";
@@ -54,6 +68,8 @@ app.get("/mcp/sse", (c) => {
 app.post("/mcp/messages", async (c) => {
   const orgId = c.get("orgId");
   const supabase = c.get("supabase");
+  const allowedContacts = c.get("allowedContacts");
+  const allowedAccounts = c.get("allowedAccounts");
 
   const body = await c.req.json();
   const { id, method, params } = body;
@@ -73,13 +89,12 @@ app.post("/mcp/messages", async (c) => {
           },
           serverInfo: {
             name: "open-bsp-mcp",
-            version: "1.0.0",
+            version: "1.1.0",
           },
         };
         break;
 
       case "notifications/initialized":
-        // No response needed for notifications, but we return OK for the HTTP request
         return c.text("ok");
 
       case "ping":
@@ -91,39 +106,18 @@ app.post("/mcp/messages", async (c) => {
           tools: [
             {
               name: "list_conversations",
-              description: "Get recent active conversations with context (WhatsApp only).",
+              description: "Get recent active conversations for a specific account.",
               inputSchema: {
                 type: "object",
                 properties: {
                   limit: { type: "number", description: "Max conversations (default: 10)" },
-                },
-              },
-              outputSchema: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    name: { type: "string", description: "Contact name" },
-                    phone: { type: "string", description: "Contact phone number" },
-                    account_phone: { type: "string", description: "Account phone (only if >1 account)" },
-                    unread: { type: "number", description: "Unread message count" },
-                    last_message: {
-                      type: "object",
-                      properties: {
-                        direction: { type: "string", enum: ["incoming", "outgoing"] },
-                        content: { type: "string" },
-                        timestamp: { type: "string", format: "date-time" },
-                        status: { type: "string" },
-                        errors: { type: "array" },
-                      },
-                    },
-                  },
+                  account_phone: { type: "string", description: "Account phone (required if >1 account)" },
                 },
               },
             },
             {
-              name: "get_conversation",
-              description: "Get messages from a specific conversation.",
+              name: "fetch_conversation",
+              description: "Fetch messages and status for a specific contact conversation.",
               inputSchema: {
                 type: "object",
                 properties: {
@@ -132,23 +126,6 @@ app.post("/mcp/messages", async (c) => {
                   limit: { type: "number", description: "Max messages (default: 10)" },
                 },
                 required: ["contact_phone"],
-              },
-              outputSchema: {
-                type: "object",
-                properties: {
-                  messages: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        direction: { type: "string", enum: ["incoming", "outgoing"] },
-                        content: { type: "string" },
-                        timestamp: { type: "string", format: "date-time" },
-                        status: { type: "string" },
-                      },
-                    },
-                  },
-                },
               },
             },
             {
@@ -161,52 +138,89 @@ app.post("/mcp/messages", async (c) => {
                   number: { type: "string", description: "Phone number to search (partial match)" },
                 },
               },
-              outputSchema: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    name: { type: "string" },
-                    phone: { type: "string" },
-                  },
-                },
-              },
             },
             {
               name: "list_accounts",
-              description: "List connected WhatsApp accounts for this organization.",
+              description: "List connected WhatsApp accounts.",
               inputSchema: {
                 type: "object",
                 properties: {},
               },
-              outputSchema: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    name: { type: "string", description: "Account verified name" },
-                    phone: { type: "string", description: "Account phone number" },
-                  },
+            },
+            {
+              name: "list_templates",
+              description: "List available WhatsApp templates.",
+              inputSchema: {
+                type: "object",
+                properties: {
+                  account_phone: { type: "string", description: "Account phone (required if >1 account)" },
+                }
+              },
+            },
+            {
+              name: "fetch_template",
+              description: "Fetch details of a specific template.",
+              inputSchema: {
+                type: "object",
+                properties: {
+                  template_id: { type: "string" },
                 },
+                required: ["template_id"]
               },
             },
             {
               name: "send_message",
-              description: "Send a text message to a contact.",
+              description: "Send a text or template message. Enforces 24h service window for text messages.",
               inputSchema: {
                 type: "object",
                 properties: {
                   contact_phone: { type: "string", description: "Contact's phone number" },
-                  text: { type: "string", description: "Message text content" },
+                  content: {
+                    type: "object",
+                    description: "Message content.",
+                    oneOf: [
+                      {
+                        description: "Text Message",
+                        type: "object",
+                        properties: {
+                          version: { const: "1" },
+                          type: { const: "text" },
+                          kind: { const: "text" },
+                          text: { type: "string" }
+                        },
+                        required: ["version", "type", "kind", "text"]
+                      },
+                      {
+                        description: "Template Message",
+                        type: "object",
+                        properties: {
+                          version: { const: "1" },
+                          type: { const: "data" },
+                          kind: { const: "template" },
+                          data: {
+                            type: "object",
+                            properties: {
+                              name: { type: "string" },
+                              language: {
+                                type: "object",
+                                properties: {
+                                  code: { type: "string" },
+                                  policy: { const: "deterministic" }
+                                },
+                                required: ["code"]
+                              },
+                              components: { type: "array" }
+                            },
+                            required: ["name", "language"]
+                          }
+                        },
+                        required: ["type", "kind", "data"]
+                      }
+                    ]
+                  },
                   account_phone: { type: "string", description: "Account phone (required if >1 account)" },
                 },
-                required: ["contact_phone", "text"],
-              },
-              outputSchema: {
-                type: "object",
-                properties: {
-                  status: { type: "string", enum: ["sent", "error"] },
-                },
+                required: ["contact_phone", "content"],
               },
             },
           ],
@@ -219,41 +233,93 @@ app.post("/mcp/messages", async (c) => {
         }
 
         // Dispatch tools
-        switch (params.name) {
-          case "list_conversations":
-            result = await tools.listConversations(supabase, orgId, params.arguments?.limit);
-            break;
-          case "get_conversation":
-            result = await tools.getConversation(
-              supabase,
-              orgId,
-              params.arguments?.contact_phone,
-              params.arguments?.limit,
-              params.arguments?.account_phone
-            );
-            break;
-          case "search_contacts":
-            result = await tools.searchContacts(
-              supabase,
-              orgId,
-              params.arguments?.name,
-              params.arguments?.number
-            );
-            break;
-          case "list_accounts":
-            result = await tools.listAccounts(supabase, orgId);
-            break;
-          case "send_message":
-            result = await tools.sendMessage(
-              supabase,
-              orgId,
-              params.arguments?.contact_phone,
-              params.arguments?.text,
-              params.arguments?.account_phone
-            );
-            break;
-          default:
-            throw new Error(`Unknown tool: ${params.name}`);
+        try {
+          switch (params.name) {
+            case "list_conversations":
+              result = await tools.listConversations({
+                supabase,
+                orgId,
+                limit: params.arguments?.limit,
+                accountPhone: params.arguments?.account_phone,
+                allowedAccounts,
+                allowedContacts
+              });
+              break;
+
+            case "fetch_conversation":
+              result = await tools.fetchConversation({
+                supabase,
+                orgId,
+                contactPhone: params.arguments?.contact_phone,
+                limit: params.arguments?.limit,
+                accountPhone: params.arguments?.account_phone,
+                allowedAccounts,
+                allowedContacts
+              });
+              break;
+
+            case "search_contacts":
+              result = await tools.searchContacts({
+                supabase,
+                orgId,
+                name: params.arguments?.name,
+                number: params.arguments?.number,
+                allowedContacts
+              });
+              break;
+
+            case "list_accounts":
+              result = await tools.listAccounts({
+                supabase,
+                orgId,
+                allowedAccounts
+              });
+              break;
+
+            case "send_message":
+              result = await tools.sendMessage({
+                supabase,
+                orgId,
+                content: params.arguments?.content,
+                contactPhone: params.arguments?.contact_phone,
+                accountPhone: params.arguments?.account_phone,
+                allowedAccounts,
+                allowedContacts
+              });
+              break;
+
+            // Template Tools
+            case "list_templates":
+              result = await tools.listTemplates({
+                supabase,
+                orgId,
+                accountPhone: params.arguments?.account_phone,
+                allowedAccounts
+              });
+              break;
+
+            case "fetch_template":
+              result = await tools.fetchTemplateDetails({
+                supabase,
+                orgId,
+                templateId: params.arguments?.template_id,
+                accountPhone: params.arguments?.account_phone,
+                allowedAccounts
+              });
+              break;
+
+            default:
+              throw new Error(`Unknown tool: ${params.name}`);
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          result = {
+            isError: true,
+            content: [{
+              type: "text",
+              text: `Error: ${errorMessage}`
+            }]
+          };
         }
         break;
 
