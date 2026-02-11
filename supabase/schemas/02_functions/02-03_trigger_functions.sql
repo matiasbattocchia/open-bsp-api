@@ -372,6 +372,7 @@ $$;
 
 create function public.notify_webhook() returns trigger
 language plpgsql
+security definer
 set search_path = ''
 as $$
 declare
