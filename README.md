@@ -53,14 +53,23 @@ Interpret and extract information from media and document files, including:
 - PDF
 - Other text-based documents (CSV, HTML, TXT, etc.)
 
-<!--
 ### MCP server
 
-The `mcp` module utilizes an MCP server to provide agentic access to the API.
-For instance, you can send messages directly from clients like Claude Desktop or
-other agent platforms. In addition, most built-in tools—such as SQL, HTTP, and
-calculator—are also made available through the MCP server.
--->
+The `mcp` Edge Function exposes an [MCP](https://modelcontextprotocol.io) server over SSE, giving agentic access to the WhatsApp API from clients like Claude Desktop or other agent platforms.
+
+Authentication uses the `Authorization: Bearer <API_KEY>` header. Optionally, `Allowed-Contacts` and `Allowed-Accounts` headers restrict which phone numbers the key can access.
+
+Available tools:
+
+| Tool | Description |
+|------|-------------|
+| `list_accounts` | List connected WhatsApp accounts |
+| `list_conversations` | Get recent active conversations |
+| `fetch_conversation` | Fetch messages and service window status for a contact |
+| `search_contacts` | Find contacts by name or phone number |
+| `send_message` | Send a text or template message (enforces 24h service window) |
+| `list_templates` | List available WhatsApp templates |
+| `fetch_template` | Fetch details of a specific template |
 
 ## Deployment
 

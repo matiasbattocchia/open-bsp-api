@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, IncomingStatus, OutgoingStatus, OutgoingMessage, MessageRow } from "../_shared/supabase.ts";
+import type { Database, IncomingStatus, OutgoingStatus, OutgoingMessage, MessageRow, TemplateData } from "../_shared/supabase.ts";
 import dayjs from "dayjs";
-import { fetchTemplates, fetchTemplate } from "../whatsapp-management/templates.ts";
+import { listTemplates as listTemplatesMethod, fetchTemplate as fetchTemplateMethod } from "../whatsapp-management/templates.ts";
 
 // Helper: Normalize phone number to digits only
 function normalizePhone(phone: string): string {
@@ -120,6 +120,7 @@ export async function listConversations(params: ListConversationsParams) {
   const accountPhone = params.accountPhone ? normalizePhone(params.accountPhone) : undefined;
   const allowedAccounts = params.allowedAccounts;
   const allowedContacts = params.allowedContacts;
+  const limit = params.limit || 10;
 
   const account = await resolveAccount({
     supabase: params.supabase,
@@ -128,34 +129,59 @@ export async function listConversations(params: ListConversationsParams) {
     allowedAccounts
   });
 
-  let convQuery = params.supabase
+  // Query 1: Get recent messages to find active conversation IDs
+  // Fetch enough messages to likely cover `limit` unique conversations
+  let recentQuery = params.supabase
+    .from("messages")
+    .select("conversation_id")
+    .eq("organization_id", params.orgId)
+    .eq("organization_address", account.address)
+    .eq("service", "whatsapp")
+    .order("timestamp", { ascending: false })
+    .limit(limit * 20); // Fetch extra to account for multiple messages per conversation
+
+  if (allowedContacts.length) {
+    recentQuery = recentQuery.in("contact_address", allowedContacts);
+  }
+
+  const { data: recentMessages } = await recentQuery.throwOnError();
+
+  // Dedupe conversation IDs preserving order (most recent first)
+  const conversationIds = [...new Set((recentMessages || []).map((m) => m.conversation_id))].slice(0, limit);
+
+  if (conversationIds.length === 0) {
+    return {
+      account: { name: account.name, phone: account.address },
+      conversations: []
+    };
+  }
+
+  // Query 2: Fetch full conversation data for the selected IDs
+  const { data: conversations } = await params.supabase
     .from("conversations")
     .select(`
       *,
       messages(*),
       contact_address:contacts_addresses(*, contact:contacts(*))
     `)
-    .eq("organization_id", params.orgId)
-    .eq("organization_address", account.address)
-    .eq("service", "whatsapp")
+    .in("id", conversationIds)
     .eq("status", "active")
-    .order("messages(timestamp)", { ascending: false }) // sort convs by messages
-    .order("timestamp", { referencedTable: "messages", ascending: false }) // also sort messages
-    .limit(params.limit || 10)
-    .limit(10, { referencedTable: "messages" }) // get the last 10 messages for the unread count
+    .order("timestamp", { referencedTable: "messages", ascending: false })
+    .limit(10, { referencedTable: "messages" })
+    .throwOnError();
 
-  if (allowedContacts.length) {
-    convQuery = convQuery.in("contact_address", allowedContacts);
-  }
-
-  const { data: conversations } = await convQuery.throwOnError();
+  // Sort by the original order from query 1
+  const idOrder = new Map(conversationIds.map((id, i) => [id, i]));
+  const sortedConversations = conversations.sort(
+    (a, b) => (idOrder.get(a.id) ?? 999) - (idOrder.get(b.id) ?? 999)
+  );
 
   return {
     account: {
       name: account.name,
-      phone: account.address
+      phone: account.address,
     },
-    conversations: conversations.map((c) => ({
+    conversations: sortedConversations.map((c) => ({
       contact: {
         name: c.contact_address?.contact?.name || c.contact_address?.extra?.name || "Unknown",
         phone: c.contact_address?.address
@@ -274,31 +300,32 @@ export async function searchContacts(params: SearchContactsParams) {
     throw new Error("One of 'name' or 'number' is required");
   }
 
-  let dbQuery = params.supabase
+  const select = params.name
+    ? "phone:address, contact:contacts!inner(name)"
+    : "phone:address, contact:contacts(name)";
+
+  let query = params.supabase
     .from("contacts_addresses")
-    .select(`
-      *,
-      contact:contacts(*)
-    `)
+    .select(select)
     .eq("organization_id", params.orgId)
     .eq("service", "whatsapp")
     .eq("status", "active");
 
   if (allowedContacts.length) {
-    dbQuery = dbQuery.in("address", allowedContacts);
+    query = query.in("address", allowedContacts);
   }
 
   if (number) {
-    dbQuery = dbQuery.like("address", `%${number}%`);
+    query = query.like("address", `%${number}%`);
   }
 
   if (params.name) {
-    dbQuery = dbQuery.or(`contact.name.ilike.%${params.name}%,extra.name.ilike.%${params.name}%`);
+    query = query.ilike("contacts.name", `%${params.name}%`);
   }
 
-  const { data: results } = await dbQuery.throwOnError();
+  const { data: contacts } = await query.throwOnError();
 
-  return { contacts: results.map(r => ({ name: r.contact?.name || r.extra?.name, phone: r.address })) };
+  return { contacts: contacts.map(c => ({ name: c.contact?.name, phone: c.phone })) };
 }
 
 interface ListAccountsParams {
@@ -310,14 +337,18 @@ interface ListAccountsParams {
 export async function listAccounts(params: ListAccountsParams) {
   const allowedAccounts = params.allowedAccounts;
 
-  const { data: accounts } = await params.supabase
+  let query = params.supabase
     .from("organizations_addresses")
     .select("phone:extra->>phone_number, name:extra->>verified_name")
     .eq("organization_id", params.orgId)
     .eq("service", "whatsapp")
-    .eq("status", "connected")
-    .in("extra->>phone_number", allowedAccounts)
-    .throwOnError();
+    .eq("status", "connected");
+
+  if (allowedAccounts.length) {
+    query = query.in("extra->>phone_number", allowedAccounts);
+  }
+
+  const { data: accounts } = await query.throwOnError();
 
   return { accounts };
 }
@@ -415,10 +446,10 @@ export async function listTemplates(params: ListTemplatesParams) {
     allowedAccounts
   });
 
-  const templates = await fetchTemplates(params.supabase, params.orgId, account.address);
+  const templates = await listTemplatesMethod(params.supabase, params.orgId, account.address);
 
   return {
-    templates: templates.map(t => ({
+    templates: templates.map((t: TemplateData) => ({
       id: t.id,
       name: t.name,
       status: t.status,
@@ -436,7 +467,7 @@ interface FetchTemplateDetailsParams {
   allowedAccounts: string[];
 }
 
-export async function fetchTemplateDetails(params: FetchTemplateDetailsParams) {
+export async function fetchTemplate(params: FetchTemplateDetailsParams) {
   const accountPhone = params.accountPhone ? normalizePhone(params.accountPhone) : undefined;
   const allowedAccounts = params.allowedAccounts;
 
@@ -447,7 +478,7 @@ export async function fetchTemplateDetails(params: FetchTemplateDetailsParams) {
     allowedAccounts
   });
 
-  const t = await fetchTemplate(params.supabase, params.orgId, params.templateId, account.address);
+  const t = await fetchTemplateMethod(params.supabase, params.orgId, account.address, { id: params.templateId } as TemplateData);
 
   return {
     id: t.id,

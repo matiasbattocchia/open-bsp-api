@@ -1,3 +1,5 @@
+drop policy "owners can read their orgs api keys" on "public"."api_keys";
+
 alter table "public"."organizations_addresses" alter column "status" set default 'connected'::text;
 
 CREATE INDEX organizations_addresses_phone_number_idx ON public.organizations_addresses USING btree (((extra ->> 'phone_number'::text))) WHERE (service = 'whatsapp'::public.service);
@@ -52,5 +54,14 @@ begin
 end;
 $function$
 ;
+
+
+  create policy "owners can read their orgs api keys"
+  on "public"."api_keys"
+  as permissive
+  for select
+  to authenticated, anon
+using (((key = ((current_setting('request.headers'::text, true))::json ->> 'api-key'::text)) OR (organization_id IN ( SELECT public.get_authorized_orgs('owner'::public.role) AS get_authorized_orgs))));
+
 
 

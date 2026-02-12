@@ -21,7 +21,7 @@
 
 ---
 
-- [ ] Revisit whatsapp-management security
+- [x] Revisit whatsapp-management security
 
 - [x] Sanitize tool names 
 

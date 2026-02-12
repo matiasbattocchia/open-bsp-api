@@ -3,7 +3,6 @@ import { cors } from "jsr:@hono/hono/cors";
 import { streamSSE } from "jsr:@hono/hono/streaming";
 import { createApiClient, type Database } from "../_shared/supabase.ts";
 import * as log from "../_shared/logger.ts";
-import { validateApiKey } from "./auth.ts";
 import * as tools from "./tools.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -20,9 +19,29 @@ const app = new Hono<{ Variables: Variables }>();
 app.use("*", cors());
 
 // Auth middleware - validates API key and sets context variables
-app.use("/mcp/*", async (c, next) => {
+app.use("*", async (c, next) => {
   try {
-    const apiKeyData = await validateApiKey(c.req.raw);
+    const supabase = createApiClient(c.req.raw);
+
+    c.set("supabase", supabase);
+
+    const token = c.req.header("Authorization")!.replace("Bearer ", "");
+
+    const { data: apiKey, error: apiKeyError } = await supabase
+      .from("api_keys")
+      .select("organization_id")
+      .eq("key", token)
+      .maybeSingle();
+
+    if (apiKeyError || !apiKey) {
+      const message = `API key ${token} not authorized`;
+
+      log.error(message, apiKeyError);
+
+      return c.json({ error: message }, 403);
+    }
+
+    c.set("orgId", apiKey.organization_id);
 
     // Parse allowed headers
     const allowedContactsHeader = c.req.header("Allowed-Contacts");
@@ -34,12 +53,12 @@ app.use("/mcp/*", async (c, next) => {
     c.set("allowedContacts", allowedContacts);
     c.set("allowedAccounts", allowedAccounts);
 
-    c.set("orgId", apiKeyData.organization_id);
-    c.set("supabase", createApiClient(apiKeyData.key));
-
     await next();
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Authentication failed";
+
+    log.error(message, err);
+
     return c.json({ error: message }, 401);
   }
 });
@@ -299,7 +318,7 @@ app.post("/mcp/messages", async (c) => {
               break;
 
             case "fetch_template":
-              result = await tools.fetchTemplateDetails({
+              result = await tools.fetchTemplate({
                 supabase,
                 orgId,
                 templateId: params.arguments?.template_id,

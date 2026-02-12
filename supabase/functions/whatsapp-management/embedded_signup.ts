@@ -1,7 +1,7 @@
 import * as log from "../_shared/logger.ts";
 import { HTTPException } from "jsr:@hono/hono/http-exception";
 import type { createClient } from "../_shared/supabase.ts";
-import { ContentfulStatusCode } from "@hono/hono/utils/http-status";
+import { ContentfulStatusCode } from "jsr:@hono/hono/utils/http-status";
 
 const API_VERSION = "v24.0";
 const APP_ID = Deno.env.get("META_APP_ID");

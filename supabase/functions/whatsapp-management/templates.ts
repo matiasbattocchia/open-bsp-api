@@ -1,13 +1,13 @@
-import type { TemplateData } from "../_shared/supabase.ts";
+import type { Database, TemplateData } from "../_shared/supabase.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import * as log from "../_shared/logger.ts";
 import { HTTPException } from "jsr:@hono/hono/http-exception";
-import { ContentfulStatusCode } from "@hono/hono/utils/http-status";
+import { ContentfulStatusCode } from "jsr:@hono/hono/utils/http-status";
 
 const API_VERSION = "v24.0";
 
-export async function getBusinessCredentials(
-  client: SupabaseClient,
+async function getBusinessCredentials(
+  client: SupabaseClient<Database>,
   organization_id: string,
   organization_address: string,
 ): Promise<{ waba_id: string; access_token: string }> {
@@ -18,7 +18,7 @@ export async function getBusinessCredentials(
     .eq("address", organization_address)
     .single();
 
-  if (error) {
+  if (error || !data) {
     log.error("Could not fetch business access token", error);
     throw new HTTPException(403, {
       message: "Could not fetch business access token",
@@ -29,10 +29,13 @@ export async function getBusinessCredentials(
   return data;
 }
 
-export async function fetchTemplates(
-  waba_id: string,
-  access_token: string,
+export async function listTemplates(
+  client: SupabaseClient<Database>,
+  organization_id: string,
+  organization_address: string,
 ): Promise<TemplateData[]> {
+  const { waba_id, access_token } = await getBusinessCredentials(client, organization_id, organization_address);
+
   const response = await fetch(
     `https://graph.facebook.com/${API_VERSION}/${waba_id}/message_templates`,
     {
@@ -51,16 +54,46 @@ export async function fetchTemplates(
   return await response.json();
 }
 
+export async function fetchTemplate(
+  client: SupabaseClient<Database>,
+  organization_id: string,
+  organization_address: string,
+  template: TemplateData,
+): Promise<TemplateData> {
+  const { access_token } = await getBusinessCredentials(client, organization_id, organization_address);
+
+  const response = await fetch(
+    `https://graph.facebook.com/${API_VERSION}/${template.id}`,
+    {
+      method: "GET",
+      headers: { Authorization: `Bearer ${access_token}` },
+    },
+  );
+
+  if (!response.ok) {
+    throw new HTTPException(response.status as any, {
+      message: "Could not fetch template",
+      cause: await response.json().catch(() => ({})),
+    });
+  }
+
+  return await response.json();
+}
+
 export async function createTemplate(
-  waba_id: string,
-  access_token: string,
+  client: SupabaseClient<Database>,
+  organization_id: string,
+  organization_address: string,
   template: TemplateData,
 ): Promise<{
   id: string;
   status: string;
   category: string;
 }> {
+  const { waba_id, access_token } = await getBusinessCredentials(client, organization_id, organization_address);
+
   const { name, category, language, components } = template;
+
   const filteredTemplate = {
     name,
     category,
@@ -68,8 +101,6 @@ export async function createTemplate(
     language,
     components,
   };
-
-  console.log(filteredTemplate);
 
   const response = await fetch(
     `https://graph.facebook.com/${API_VERSION}/${waba_id}/message_templates`,
@@ -94,11 +125,15 @@ export async function createTemplate(
 }
 
 export async function editTemplate(
-  access_token: string,
+  client: SupabaseClient<Database>,
+  organization_id: string,
+  organization_address: string,
   template: TemplateData,
 ): Promise<{
   success: boolean;
 }> {
+  const { access_token } = await getBusinessCredentials(client, organization_id, organization_address);
+
   const { category, components } = template;
   const filteredTemplate = { category, components };
 
@@ -125,12 +160,15 @@ export async function editTemplate(
 }
 
 export async function deleteTemplate(
-  waba_id: string,
-  access_token: string,
+  client: SupabaseClient<Database>,
+  organization_id: string,
+  organization_address: string,
   template: TemplateData,
 ): Promise<{
   success: boolean;
 }> {
+  const { waba_id, access_token } = await getBusinessCredentials(client, organization_id, organization_address);
+
   const response = await fetch(
     `https://graph.facebook.com/${API_VERSION}/${waba_id}/message_templates?name=${template.name}`,
     {

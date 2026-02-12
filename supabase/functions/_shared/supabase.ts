@@ -1301,6 +1301,8 @@ export type AgentRow = Database["public"]["Tables"]["agents"]["Row"];
 export type OrganizationAddressRow =
   Database["public"]["Tables"]["organizations_addresses"]["Row"];
 
+export type ApiKeyRow = Database["public"]["Tables"]["api_keys"]["Row"];
+
 export function createClient(req: Request) {
   if (!Deno.env.get("SUPABASE_URL")) {
     throw new Error("Undefined SUPABASE_URL env var.");
@@ -1310,6 +1312,18 @@ export function createClient(req: Request) {
     throw new Error("Undefined SUPABASE_ANON_KEY env var.");
   }
 
+  const authHeader = req.headers.get("Authorization");
+
+  if (!authHeader) {
+    throw new Error("Missing Authorization header");
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  if (!token) {
+    throw new Error("Invalid Authorization header format");
+  }
+
   return createClientBase<Database>(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_ANON_KEY")!,
@@ -1317,14 +1331,14 @@ export function createClient(req: Request) {
       auth: { persistSession: false },
       global: {
         headers: {
-          Authorization: req.headers.get("Authorization") || "",
+          Authorization: `Bearer ${token}`,
         },
       },
     },
   );
 }
 
-export function createApiClient(token?: string) {
+export function createApiClient(req: Request) {
   if (!Deno.env.get("SUPABASE_URL")) {
     throw new Error("Undefined SUPABASE_URL env var.");
   }
@@ -1333,6 +1347,18 @@ export function createApiClient(token?: string) {
     throw new Error("Undefined SUPABASE_ANON_KEY env var.");
   }
 
+  const authHeader = req.headers.get("Authorization");
+
+  if (!authHeader) {
+    throw new Error("Missing Authorization header");
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  if (!token) {
+    throw new Error("Invalid Authorization header format");
+  }
+
   return createClientBase<Database>(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_ANON_KEY")!,
@@ -1340,7 +1366,7 @@ export function createApiClient(token?: string) {
       auth: { persistSession: false },
       global: {
         headers: {
-          "api-key": token || "",
+          "api-key": token,
         },
       },
     },
