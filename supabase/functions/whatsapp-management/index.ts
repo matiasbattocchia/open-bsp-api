@@ -133,6 +133,9 @@ function requireRoles(
           cause: agentError,
         });
       }
+
+      await next();
+      return;
     }
 
     const apiKey = c.get("apiKey")!;
