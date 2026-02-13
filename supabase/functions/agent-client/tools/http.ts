@@ -41,7 +41,7 @@
 
 import * as z from "zod";
 import ky from "ky";
-import type { RequestContext } from "../protocols/base.ts";
+import { contextHeaders, type RequestContext } from "../protocols/base.ts";
 import type { LocalHTTPToolConfig } from "../../_shared/supabase.ts";
 import type { ToolDefinition } from "./base.ts";
 
@@ -71,7 +71,7 @@ export const RequestToolOutputSchema = z.union([
 export async function requestToolImplementation(
   input: z.infer<typeof RequestToolInputSchema>,
   config: LocalHTTPToolConfig["config"],
-  _context: RequestContext,
+  context: RequestContext,
 ): Promise<z.infer<typeof RequestToolOutputSchema>> {
   // TODO: $context.conversation.contact_address value-like replacement
 
@@ -110,7 +110,7 @@ export async function requestToolImplementation(
 
   const response = await ky(input.url, {
     method: input.method,
-    headers: { ...input.headers, ...config.headers },
+    headers: { ...contextHeaders(context), ...input.headers, ...config.headers },
     json: input.body,
   });
 

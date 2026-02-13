@@ -21,7 +21,7 @@ import type {
   Tool,
 } from "npm:@modelcontextprotocol/sdk/types.js";
 import type { Json } from "../../_shared/db_types.ts";
-import { RequestContext } from "../protocols/base.ts";
+import { contextHeaders, type RequestContext } from "../protocols/base.ts";
 
 export type MCPServer = {
   label: string;
@@ -29,17 +29,27 @@ export type MCPServer = {
   tools: Tool[];
 };
 
-export async function initMCP(tool: LocalMCPToolConfig): Promise<MCPServer> {
+export async function initMCP(tool: LocalMCPToolConfig, context?: RequestContext): Promise<MCPServer> {
   const client = new Client({
     name: tool.label,
     version: "1.0",
   });
 
+  const headers = {
+    ...(context && contextHeaders(context)),
+    ...tool.config.headers,
+  };
+
+  // When running locally, the Edge Runtime executes in a containerized environment isolated from the host.
+  // 'localhost' refers to the container itself, not the host machine where the Supabase stack is running.
+  // We replace it with the internal API gateway URL to access sibling services (like Kong).
+  tool.config.url = tool.config.url.replace("http://localhost:54321", "http://api.supabase.internal:8000");
+
   const transport = new StreamableHTTPClientTransport(
     new URL(tool.config.url),
     {
-      ...(tool.config.headers && {
-        requestInit: { headers: tool.config.headers },
+      ...(Object.keys(headers).length > 0 && {
+        requestInit: { headers },
       }),
     }
   );

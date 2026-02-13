@@ -16,10 +16,11 @@ import type {
   ToolEventInfo,
   ToolInfo,
 } from "../../_shared/supabase.ts";
-import type {
-  AgentProtocolHandler,
-  RequestContext,
-  ResponseContext,
+import {
+  contextHeaders,
+  type AgentProtocolHandler,
+  type RequestContext,
+  type ResponseContext,
 } from "./base.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AgentTool } from "../index.ts";
@@ -391,14 +392,7 @@ export class ChatCompletionsHandler
       apiKey,
       timeout: 30000, // 30 seconds
       maxRetries: 2,
-      defaultHeaders: {
-        "organization-id": this.context.organization.id,
-        "organization-address": this.context.conversation.organization_address,
-        "conversation-id": this.context.conversation.id,
-        "agent-id": this.context.agent.id,
-        "contact-id": this.context.contact?.id,
-        "contact-address": this.context.conversation.contact_address,
-      },
+      defaultHeaders: contextHeaders(this.context),
     });
 
     let response;

@@ -506,7 +506,7 @@ Deno.serve(async (req) => {
       ) || [];
 
       const mcpServersAux = await Promise.all(
-        mcpServersToInit.map((tool) => initMCP(tool as LocalMCPToolConfig)),
+        mcpServersToInit.map((tool) => initMCP(tool as LocalMCPToolConfig, context)),
       );
 
       mcpServersAux.forEach((mcp) => {
