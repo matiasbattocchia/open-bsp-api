@@ -664,7 +664,10 @@ Deno.serve(async (req) => {
           let input: string | Json = row.content.text;
 
           const ajv = new Ajv2020();
-          const schema = agentTool.inputSchema;
+          // Strip $schema since MCP SDK (via Zod) produces draft-07 schemas,
+          // but Ajv is imported as the 2020-12 build and rejects unknown drafts.
+          // deno-lint-ignore no-explicit-any
+          const { $schema: _, ...schema } = agentTool.inputSchema as any;
 
           input = JSON.parse(input);
 

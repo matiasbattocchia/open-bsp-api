@@ -151,7 +151,7 @@ export async function listConversations(params: ListConversationsParams) {
 
   if (conversationIds.length === 0) {
     return {
-      account: { name: account.name, phone: account.address },
+      account: { name: account.name, phone: account.phone },
       conversations: []
     };
   }
@@ -179,7 +179,7 @@ export async function listConversations(params: ListConversationsParams) {
   return {
     account: {
       name: account.name,
-      phone: account.address,
+      phone: account.phone,
     },
     conversations: sortedConversations.map((c) => ({
       contact: {
@@ -248,6 +248,8 @@ export async function fetchConversation(params: FetchConversationParams) {
   }
 
   // Service Window Logic
+  // Note: uses only the fetched messages (limited by `limit` param),
+  // so it may report "closed" if the last incoming is outside the window.
   const lastIncoming = conversation.messages?.findLast(m => m.direction === 'incoming')
 
   let serviceWindow = "closed";
@@ -289,16 +291,13 @@ interface SearchContactsParams {
   orgId: string;
   name?: string;
   number?: string;
+  limit?: number;
   allowedContacts: string[];
 }
 
 export async function searchContacts(params: SearchContactsParams) {
   const number = params.number ? normalizePhone(params.number) : undefined;
   const allowedContacts = params.allowedContacts;
-
-  if (!params.name && !number) {
-    throw new Error("One of 'name' or 'number' is required");
-  }
 
   const select = params.name
     ? "phone:address, contact:contacts!inner(name)"
@@ -323,7 +322,7 @@ export async function searchContacts(params: SearchContactsParams) {
     query = query.ilike("contacts.name", `%${params.name}%`);
   }
 
-  const { data: contacts } = await query.throwOnError();
+  const { data: contacts } = await query.limit(params.limit || 10).throwOnError();
 
   return { contacts: contacts.map(c => ({ name: c.contact?.name, phone: c.phone })) };
 }
