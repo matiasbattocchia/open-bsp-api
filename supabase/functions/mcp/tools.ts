@@ -137,6 +137,7 @@ export async function listConversations(params: ListConversationsParams) {
     .eq("organization_id", params.orgId)
     .eq("organization_address", account.address)
     .eq("service", "whatsapp")
+    .neq("direction", "internal")
     .order("timestamp", { ascending: false })
     .limit(limit * 20); // Fetch extra to account for multiple messages per conversation
 
@@ -166,6 +167,7 @@ export async function listConversations(params: ListConversationsParams) {
     `)
     .in("id", conversationIds)
     .eq("status", "active")
+    .neq("messages.direction", "internal")
     .order("timestamp", { referencedTable: "messages", ascending: false })
     .limit(10, { referencedTable: "messages" })
     .throwOnError();
@@ -236,6 +238,7 @@ export async function fetchConversation(params: FetchConversationParams) {
     .eq("organization_address", account.address)
     .eq("service", "whatsapp")
     .eq("status", "active")
+    .neq("messages.direction", "internal")
     .order("created_at", { ascending: false })
     .order("timestamp", { ascending: false, referencedTable: "messages" })
     .limit(1)
