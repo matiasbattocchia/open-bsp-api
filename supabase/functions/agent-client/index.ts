@@ -20,7 +20,6 @@ import { callTool, initMCP, type MCPServer } from "./tools/mcp.ts";
 import { Toolbox } from "./tools/index.ts";
 import { z } from "zod";
 import Ajv2020 from "ajv";
-import type { Json } from "../_shared/db_types.ts";
 import type { AgentRowWithExtra, ResponseContext } from "./protocols/base.ts";
 import { TransferToHumanAgentTool } from "./tools/handoff.ts";
 import { AttachFileTool } from "./tools/attachment.ts";
@@ -413,7 +412,7 @@ Deno.serve(async (req) => {
   const mcpServers: Map<string, MCPServer> = new Map();
 
   let iteration = 0;
-  const max_iterations = 5;
+  const max_iterations = 10;
   let shouldContinue = true;
 
   // Basic ReAct algorithm: stop if no tool uses are found.
@@ -661,15 +660,13 @@ Deno.serve(async (req) => {
             );
           }
 
-          let input: string | Json = row.content.text;
-
           const ajv = new Ajv2020();
           // Strip $schema since MCP SDK (via Zod) produces draft-07 schemas,
           // but Ajv is imported as the 2020-12 build and rejects unknown drafts.
           // deno-lint-ignore no-explicit-any
           const { $schema: _, ...schema } = agentTool.inputSchema as any;
 
-          input = JSON.parse(input);
+          const args = JSON.parse(row.content.text);
 
           // When JSON parsing is done, the message is converted to a data part.
           row.content = {
@@ -678,10 +675,10 @@ Deno.serve(async (req) => {
             tool: toolInfo,
             type: "data",
             kind: "data",
-            data: input,
+            data: args,
           };
 
-          const valid = ajv.validate(schema, input);
+          const valid = ajv.validate(schema, args);
 
           if (!valid) {
             throw new Error(
@@ -692,7 +689,7 @@ Deno.serve(async (req) => {
           switch (toolInfo.type) {
             case "custom":
             case "function": {
-              const result = await agentTool.implementation(input);
+              const result = await agentTool.implementation(args);
 
               parts = [
                 {
@@ -749,7 +746,7 @@ Deno.serve(async (req) => {
             case "http":
             case "sql": {
               const result = await agentTool.implementation(
-                input,
+                args,
                 agentTool.config,
                 context,
                 client,

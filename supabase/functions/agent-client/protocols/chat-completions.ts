@@ -318,6 +318,8 @@ export class ChatCompletionsHandler
       content = agent.extra.instructions + "\n\n" + content;
     }
 
+    log.info("Instructions:", content);
+
     chatCompletionMessages.unshift({
       role: "system",
       content,
