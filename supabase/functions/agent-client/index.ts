@@ -141,8 +141,16 @@ Deno.serve(async (req) => {
       contact_address.extra = {};
     }
 
-    if (contact) {
-      contact.name ||= contact_address.extra.name || null;
+    if (!contact && contact_address.extra.name) {
+      contact = {
+        name: contact_address.extra.name,
+      } as ContactRow;
+    }
+  }
+
+  if (contact) {
+    if (!contact.extra) {
+      contact.extra = {};
     }
   }
 

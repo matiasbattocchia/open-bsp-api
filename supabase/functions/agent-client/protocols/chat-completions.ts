@@ -305,10 +305,10 @@ export class ChatCompletionsHandler
     const chatCompletionMessages = this.mergeToolUseMessages(messages);
 
     const context = {
-      now: dayjs().utc().format("dddd, YYYY-MM-DD HH:mm [UTC]"),
+      now: dayjs.utc().format("dddd, YYYY-MM-DD HH:mm [UTC]"),
       user: {
         name: this.context.contact?.name,
-        phone: "+" + this.context.conversation.contact_address
+        phone: this.context.conversation.contact_address ? "+" + this.context.conversation.contact_address : undefined
       }
     }
 
@@ -317,8 +317,6 @@ export class ChatCompletionsHandler
     if (agent.extra.instructions) {
       content = agent.extra.instructions + "\n\n" + content;
     }
-
-    log.info("Instructions:", content);
 
     chatCompletionMessages.unshift({
       role: "system",
