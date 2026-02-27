@@ -69,10 +69,11 @@ const MEDIA_PREPROCESSING_POLLING_INTERVAL = 5 * 1000; // 5 seconds
  *  agent will get the conversation history in the correct order.
  */
 
-function getNewestMessage(incoming: MessageRow, messages: MessageRow[]) {
+function getNewestIncomingMessage(incoming: MessageRow, messages: MessageRow[]) {
   const incomingCreatedAt = new Date(incoming.created_at);
 
   const sortedMessages = messages
+    .filter((m) => m.direction === "incoming")
     .filter((m) => new Date(m.created_at) >= incomingCreatedAt)
     .sort((a, b) => {
       const dateA = +new Date(a.created_at);
@@ -221,7 +222,7 @@ Deno.serve(async (req) => {
   messages.reverse();
 
   // CHECK IF THERE IS A NEWER MESSAGE
-  const newestMessage = getNewestMessage(incoming, messages);
+  const newestMessage = getNewestIncomingMessage(incoming, messages);
 
   if (newestMessage.id !== incoming.id) {
     // Then the newest message is not the incoming one that triggered this edge function.
@@ -482,21 +483,22 @@ Deno.serve(async (req) => {
         }
       }
 
-      // CHECK IF THERE IS A NEWER MESSAGE (posterior to the incoming one)
+      // CHECK IF THERE IS A NEWER INCOMING MESSAGE (posterior to the incoming one)
 
-      const { data: new_messages_v0 } = await client
+      const { data: new_message } = await client
         .from("messages")
         .select()
         .eq("conversation_id", incoming.conversation_id)
-        .gt("created_at", incoming.created_at) // Time constraint for the conversation.
-        .lte("timestamp", new Date().toISOString()) // Scheduled messages have a future timestamp.
-        .neq("agent_id", agent.id) // Messages from the same agent are not considered.
+        .eq("direction", "incoming")
+        .gt("created_at", incoming.created_at)
+        .order("created_at", { ascending: true })
         .limit(1)
+        .maybeSingle()
         .throwOnError();
 
-      if (new_messages_v0.length) {
+      if (new_message) {
         log.info(
-          `Newer message for conversation ${conv.id} found while waiting for pending preprocessing. Skipping response.`,
+          `Newer message ${new_message.id} for conversation ${conv.id} found while processing tool use messages and/or waiting for pending preprocessing. Skipping response.`,
         );
 
         return new Response("ok", { headers: corsHeaders });
@@ -542,8 +544,6 @@ Deno.serve(async (req) => {
         if (toolConfig.provider !== "local") {
           continue;
         }
-
-        // TODO: allowed tools
 
         switch (toolConfig.type) {
           case "function": {
