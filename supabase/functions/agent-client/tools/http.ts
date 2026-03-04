@@ -46,7 +46,7 @@ import type { LocalHTTPToolConfig } from "../../_shared/supabase.ts";
 import type { ToolDefinition } from "./base.ts";
 
 export const RequestToolInputSchema = z.object({
-  url: z.url(),
+  url: z.string().describe("The request URL"),
   method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]),
   headers: z.record(z.string(), z.string()).optional(),
   body: z
