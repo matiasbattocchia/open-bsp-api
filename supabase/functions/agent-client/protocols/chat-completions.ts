@@ -94,6 +94,7 @@ export class ChatCompletionsHandler
   private context: RequestContext;
   private client: SupabaseClient;
   private FUNCTION_NAME_SEPARATOR = "__";
+  private messagesByExternalId = new Map<string, MessageRow>();
 
   constructor(
     tools: AgentTool[],
@@ -223,10 +224,7 @@ export class ChatCompletionsHandler
     for (const row of messages) {
       const lastParam = messageParams.at(-1);
 
-      const param = this.toChatCompletion(
-        row.agent_id,
-        row.content as Part & ToolInfo,
-      );
+      const param = this.toChatCompletion(row);
 
       if (
         lastParam &&
@@ -252,10 +250,10 @@ export class ChatCompletionsHandler
    * It would be costly to send the same files over and over again during the conversation.
    */
   private toChatCompletion(
-    agentId: string | null | undefined,
-    part: Part & ToolInfo,
+    row: MessageRow,
   ): ChatCompletionMessageParam {
-    const role = agentId === this.context.agent.id ? "assistant" : "user";
+    const part = row.content as Part & ToolInfo;
+    const role = row.agent_id === this.context.agent.id ? "assistant" : "user";
 
     if (part.tool?.provider === "local") {
       if (part.tool.event === "use") {
@@ -323,9 +321,21 @@ export class ChatCompletionsHandler
       }
     }
 
+    let serialized = serializePartAsXML(part);
+
+    if (row.content.re_message_id) {
+      const refMessage = this.messagesByExternalId.get(row.content.re_message_id);
+
+      if (refMessage) {
+        const tag = part.type === "text" && part.kind === "reaction" ? "in-reaction-to" : "in-reply-to";
+        const snippet = serializePartAsXML(refMessage.content as Part & ToolInfo);
+        serialized = `<${tag}>${snippet}</${tag}>\n${serialized}`;
+      }
+    }
+
     return {
       role,
-      content: serializePartAsXML(part),
+      content: serialized,
     };
   }
 
@@ -344,6 +354,13 @@ export class ChatCompletionsHandler
     //messages = this.removeOtherAgentsToolMessages(messages);
     // TODO: remove tool messages of missing tool definitions (this.tools)?
     // They tend to confuse the model with unexpected tool calls.
+    // Build external_id index for reply/reaction context resolution
+    this.messagesByExternalId = new Map(
+      messages
+        .filter((m): m is MessageRow & { external_id: string } => !!m.external_id)
+        .map((m) => [m.external_id, m]),
+    );
+
     messages = this.removeUnpairedToolMessages(messages);
     messages = this.sortToolMessages(messages);
 

@@ -1,4 +1,4 @@
-import type { Part } from "../../_shared/supabase.ts";
+import type { Part, ReferralInfo } from "../../_shared/supabase.ts";
 import { inspect } from "node:util";
 
 /**
@@ -8,12 +8,30 @@ import { inspect } from "node:util";
  *
  * Note: We assume artifacts are only present in file parts, not in text or data parts.
  */
-export function serializePartAsXML(part: Part): string {
+export function serializePartAsXML(part: Part & Partial<ReferralInfo>): string {
   const lines: string[] = [];
+
+  if (part.referral) {
+    lines.push(`<referral>`);
+    if (part.referral.headline) {
+      lines.push(`<headline>${part.referral.headline}</headline>`);
+    }
+    if (part.referral.body) {
+      lines.push(`<body>${part.referral.body}</body>`);
+    }
+    if (part.referral.welcome_message?.text) {
+      lines.push(`<welcome_message>${part.referral.welcome_message.text}</welcome_message>`);
+    }
+    lines.push(`</referral>`);
+  }
 
   switch (part.type) {
     case "text": {
       if (part.kind === "text") {
+        if (lines.length) {
+          lines.push(part.text);
+          break;
+        }
         return part.text;
       }
 
