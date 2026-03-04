@@ -25,11 +25,56 @@ import {
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AgentTool } from "../index.ts";
 import * as log from "../../_shared/logger.ts";
+import { getFileMetadata } from "../../_shared/media.ts";
 import { serializePartAsXML } from "./serializer.ts";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc"
 import { inspect } from "node:util";
 dayjs.extend(utc);
+
+const MULTI_MESSAGE_RESPONSE = true;
+const RESPOND_FUNCTION_NAME = "respond";
+
+const RESPOND_TOOL: ChatCompletionTool = {
+  type: "function",
+  function: {
+    name: RESPOND_FUNCTION_NAME,
+    description: "Default tool. Always call this to send messages to the user, unless you need to call another tool first. Call with an empty messages array to skip responding.",
+    parameters: {
+      type: "object",
+      properties: {
+        messages: {
+          type: "array",
+          items: {
+            anyOf: [
+              {
+                type: "object",
+                properties: {
+                  type: { type: "string", enum: ["text"] },
+                  text: { type: "string" },
+                },
+                required: ["type", "text"],
+                additionalProperties: false,
+              },
+              {
+                type: "object",
+                properties: {
+                  type: { type: "string", enum: ["file"] },
+                  uri: { type: "string", description: "internal:// file URI" },
+                  name: { type: "string" },
+                  text: { type: "string", description: "Optional caption" },
+                },
+                required: ["type", "uri"],
+                additionalProperties: false,
+              },
+            ],
+          },
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+};
 
 export interface ChatCompletionsRequest {
   messages: ChatCompletionMessageParam[];
@@ -323,7 +368,7 @@ export class ChatCompletionsHandler
       content,
     });
 
-    const chatCompletionTools = this.tools.map((tool) => ({
+    const chatCompletionTools: ChatCompletionTool[] = this.tools.map((tool) => ({
       type: "function" as const,
       function: {
         name: ["label" in tool && tool.label, tool.name]
@@ -341,6 +386,10 @@ export class ChatCompletionsHandler
         //strict: true,
       },
     }));
+
+    if (MULTI_MESSAGE_RESPONSE) {
+      chatCompletionTools.push(RESPOND_TOOL);
+    }
 
     return {
       messages: chatCompletionMessages,
@@ -366,12 +415,12 @@ export class ChatCompletionsHandler
       case "anthropic":
         baseURL = "https://api.anthropic.com/v1";
         apiKey ||= Deno.env.get("ANTHROPIC_API_KEY");
-        model ||= "claude-sonnet-4-20250514";
+        model ||= "claude-sonnet-4-6";
         break;
       case "google":
         baseURL = "https://generativelanguage.googleapis.com/v1beta/openai";
         apiKey ||= Deno.env.get("GOOGLE_API_KEY");
-        model ||= "gemini-2.5-flash";
+        model ||= "gemini-3-flash-preview";
         break;
       case "openai":
         // undefined makes OpenAI use the default base URL
@@ -398,7 +447,7 @@ export class ChatCompletionsHandler
     let response;
 
     let retries = 0;
-    const maxRetries = 2;
+    const maxRetries = 3;
 
     while (true) {
       try {
@@ -409,6 +458,7 @@ export class ChatCompletionsHandler
           messages: request.messages,
           // TOOLS
           tools: request.tools.length ? request.tools : undefined,
+          tool_choice: MULTI_MESSAGE_RESPONSE ? "required" : undefined,
           parallel_tool_calls: request.tools.length ? true : undefined,
           // THINKING
           // ts-expect-error
@@ -430,7 +480,7 @@ export class ChatCompletionsHandler
           const messages = [...request.messages];
 
           messages.push({
-            role: "assistant", // Phantom message
+            role: "user", // Phantom message
             content: `Previous request failed with error: ${error.message}`,
           });
 
@@ -452,6 +502,80 @@ export class ChatCompletionsHandler
     };
   }
 
+  private async processRespondCall(
+    respondCall: ChatCompletionMessageToolCall,
+  ): Promise<MessageInsert[]> {
+    const { agent, conversation } = this.context;
+
+    if (respondCall.type !== "function") {
+      return [];
+    }
+
+    const args = JSON.parse(respondCall.function.arguments) as {
+      messages: Array<
+        | { type: "text"; text: string }
+        | { type: "file"; uri: string; name?: string; text?: string }
+      >;
+    };
+
+    if (!args.messages?.length) {
+      log.info("Respond called with empty messages. No response to user.");
+      return [];
+    }
+
+    const outgoing: MessageInsert[] = [];
+
+    for (const msg of args.messages) {
+      if (msg.type === "text") {
+        outgoing.push({
+          organization_id: conversation.organization_id,
+          service: conversation.service,
+          organization_address: conversation.organization_address,
+          contact_address: conversation.contact_address,
+          direction: "outgoing",
+          agent_id: agent.id,
+          content: {
+            version: "1",
+            type: "text",
+            kind: "text",
+            text: msg.text,
+          },
+        });
+      } else if (msg.type === "file") {
+        const file = await getFileMetadata(this.client, msg.uri);
+
+        if (msg.name) {
+          file.name = msg.name;
+        }
+
+        const mimePrefix = file.mime_type.split("/")[0];
+        const kind = (
+          ["audio", "image", "video"].includes(mimePrefix)
+            ? mimePrefix
+            : "document"
+        ) as "audio" | "image" | "video" | "document";
+
+        outgoing.push({
+          organization_id: conversation.organization_id,
+          service: conversation.service,
+          organization_address: conversation.organization_address,
+          contact_address: conversation.contact_address,
+          direction: "outgoing",
+          agent_id: agent.id,
+          content: {
+            version: "1",
+            type: "file",
+            kind,
+            file,
+            text: msg.text,
+          },
+        });
+      }
+    }
+
+    return outgoing;
+  }
+
   async processResponse(
     response: ChatCompletionsResponse,
   ): Promise<ResponseContext> {
@@ -459,6 +583,17 @@ export class ChatCompletionsHandler
     const { agent, conversation } = this.context;
 
     if (finish_reason === "tool_calls" && message.tool_calls?.length) {
+      // Check for the virtual respond tool call
+      const respondCall = message.tool_calls.find(
+        (tc) => tc.type === "function" && tc.function.name === RESPOND_FUNCTION_NAME,
+      );
+
+      if (respondCall) {
+        const messages = await this.processRespondCall(respondCall);
+        return { messages };
+      }
+
+      // Regular tool calls — existing logic
       const taskId = crypto.randomUUID();
 
       const messages = message.tool_calls.map((toolCall): MessageInsert => {
@@ -534,6 +669,10 @@ export class ChatCompletionsHandler
     // TODO: finish reasons: length, content filter
 
     if (finish_reason === "stop" && message.content) {
+      if (MULTI_MESSAGE_RESPONSE) {
+        log.warn("Unexpected stop finish_reason with tool_choice: required. Falling back to text response.");
+      }
+
       return {
         messages: [
           {
