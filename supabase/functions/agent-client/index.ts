@@ -21,8 +21,6 @@ import { Toolbox } from "./tools/index.ts";
 import { z } from "zod";
 import Ajv2020 from "ajv";
 import type { AgentRowWithExtra, ResponseContext } from "./protocols/base.ts";
-import { TransferToHumanAgentTool } from "./tools/handoff.ts";
-import { AttachFileTool } from "./tools/attachment.ts";
 import { getFileMetadata } from "../_shared/media.ts";
 import { type MessageRowV0, toV1 } from "../_shared/messages-v0.ts";
 
@@ -710,33 +708,6 @@ Deno.serve(async (req) => {
                   data: result,
                 },
               ];
-
-              if (toolInfo.name === TransferToHumanAgentTool.name) {
-                shouldContinue = false;
-              }
-
-              // Special case: attach_file tool
-              if (toolInfo.name === AttachFileTool.name && result.file_uri) {
-                const fileMetadata = await getFileMetadata(
-                  client,
-                  result.file_uri,
-                );
-
-                const mimePrefix = fileMetadata.mime_type.split("/")[0];
-
-                const kind = (
-                  ["audio", "image", "video"].includes(mimePrefix)
-                    ? mimePrefix
-                    : "document"
-                ) as "audio" | "image" | "video" | "document";
-
-                parts.push({
-                  type: "file",
-                  kind,
-                  file: fileMetadata,
-                  //text: result.caption,
-                });
-              }
 
               break;
             }
