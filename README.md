@@ -37,8 +37,6 @@ Create lightweight agents or connect to external, more advanced agents using dif
 - SQL client
 - HTTP client
 - Calculator
-- Transfer to human agent
-- Attach file
 
 > [!IMPORTANT]
 > This project prioritizes a decoupled architecture between communication and agent logic. Advanced agents built with frameworks like the OpenAI SDK or Google ADK should be deployed as external services.
@@ -57,7 +55,30 @@ Interpret and extract information from media and document files, including:
 
 The `mcp` Edge Function exposes an [MCP](https://modelcontextprotocol.io) server over SSE, giving agentic access to the WhatsApp API from clients like Claude Desktop or other agent platforms.
 
-Authentication uses the `Authorization: Bearer <API_KEY>` header. Optionally, `Allowed-Contacts` and `Allowed-Accounts` headers restrict which phone numbers the key can access.
+For the hosted version at [web.openbsp.dev](https://web.openbsp.dev), the MCP server URL is:
+
+```
+https://nheelwshzbgenpavwhcy.supabase.co/functions/v1/mcp
+```
+
+Authentication uses the `Authorization: Bearer <API_KEY>` header. Get it from OpenBSP > Settings > API Keys.
+
+Optionally, `Allowed-Contacts` and `Allowed-Accounts` headers restrict which phone numbers the key can access.
+
+Claude Desktop configuration (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "openbsp": {
+      "url": "https://nheelwshzbgenpavwhcy.supabase.co/functions/v1/mcp",
+      "headers": {
+        "Authorization": "Bearer <API_KEY>"
+      }
+    }
+  }
+}
+```
 
 Available tools:
 
