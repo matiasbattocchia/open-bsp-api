@@ -148,10 +148,79 @@ insert into public.quick_replies (organization_id, name, content) values
 
 -- Webhooks (for Mountain Peaks)
 insert into public.webhooks (organization_id, table_name, operations, url, token) values
-  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'messages', 
-   ARRAY['insert', 'update']::webhook_operation[], 
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'messages',
+   ARRAY['insert', 'update']::webhook_operation[],
    'http://127.0.0.1:54321/rest/v1/messages', 'sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz'),
   ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'conversations',
    ARRAY['insert']::webhook_operation[],
    'http://127.0.0.1:54321/rest/v1/conversations', 'sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz')
 ;
+
+-- ============================================================================
+-- BILLING SEED DATA
+-- ============================================================================
+
+-- Products
+insert into billing.products (id, name, unit, kind) values
+  ('messages',      'Messages',      'count', 'counter'),
+  ('conversations', 'Conversations', 'count', 'counter'),
+  ('storage',       'Storage',       'mb',    'gauge'),
+  ('ai_credits',    'AI Credits',    'usd',   'balance');
+
+-- Tiers (levels of trust: 0 = free, 1 = pro, ...)
+insert into billing.tiers (id, name, level) values
+  ('free', 'Free', 0),
+  ('pro',  'Pro',  1);
+
+-- Tier limits (no rows = no limits)
+insert into billing.tiers_products (tier_id, product_id, interval, cap) values
+  ('free', 'messages',      'month',    2000),
+  ('free', 'conversations', 'month',    50),
+  ('free', 'storage',       'lifetime', 100),
+  ('free', 'ai_credits',    'lifetime', 1.00),
+
+  ('pro',  'messages',      'month',    50000),
+  ('pro',  'conversations', 'month',    null),
+  ('pro',  'storage',       'lifetime', 50000),
+  ('pro',  'ai_credits',    'lifetime', null);
+
+-- Plans (min_tier: minimum tier level required)
+insert into billing.plans (id, min_tier, price, billing_cycle) values
+  ('free',        0, 0,   null),
+  ('pro_monthly', 1, 29,  'month'),
+  ('pro_yearly',  1, 290, 'year');
+
+-- Plan product allowances and overage pricing (no rows = no charges)
+insert into billing.plans_products (plan_id, product_id, interval, included, unit_price) values
+  ('free', 'messages',      'month',    2000,  null),
+  ('free', 'conversations', 'month',    50,    null),
+  ('free', 'storage',       'lifetime', 100,   null),
+  ('free', 'ai_credits',    'lifetime', 1.00,  null),
+
+  ('pro_monthly', 'messages',      'month',    20000, 0.001),
+  ('pro_monthly', 'conversations', 'month',    null,  null),
+  ('pro_monthly', 'storage',       'lifetime', 10000, 0.02),
+  ('pro_monthly', 'ai_credits',    'lifetime', 10.00, null),
+
+  ('pro_yearly',  'messages',      'month',    20000, 0.001),
+  ('pro_yearly',  'conversations', 'month',    null,  null),
+  ('pro_yearly',  'storage',       'lifetime', 10000, 0.02),
+  ('pro_yearly',  'ai_credits',    'lifetime', 10.00, null);
+
+-- Subscriptions (all seed orgs on free plan)
+insert into billing.subscriptions (organization_id, plan_id) values
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'free'),
+  ('4b293e9e-5f4a-5b7c-9d0e-1f2a3b4c5d6e', 'free'),
+  ('5c3a4f0f-6e5b-6c8d-0e1f-2a3b4c5d6e7f', 'free');
+
+-- Initial AI credits grant ($1 for free tier)
+insert into billing.usage (organization_id, product_id, interval, period, quantity) values
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'ai_credits', 'lifetime', '1970-01-01', 1.00),
+  ('4b293e9e-5f4a-5b7c-9d0e-1f2a3b4c5d6e', 'ai_credits', 'lifetime', '1970-01-01', 1.00),
+  ('5c3a4f0f-6e5b-6c8d-0e1f-2a3b4c5d6e7f', 'ai_credits', 'lifetime', '1970-01-01', 1.00);
+
+-- Ledger entries for initial grants
+insert into billing.ledger (organization_id, product_id, type, quantity, description) values
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'ai_credits', 'grant', 1.00, 'Free tier initial grant'),
+  ('4b293e9e-5f4a-5b7c-9d0e-1f2a3b4c5d6e', 'ai_credits', 'grant', 1.00, 'Free tier initial grant'),
+  ('5c3a4f0f-6e5b-6c8d-0e1f-2a3b4c5d6e7f', 'ai_credits', 'grant', 1.00, 'Free tier initial grant');
