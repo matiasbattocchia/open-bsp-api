@@ -177,7 +177,7 @@ insert into billing.tiers_products (tier_id, product_id, interval, cap) values
   ('free', 'messages',      'month',    2000),
   ('free', 'conversations', 'month',    50),
   ('free', 'storage',       'lifetime', 100),
-  ('free', 'ai_credits',    'lifetime', 1.00),
+  ('free', 'ai_credits',    'lifetime', 0),
 
   ('pro',  'messages',      'month',    50000),
   ('pro',  'conversations', 'month',    null),

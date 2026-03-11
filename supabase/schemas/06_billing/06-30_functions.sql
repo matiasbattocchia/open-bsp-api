@@ -1,10 +1,10 @@
 -- Check if a product limit allows usage for an organization.
 -- Returns true if allowed, raises exception if blocked.
---  1. Get tier_id from subscription (no subscription → allow)
---  2. Get cap and interval from tiers_products (no row → allow)
---  3. cap is null → unlimited, allow
---  4. Get current usage from billing.usage for the correct interval/period
---  5. usage + amount >= cap → block
+--  1. No subscription → allow (no billing)
+--  2. No tiers_products row → allow (no limit)
+--  3. Cap is null → unlimited, allow
+--  4. Counter/gauge: usage + amount > cap → block
+--  5. Balance: balance - amount < cap → block (cap is a floor, e.g. 0 or negative for debt)
 create function billing.check_limit(
   _organization_id uuid,
   _product_id text,
@@ -16,9 +16,10 @@ set search_path to ''
 as $$
 declare
   _tier_id text;
+  _kind text;
   _cap numeric;
   _interval text;
-  _current_usage numeric;
+  _current numeric;
   _period date;
 begin
   -- Get tier from subscription
@@ -30,6 +31,11 @@ begin
   if not found then
     return true;
   end if;
+
+  -- Get product kind
+  select p.kind into _kind
+  from billing.products p
+  where p.id = _product_id;
 
   -- Get tier cap and interval
   select tp.cap, tp.interval
@@ -55,21 +61,27 @@ begin
     else '1970-01-01'::date
   end;
 
-  -- Get current usage
-  select u.quantity into _current_usage
+  -- Get current value
+  select u.quantity into _current
   from billing.usage u
   where u.organization_id = _organization_id
     and u.product_id = _product_id
     and u.interval = _interval
     and u.period = _period;
 
-  if _current_usage is null then
-    _current_usage := 0;
-  end if;
+  _current := coalesce(_current, 0);
 
-  -- Check cap (current + incoming amount)
-  if _current_usage + _amount > _cap then
-    raise exception 'Usage limit reached for %', _product_id;
+  -- Balance products: cap is a floor (minimum allowed balance)
+  -- e.g. cap=0 means no debt, cap=-5 allows up to $5 debt
+  if _kind = 'balance' then
+    if _current - _amount < _cap then
+      raise exception 'Insufficient balance for %', _product_id;
+    end if;
+  else
+    -- Counter/gauge: cap is a ceiling
+    if _current + _amount > _cap then
+      raise exception 'Usage limit reached for %', _product_id;
+    end if;
   end if;
 
   return true;
@@ -78,7 +90,7 @@ $$;
 
 -- Generic: increment usage counters for a product.
 -- Upserts day, month, and lifetime rows.
-create function billing.increment_usage(
+create function billing.update_usage(
   _organization_id uuid,
   _product_id text,
   _quantity numeric default 1
@@ -111,50 +123,44 @@ begin
 end;
 $$;
 
--- Trigger: check message limit before insert
-create function billing.check_message_limit() returns trigger
+-- Generic trigger: check limit before insert.
+-- Product id is derived from the table name (e.g. messages, conversations).
+create function billing.check_product_limit() returns trigger
 language plpgsql
 security definer
 set search_path to ''
 as $$
 begin
-  perform billing.check_limit(new.organization_id, 'messages');
+  perform billing.check_limit(new.organization_id, tg_table_name);
   return new;
 end;
 $$;
 
--- Trigger: increment message usage after insert
-create function billing.increment_message_usage() returns trigger
+-- Generic trigger: update usage after insert or delete.
+-- Product id is derived from the table name.
+-- Counter products ignore delete; gauge products decrement on delete.
+create function billing.update_product_usage() returns trigger
 language plpgsql
 security definer
 set search_path to ''
 as $$
+declare
+  _kind text;
 begin
-  perform billing.increment_usage(new.organization_id, 'messages');
-  return new;
-end;
-$$;
+  if tg_op = 'DELETE' then
+    select p.kind into _kind
+    from billing.products p
+    where p.id = tg_table_name;
 
--- Trigger: check conversation limit before insert
-create function billing.check_conversation_limit() returns trigger
-language plpgsql
-security definer
-set search_path to ''
-as $$
-begin
-  perform billing.check_limit(new.organization_id, 'conversations');
-  return new;
-end;
-$$;
+    if _kind = 'counter' then
+      return old;
+    end if;
 
--- Trigger: increment conversation usage after insert
-create function billing.increment_conversation_usage() returns trigger
-language plpgsql
-security definer
-set search_path to ''
-as $$
-begin
-  perform billing.increment_usage(new.organization_id, 'conversations');
+    perform billing.update_usage(old.organization_id, tg_table_name, -1);
+    return old;
+  end if;
+
+  perform billing.update_usage(new.organization_id, tg_table_name);
   return new;
 end;
 $$;
@@ -192,15 +198,29 @@ begin
   if tg_op = 'INSERT' then
     _org_id := (string_to_array(new.name, '/'))[2]::uuid;
     _size_mb := coalesce((new.metadata->>'size')::numeric, 0) / 1000000.0;
-    perform billing.increment_usage(_org_id, 'storage', _size_mb);
+    perform billing.update_usage(_org_id, 'storage', _size_mb);
     return new;
   elsif tg_op = 'DELETE' then
     _org_id := (string_to_array(old.name, '/'))[2]::uuid;
     _size_mb := coalesce((old.metadata->>'size')::numeric, 0) / 1000000.0;
-    perform billing.increment_usage(_org_id, 'storage', -_size_mb);
+    perform billing.update_usage(_org_id, 'storage', -_size_mb);
     return old;
   end if;
 
   return coalesce(new, old);
+end;
+$$;
+
+-- Trigger: update usage after ledger insert
+-- Updates the lifetime balance and tracks daily/monthly cost stats.
+create function billing.process_ledger_entry() returns trigger
+language plpgsql
+security definer
+set search_path to ''
+as $$
+begin
+  -- Update lifetime balance (quantity is signed: positive for grants, negative for consumption)
+  perform billing.update_usage(new.organization_id, new.product_id, new.quantity);
+  return new;
 end;
 $$;

@@ -4,28 +4,28 @@ create trigger check_billing_message_limit
 before insert
 on public.messages
 for each row
-execute function billing.check_message_limit();
+execute function billing.check_product_limit();
 
--- Increment usage counters after message insert
-create trigger increment_billing_message_usage
-after insert
+-- Update message usage after insert or delete
+create trigger update_billing_message_usage
+after insert or delete
 on public.messages
 for each row
-execute function billing.increment_message_usage();
+execute function billing.update_product_usage();
 
 -- Check billing limit before conversation insert
 create trigger check_billing_conversation_limit
 before insert
 on public.conversations
 for each row
-execute function billing.check_conversation_limit();
+execute function billing.check_product_limit();
 
--- Increment usage counters after conversation insert
-create trigger increment_billing_conversation_usage
-after insert
+-- Update conversation usage after insert or delete
+create trigger update_billing_conversation_usage
+after insert or delete
 on public.conversations
 for each row
-execute function billing.increment_conversation_usage();
+execute function billing.update_product_usage();
 
 -- Check billing limit before storage upload
 create trigger check_billing_storage_limit
@@ -40,3 +40,10 @@ after insert or delete
 on storage.objects
 for each row
 execute function billing.update_storage_usage();
+
+-- Update usage after ledger entry
+create trigger update_billing_ledger_usage
+after insert
+on billing.ledger
+for each row
+execute function billing.process_ledger_entry();
