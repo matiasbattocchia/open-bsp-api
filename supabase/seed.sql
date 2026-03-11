@@ -173,6 +173,7 @@ insert into billing.tiers (id, name, level) values
   ('pro',  'Pro',  1);
 
 -- Tier limits (no rows = no limits)
+-- cap: ceiling for counter/gauge, floor for balance
 insert into billing.tiers_products (tier_id, product_id, interval, cap) values
   ('free', 'messages',      'month',    2000),
   ('free', 'conversations', 'month',    50),
@@ -224,3 +225,22 @@ insert into billing.ledger (organization_id, product_id, type, quantity, descrip
   ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'ai_credits', 'grant', 1.00, 'Free tier initial grant'),
   ('4b293e9e-5f4a-5b7c-9d0e-1f2a3b4c5d6e', 'ai_credits', 'grant', 1.00, 'Free tier initial grant'),
   ('5c3a4f0f-6e5b-6c8d-0e1f-2a3b4c5d6e7f', 'ai_credits', 'grant', 1.00, 'Free tier initial grant');
+
+-- Costs (provider-specific pricing structures)
+-- Google: https://ai.google.dev/gemini-api/docs/pricing
+-- Google: text/image/video share the same input rate. Audio has its own rate.
+-- Google: Gemini 3 reports PDF page tokens as IMAGE modality. Native PDF text is free.
+-- Groq: https://groq.com/pricing
+-- Anthropic: https://platform.claude.com/docs/en/about-claude/pricing
+-- OpenIA: https://developers.openai.com/api/docs/pricing
+insert into billing.costs (provider, product, quantity, unit, pricing) values
+  ('anthropic', 'claude-sonnet-4-6',     1000000, 'tokens',   '{"input": 3.00, "output": 15.00, "cache_read": 0.30, "cache_write": 3.75}'),
+  ('groq',      'openai/gpt-oss-20b',   1000000, 'tokens',   '{"input": 0.075, "output": 0.30, "cache_read": 0.037}'),
+  ('groq',      'openai/gpt-oss-120b',   1000000, 'tokens',   '{"input": 0.15, "output": 0.60, "cache_read": 0.075}'),
+  ('google',    'gemini-2.5-flash',       1000000, 'tokens',  '{"input": 0.30, "output": 2.50, "cache_read": 0.03, "audio_input": 1.00, "audio_cache_read": 0.10}'),
+  ('google',    'gemini-3-flash-preview', 1000000, 'tokens',  '{"input": 0.50, "output": 3.00, "cache_read": 0.05, "audio_input": 1.00, "audio_cache_read": 0.10}'),
+  ('openai',    'gpt-5.3-chat-latest',  1000000, 'tokens',   '{"input": 1.75, "output": 14.00, "cache_read": 0.18}'),
+  ('openai',    'gpt-5-mini',           1000000, 'tokens',   '{"input": 0.25, "output": 2.00, "cache_read": 0.03}'),
+  ('whatsapp',  'marketing/ar',          1, 'templates',       '{"price": 0.0618}'),
+  ('whatsapp',  'utility/ar',            1, 'templates',       '{"price": 0.026}'),
+  ('whatsapp',  'authentication/ar',     1, 'templates',       '{"price": 0.026}');

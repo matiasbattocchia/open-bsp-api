@@ -84,7 +84,6 @@ export interface ChatCompletionsRequest {
 export interface ChatCompletionsResponse {
   finish_reason: ChatCompletion["choices"][number]["finish_reason"];
   message: ChatCompletionMessage;
-  usage?: ChatCompletion["usage"];
 }
 
 export class ChatCompletionsHandler
@@ -414,11 +413,37 @@ export class ChatCompletionsHandler
     };
   }
 
+  private calculateCost(
+    usage: ChatCompletion["usage"],
+    pricing: Record<string, number>,
+    quantity: number,
+  ): number {
+    if (!usage) return 0;
+
+    const prompt = usage.prompt_tokens ?? 0;
+    const completion = usage.completion_tokens ?? 0;
+    const cached = usage.prompt_tokens_details?.cached_tokens ?? 0;
+    const audio_in = usage.prompt_tokens_details?.audio_tokens ?? 0;
+    const audio_out = usage.completion_tokens_details?.audio_tokens ?? 0;
+    const reasoning = usage.completion_tokens_details?.reasoning_tokens ?? 0;
+
+    const cost =
+      (prompt - cached - audio_in) * (pricing.input ?? 0)
+      + cached * (pricing.cache_read ?? pricing.input ?? 0)
+      + audio_in * (pricing.audio_input ?? pricing.input ?? 0)
+      + (completion - reasoning - audio_out) * (pricing.output ?? 0)
+      + reasoning * (pricing.reasoning ?? pricing.output ?? 0)
+      + audio_out * (pricing.audio_output ?? pricing.output ?? 0);
+
+    return cost / quantity;
+  }
+
   async sendRequest(
     request: ChatCompletionsRequest,
   ): Promise<ChatCompletionsResponse> {
-    const { agent } = this.context;
+    const { agent, organization } = this.context;
 
+    let provider = agent.extra.api_url;
     let baseURL = agent.extra.api_url;
     let apiKey = agent.extra.api_key;
     let model = agent.extra.model;
@@ -449,9 +474,42 @@ export class ChatCompletionsHandler
         // the client appends it automatically.
         baseURL = baseURL?.replace("/chat/completions", "") || undefined;
         apiKey ||= undefined;
-        model ||= "gpt-5.2-chat-latest";
+        model ||= "gpt-5-mini";
+        provider = !!baseURL && baseURL !== "openai" ? "custom" : "openai";
     }
     // Note: for Bedrock, the base URL is https://${bedrock-runtime-endpoint}/openai/v1
+
+    const billable = !agent.extra.api_key;
+
+    // Fetch cost pricing before the LLM call
+    const { data: costs } = await this.client
+      .schema("billing")
+      .from("costs")
+      .select("pricing, quantity")
+      .eq("provider", provider)
+      .eq("product", model)
+      .lte("effective_at", new Date().toISOString())
+      .order("effective_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .throwOnError();
+
+    if (billable) {
+      // Block if we don't have pricing for this model
+      if (!costs) {
+        throw new Error(`No pricing found for ${provider}/${model}`);
+      }
+
+      // Check AI credits balance
+      await this.client
+        .schema("billing")
+        .rpc("check_limit", {
+          _organization_id: organization.id,
+          _product_id: "ai_credits",
+          _amount: 0,
+        })
+        .throwOnError();
+    }
 
     const openai = new OpenAI({
       baseURL,
@@ -512,10 +570,36 @@ export class ChatCompletionsHandler
       }
     }
 
+    // Record AI usage in the ledger
+    if (response.usage) {
+      const cost = costs
+        ? this.calculateCost(
+          response.usage,
+          costs.pricing as Record<string, number>,
+          costs.quantity,
+        )
+        : 0;
+
+      await this.client
+        .schema("billing")
+        .from("ledger")
+        .insert({
+          organization_id: organization.id,
+          product_id: "ai_credits",
+          type: "consumption",
+          quantity: -cost,
+          agent_id: agent.id,
+          provider,
+          model,
+          billable,
+          metadata: response.usage,
+        })
+        .throwOnError();
+    }
+
     return {
       finish_reason: response.choices[0].finish_reason,
       message: response.choices[0].message,
-      usage: response.usage,
     };
   }
 

@@ -213,14 +213,43 @@ $$;
 
 -- Trigger: update usage after ledger insert
 -- Updates the lifetime balance and tracks daily/monthly cost stats.
+-- Non-billable entries are recorded for analytics but don't affect balance.
 create function billing.process_ledger_entry() returns trigger
 language plpgsql
 security definer
 set search_path to ''
 as $$
 begin
-  -- Update lifetime balance (quantity is signed: positive for grants, negative for consumption)
-  perform billing.update_usage(new.organization_id, new.product_id, new.quantity);
+  if new.billable is distinct from false then
+    perform billing.update_usage(new.organization_id, new.product_id, new.quantity);
+  end if;
+
   return new;
 end;
 $$;
+
+-- Trigger: initialize subscription on organization insert.
+-- Assigns the lowest-level active tier. No tiers = no billing.
+create function billing.initialize_subscription() returns trigger
+language plpgsql
+security definer
+set search_path to ''
+as $$
+declare
+  _tier_id text;
+begin
+  select t.id into _tier_id
+  from billing.tiers t
+  where t.active = true
+  order by t.level asc
+  limit 1;
+
+  if found then
+    insert into billing.subscriptions (organization_id, tier_id)
+    values (new.id, _tier_id);
+  end if;
+
+  return new;
+end;
+$$;
+

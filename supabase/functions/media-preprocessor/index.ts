@@ -15,6 +15,49 @@ import { encodeBase64 } from "jsr:@std/encoding/base64";
 import * as log from "../_shared/logger.ts";
 import { stringify } from "jsr:@std/csv/stringify";
 
+type ModalityTokenCount = { modality: string; tokenCount: number };
+
+function calculateCost(
+  usage: GenerateContentResponse["usageMetadata"],
+  pricing: Record<string, number>,
+  quantity: number,
+): number {
+  if (!usage) return 0;
+
+  const cached = usage.cachedContentTokenCount ?? 0;
+  const completion = usage.candidatesTokenCount ?? 0;
+
+  let inputCost = 0;
+  const promptDetails = usage.promptTokensDetails as ModalityTokenCount[] | undefined;
+  const cacheDetails = usage.cacheTokensDetails as ModalityTokenCount[] | undefined;
+
+  if (promptDetails?.length) {
+    for (const { modality, tokenCount } of promptDetails) {
+      const key = modality === "TEXT" ? "input" : `${modality.toLowerCase()}_input`;
+      inputCost += tokenCount * (pricing[key] ?? pricing.input ?? 0);
+    }
+    // Subtract cached tokens at full rate, add back at per-modality cache rate
+    if (cacheDetails?.length) {
+      for (const { modality, tokenCount } of cacheDetails) {
+        const inputKey = modality === "TEXT" ? "input" : `${modality.toLowerCase()}_input`;
+        const cacheKey = modality === "TEXT" ? "cache_read" : `${modality.toLowerCase()}_cache_read`;
+        inputCost -= tokenCount * (pricing[inputKey] ?? pricing.input ?? 0);
+        inputCost += tokenCount * (pricing[cacheKey] ?? pricing.cache_read ?? pricing.input ?? 0);
+      }
+    } else if (cached > 0) {
+      inputCost -= cached * (pricing.input ?? 0);
+      inputCost += cached * (pricing.cache_read ?? pricing.input ?? 0);
+    }
+  } else {
+    // Fallback: no modality breakdown
+    const prompt = usage.promptTokenCount ?? 0;
+    inputCost = (prompt - cached) * (pricing.input ?? 0)
+      + cached * (pricing.cache_read ?? pricing.input ?? 0);
+  }
+
+  return (inputCost + completion * (pricing.output ?? 0)) / quantity;
+}
+
 /**
  * Documentation for automatic file annotation handling:
  *
@@ -298,6 +341,40 @@ Deno.serve(async (req) => {
     contents.unshift({ text: prompt });
   }
 
+  // Check AI credits balance before calling the LLM (only when using our API key)
+  const billable = !config.api_key;
+
+  // Fetch cost pricing before the LLM call
+  const { data: costs } = await client
+    .schema("billing")
+    .from("costs")
+    .select("pricing, quantity")
+    .eq("provider", "google")
+    .eq("product", model)
+    .lte("effective_at", new Date().toISOString())
+    .order("effective_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+    .throwOnError();
+
+  if (billable) {
+    if (!costs) {
+      return log_update_and_respond("warn", `No pricing found for google/${model}`);
+    }
+
+    const { error } = await client
+      .schema("billing")
+      .rpc("check_limit", {
+        _organization_id: org.id,
+        _product_id: "ai_credits",
+        _amount: 0,
+      });
+
+    if (error) {
+      return log_update_and_respond("warn", `AI credits check failed: ${error.message}`);
+    }
+  }
+
   let response: GenerateContentResponse;
 
   try {
@@ -322,6 +399,34 @@ Deno.serve(async (req) => {
       "error",
       `Gemini API error in preprocessing. Skipping preprocessing. ${error}`,
     );
+  }
+
+  // Record AI usage in the ledger
+  if (response.usageMetadata) {
+    let cost = 0;
+
+    if (costs) {
+      cost = calculateCost(
+        response.usageMetadata,
+        costs.pricing as Record<string, number>,
+        costs.quantity,
+      );
+    }
+
+    await client
+      .schema("billing")
+      .from("ledger")
+      .insert({
+        organization_id: org.id,
+        product_id: "ai_credits",
+        type: "consumption",
+        quantity: -cost,
+        provider: "google",
+        model,
+        billable,
+        metadata: response.usageMetadata,
+      })
+      .throwOnError();
   }
 
   if (!response?.text) {

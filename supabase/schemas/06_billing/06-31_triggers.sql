@@ -1,3 +1,10 @@
+-- Initialize subscription on organization creation
+create trigger initialize_billing_subscription
+after insert
+on public.organizations
+for each row
+execute function billing.initialize_subscription();
+
 -- Check billing limit before message insert
 -- Named to sort before "handle_new_message" (alphabetical trigger execution)
 create trigger check_billing_message_limit

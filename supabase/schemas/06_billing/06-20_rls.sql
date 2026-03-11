@@ -40,6 +40,14 @@ for select
 to authenticated, anon
 using (true);
 
+alter table billing.costs enable row level security;
+
+create policy "anyone can read costs"
+on billing.costs
+for select
+to authenticated, anon
+using (true);
+
 -- Billing state: readable by org members, writable only by triggers (security definer)
 
 alter table billing.subscriptions enable row level security;
