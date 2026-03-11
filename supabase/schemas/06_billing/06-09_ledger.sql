@@ -4,7 +4,6 @@ create table billing.ledger (
   product_id text not null,
   type text not null,
   quantity numeric not null,
-  description text,
   -- AI-specific (null for grants/topups)
   agent_id uuid,
   message_id uuid,

@@ -4,7 +4,6 @@ create table billing.usage (
   interval text not null default 'lifetime',
   period date not null default '1970-01-01',
   quantity numeric not null default 0,
-  extra jsonb,
   created_at timestamp with time zone default now() not null,
   updated_at timestamp with time zone default now() not null
 );

@@ -207,11 +207,11 @@ insert into billing.plans_products (plan_id, product_id, interval, included, uni
   ('pro_yearly',  'storage',       'lifetime', 10000, 0.02),
   ('pro_yearly',  'ai_credits',    'lifetime', 10.00, null);
 
--- Subscriptions (all seed orgs on free plan)
-insert into billing.subscriptions (organization_id, plan_id) values
-  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'free'),
-  ('4b293e9e-5f4a-5b7c-9d0e-1f2a3b4c5d6e', 'free'),
-  ('5c3a4f0f-6e5b-6c8d-0e1f-2a3b4c5d6e7f', 'free');
+-- Subscriptions (all seed orgs on free tier and plan)
+insert into billing.subscriptions (organization_id, tier_id, plan_id) values
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'free', 'free'),
+  ('4b293e9e-5f4a-5b7c-9d0e-1f2a3b4c5d6e', 'free', 'free'),
+  ('5c3a4f0f-6e5b-6c8d-0e1f-2a3b4c5d6e7f', 'free', 'free');
 
 -- Initial AI credits grant ($1 for free tier)
 insert into billing.usage (organization_id, product_id, interval, period, quantity) values

@@ -63,7 +63,7 @@ select
       timestamp >= now() - interval '12 hours'
       and timestamp <= now() - interval '1 minutes'
       and (
-        message ->> 'media' is not null -- message v0 - TODO: deprecate
+        message ->> 'media' is not null -- message v0
         or message ->> 'type' = 'file' -- message v1
       )
       and status ->> 'pending' is not null
@@ -83,7 +83,7 @@ to authenticated
 using (
   bucket_id = 'media' and
   (
-    (storage.foldername(name))[1] in ( select get_authorized_orgs()::text ) -- message v0 - TODO: deprecate
+    (storage.foldername(name))[1] in ( select get_authorized_orgs()::text ) -- message v0
     or (storage.foldername(name))[2] in ( select get_authorized_orgs()::text ) -- message v1 path is organizations/<org_id>/attachments/<file_id>
   )
 );
