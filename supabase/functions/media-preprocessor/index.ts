@@ -14,6 +14,7 @@ import { downloadFromStorage, uploadToStorage } from "../_shared/media.ts";
 import { encodeBase64 } from "jsr:@std/encoding/base64";
 import * as log from "../_shared/logger.ts";
 import { stringify } from "jsr:@std/csv/stringify";
+import { Json } from "../_shared/db_types.ts";
 
 type ModalityTokenCount = { modality: string; tokenCount: number };
 
@@ -424,7 +425,7 @@ Deno.serve(async (req) => {
         provider: "google",
         model,
         billable,
-        metadata: response.usageMetadata,
+        metadata: response.usageMetadata as Json,
       })
       .throwOnError();
   }

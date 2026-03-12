@@ -4,7 +4,7 @@
 project_id = "open-bsp-api"
 
 [api]
-schemas = ["public", "storage"]
+schemas = ["public", "storage", "billing"]
 
 [functions.whatsapp-webhook]
 verify_jwt = false

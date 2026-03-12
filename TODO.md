@@ -2,7 +2,18 @@
 
 ## Before Product Hunt Launch
 
-- [ ] Usage, tiers, limits, etc. 
+- [x] Usage, tiers, limits, etc. 
+
+## Billing
+
+Core billing (near-term)
+- [ ] Renewal cron job — at period end, call change_plan to re-grant balance products, rotate current_period_start/end
+- [ ] WhatsApp template billing — record template send costs in the ledger (costs table is ready, just needs the ledger insert in the dispatcher)
+- [ ] Plan downgrade scheduling — store pending plan change, apply at period end instead of immediately
+
+Monetization (medium-term)
+- [ ] Invoice generation — aggregate usage + overages from plans_products, create invoice + items
+- [ ] Payment integration — Stripe checkout for paid plans, webhooks for payment success/failure/refunds
 
 ## General
 
