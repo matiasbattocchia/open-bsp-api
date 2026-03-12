@@ -17,6 +17,8 @@ Monetization (medium-term)
 
 ## General
 
+- [ ] Data export / DB dump
+
 - [ ] Langfuse integration
 
 - [ ] Encrypt API keys

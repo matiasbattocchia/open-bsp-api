@@ -48,6 +48,14 @@ on storage.objects
 for each row
 execute function billing.update_storage_usage();
 
+-- Skip ledger insert if product doesn't exist (no billing)
+-- Named "a_guard" to sort before "update_billing" (alphabetical trigger execution)
+create trigger a_guard_billing_ledger_product
+before insert
+on billing.ledger
+for each row
+execute function billing.guard_ledger_insert();
+
 -- Update usage after ledger entry
 create trigger update_billing_ledger_usage
 after insert

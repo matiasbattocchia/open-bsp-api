@@ -202,6 +202,80 @@ insert into public.messages (id, conversation_id, organization_id, organization_
    '{"kind": "text", "text": "I have 32 rotten flesh to trade.", "type": "text", "version": "1"}', '{"delivered": "2024-01-01T14:00:00Z"}', now() - interval '1 minute')
 ;
 
+-- ============================================================================
+-- BILLING USAGE DATA (for Mountain Peaks stats view)
+-- The initialize_subscription trigger already created the subscription and
+-- granted $1 AI credit. Message/conversation triggers already track some usage.
+-- Here we add historical usage rows to simulate months of activity.
+-- ============================================================================
+
+-- Historical usage (messages - counter)
+insert into billing.usage (organization_id, product_id, interval, period, quantity) values
+  -- February 2026
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'messages', 'day', '2026-02-01', 45),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'messages', 'day', '2026-02-05', 120),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'messages', 'day', '2026-02-10', 87),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'messages', 'day', '2026-02-14', 210),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'messages', 'day', '2026-02-20', 65),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'messages', 'day', '2026-02-28', 93),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'messages', 'month', '2026-02-01', 1840),
+  -- January 2026
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'messages', 'day', '2026-01-03', 33),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'messages', 'day', '2026-01-10', 150),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'messages', 'day', '2026-01-15', 72),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'messages', 'day', '2026-01-22', 195),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'messages', 'day', '2026-01-28', 88),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'messages', 'month', '2026-01-01', 1205),
+  -- December 2025
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'messages', 'month', '2025-12-01', 870)
+on conflict (organization_id, product_id, interval, period)
+do update set quantity = billing.usage.quantity + excluded.quantity;
+
+-- Historical usage (conversations - counter)
+insert into billing.usage (organization_id, product_id, interval, period, quantity) values
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'conversations', 'month', '2026-02-01', 42),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'conversations', 'month', '2026-01-01', 31),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'conversations', 'month', '2025-12-01', 18)
+on conflict (organization_id, product_id, interval, period)
+do update set quantity = billing.usage.quantity + excluded.quantity;
+
+-- Historical usage (storage - gauge, cumulative lifetime)
+-- Current storage: 0.35 GB
+insert into billing.usage (organization_id, product_id, interval, period, quantity) values
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'storage', 'lifetime', '1970-01-01', 0.35),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'storage', 'day', '2026-02-10', 0.05),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'storage', 'day', '2026-02-20', 0.12),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'storage', 'month', '2026-02-01', 0.17),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'storage', 'month', '2026-01-01', 0.10),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'storage', 'month', '2025-12-01', 0.08)
+on conflict (organization_id, product_id, interval, period)
+do update set quantity = billing.usage.quantity + excluded.quantity;
+
+-- Historical usage (ai_credits - balance, lifetime tracks total granted+consumed)
+-- The $1 grant already exists from initialize_subscription trigger.
+-- Add consumption history.
+insert into billing.usage (organization_id, product_id, interval, period, quantity) values
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'ai_credits', 'day', '2026-02-05', -0.03),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'ai_credits', 'day', '2026-02-14', -0.08),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'ai_credits', 'day', '2026-02-20', -0.05),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'ai_credits', 'month', '2026-02-01', -0.16),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'ai_credits', 'month', '2026-01-01', -0.22),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'ai_credits', 'month', '2025-12-01', -0.09)
+on conflict (organization_id, product_id, interval, period)
+do update set quantity = billing.usage.quantity + excluded.quantity;
+
+-- Ledger entries (AI consumption detail for Mountain Peaks)
+insert into billing.ledger (organization_id, product_id, type, quantity, agent_id, provider, model, metadata, billable, created_at) values
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'ai_credits', 'consumption', -0.012, 'b2c3d4e5-f6a7-8b9c-0d1e-2f3a4b5c6d7e', 'groq', 'openai/gpt-oss-20b', '{"input_tokens": 850, "output_tokens": 120}', true, '2026-02-05 10:30:00+00'),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'ai_credits', 'consumption', -0.018, 'b2c3d4e5-f6a7-8b9c-0d1e-2f3a4b5c6d7e', 'groq', 'openai/gpt-oss-20b', '{"input_tokens": 1200, "output_tokens": 280}', true, '2026-02-05 14:15:00+00'),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'ai_credits', 'consumption', -0.045, 'b2c3d4e5-f6a7-8b9c-0d1e-2f3a4b5c6d7e', 'google', 'gemini-2.5-flash', '{"input_tokens": 3200, "output_tokens": 950}', true, '2026-02-14 09:00:00+00'),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'ai_credits', 'consumption', -0.035, 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d', 'groq', 'openai/gpt-oss-120b', '{"input_tokens": 2100, "output_tokens": 400}', true, '2026-02-14 16:45:00+00'),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'ai_credits', 'consumption', -0.025, 'b2c3d4e5-f6a7-8b9c-0d1e-2f3a4b5c6d7e', 'google', 'gemini-2.5-flash', '{"input_tokens": 1800, "output_tokens": 620}', true, '2026-02-20 11:20:00+00'),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'ai_credits', 'consumption', -0.025, 'b2c3d4e5-f6a7-8b9c-0d1e-2f3a4b5c6d7e', 'groq', 'openai/gpt-oss-20b', '{"input_tokens": 1500, "output_tokens": 350}', true, '2026-02-20 15:00:00+00'),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'ai_credits', 'consumption', -0.08, 'b2c3d4e5-f6a7-8b9c-0d1e-2f3a4b5c6d7e', 'google', 'gemini-2.5-flash', '{"input_tokens": 5000, "output_tokens": 1800}', true, '2026-01-10 08:30:00+00'),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'ai_credits', 'consumption', -0.14, 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d', 'groq', 'openai/gpt-oss-120b', '{"input_tokens": 8500, "output_tokens": 2200}', true, '2026-01-22 13:00:00+00'),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'ai_credits', 'consumption', -0.09, 'b2c3d4e5-f6a7-8b9c-0d1e-2f3a4b5c6d7e', 'groq', 'openai/gpt-oss-20b', '{"input_tokens": 6000, "output_tokens": 1500}', true, '2025-12-15 10:00:00+00');
+
 -- Quick Replies (for Mountain Peaks)
 insert into public.quick_replies (organization_id, name, content) values
   ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'Greeting', 'Welcome to Mountain Peaks! How can I help you?'),

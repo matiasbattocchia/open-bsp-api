@@ -221,6 +221,20 @@ begin
 end;
 $$;
 
+-- Trigger: skip ledger insert if the product doesn't exist (no billing)
+create function billing.guard_ledger_insert() returns trigger
+language plpgsql
+security definer
+set search_path to ''
+as $$
+begin
+  if not exists (select 1 from billing.products where id = new.product_id) then
+    return null;
+  end if;
+  return new;
+end;
+$$;
+
 -- Trigger: update usage after ledger insert
 -- Updates the lifetime balance and tracks daily/monthly cost stats.
 -- Non-billable entries are recorded for analytics but don't affect balance.
