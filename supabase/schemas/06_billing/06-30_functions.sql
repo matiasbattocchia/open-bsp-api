@@ -37,6 +37,11 @@ begin
   from billing.products p
   where p.id = _product_id;
 
+  -- No product = no billing for this resource
+  if not found then
+    return true;
+  end if;
+
   -- Get tier cap and interval
   select tp.cap, tp.interval
   into _cap, _interval
@@ -103,6 +108,11 @@ declare
   _today date := current_date;
   _month date := date_trunc('month', current_date)::date;
 begin
+  -- No product = no billing for this resource
+  if not exists (select 1 from billing.products where id = _product_id) then
+    return;
+  end if;
+
   -- Upsert day
   insert into billing.usage (organization_id, product_id, interval, period, quantity)
   values (_organization_id, _product_id, 'day', _today, _quantity)
@@ -147,16 +157,11 @@ as $$
 declare
   _kind text;
 begin
-  -- No product = no billing
-  select p.kind into _kind
-  from billing.products p
-  where p.id = tg_table_name;
-
-  if not found then
-    return coalesce(new, old);
-  end if;
-
   if tg_op = 'DELETE' then
+    select p.kind into _kind
+    from billing.products p
+    where p.id = tg_table_name;
+
     if _kind = 'counter' then
       return old;
     end if;
