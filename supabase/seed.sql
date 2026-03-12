@@ -22,49 +22,41 @@ select vault.create_secret(
 insert into billing.products (id, name, unit, kind) values
   ('messages',      'Messages',      'count', 'counter'),
   ('conversations', 'Conversations', 'count', 'counter'),
-  ('storage',       'Storage',       'mb',    'gauge'),
+  ('storage',       'Storage',       'gb',    'gauge'),
   ('ai_credits',    'AI Credits',    'usd',   'balance');
 
--- Tiers (levels of trust: 0 = free, 1 = pro, ...)
+-- Tiers (levels of trust: 0 = free, 1 = starter, ...)
 insert into billing.tiers (id, name, level) values
-  ('free', 'Free', 0),
-  ('pro',  'Pro',  1);
+  ('free',    'Free',    0),
+  ('starter', 'Starter', 1);
 
 -- Tier limits (no rows = no limits)
 -- cap: ceiling for counter/gauge, floor for balance
+-- starter caps above plan included to allow paid overage
 insert into billing.tiers_products (tier_id, product_id, interval, cap) values
-  ('free', 'messages',      'month',    2000),
-  ('free', 'conversations', 'month',    50),
-  ('free', 'storage',       'lifetime', 100),
-  ('free', 'ai_credits',    'lifetime', 0),
+  ('free',    'messages',   'month',    5000),
+  ('free',    'storage',    'lifetime', 1),
+  ('free',    'ai_credits', 'lifetime', 0),
 
-  ('pro',  'messages',      'month',    50000),
-  ('pro',  'conversations', 'month',    null),
-  ('pro',  'storage',       'lifetime', 50000),
-  ('pro',  'ai_credits',    'lifetime', null);
+  ('starter', 'messages',   'month',    100000),
+  ('starter', 'storage',    'lifetime', 100),
+  ('starter', 'ai_credits', 'lifetime', 0);
 
 -- Plans (min_tier: minimum tier level required)
 insert into billing.plans (id, min_tier, price, billing_cycle, is_default) values
-  ('free',        0, 0,   null,    true),
-  ('pro_monthly', 1, 29,  'month', false),
-  ('pro_yearly',  1, 290, 'year',  false);
+  ('free',    0, 0, null,    true),
+  ('starter', 1, 5, 'month', false);
 
--- Plan product allowances and overage pricing (no rows = no charges)
+-- Plan product allowances and overage pricing
+-- no rows for conversations (metered only, no limits or charges)
 insert into billing.plans_products (plan_id, product_id, interval, included, unit_price) values
-  ('free', 'messages',      'month',    2000,  null),
-  ('free', 'conversations', 'month',    50,    null),
-  ('free', 'storage',       'lifetime', 100,   null),
-  ('free', 'ai_credits',    'lifetime', 1.00,  null),
+  ('free',    'messages',   'month',    5000,  null),
+  ('free',    'storage',    'lifetime', 1,     null),
+  ('free',    'ai_credits', 'lifetime', 1.00,  null),
 
-  ('pro_monthly', 'messages',      'month',    20000, 0.001),
-  ('pro_monthly', 'conversations', 'month',    null,  null),
-  ('pro_monthly', 'storage',       'lifetime', 10000, 0.02),
-  ('pro_monthly', 'ai_credits',    'lifetime', 10.00, null),
-
-  ('pro_yearly',  'messages',      'month',    20000, 0.001),
-  ('pro_yearly',  'conversations', 'month',    null,  null),
-  ('pro_yearly',  'storage',       'lifetime', 10000, 0.02),
-  ('pro_yearly',  'ai_credits',    'lifetime', 10.00, null);
+  ('starter', 'messages',   'month',    25000, 0.001),
+  ('starter', 'storage',    'lifetime', 25,    0.025),
+  ('starter', 'ai_credits', 'lifetime', null,  null);
 
 -- Costs (provider-specific pricing structures)
 -- Google: https://ai.google.dev/gemini-api/docs/pricing

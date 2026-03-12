@@ -13,7 +13,7 @@ primary key (id);
 
 alter table only billing.products
 add constraint products_unit_check
-check (unit in ('count', 'mb', 'usd'));
+check (unit in ('count', 'gb', 'usd'));
 
 alter table only billing.products
 add constraint products_kind_check

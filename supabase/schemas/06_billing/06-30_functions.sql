@@ -147,11 +147,16 @@ as $$
 declare
   _kind text;
 begin
-  if tg_op = 'DELETE' then
-    select p.kind into _kind
-    from billing.products p
-    where p.id = tg_table_name;
+  -- No product = no billing
+  select p.kind into _kind
+  from billing.products p
+  where p.id = tg_table_name;
 
+  if not found then
+    return coalesce(new, old);
+  end if;
+
+  if tg_op = 'DELETE' then
     if _kind = 'counter' then
       return old;
     end if;
@@ -174,12 +179,12 @@ set search_path to ''
 as $$
 declare
   _org_id uuid;
-  _size_mb numeric;
+  _size_gb numeric;
 begin
   _org_id := (string_to_array(new.name, '/'))[2]::uuid;
-  _size_mb := coalesce((new.metadata->>'size')::numeric, 0) / 1000000.0;
+  _size_gb := coalesce((new.metadata->>'size')::numeric, 0) / 1000000000.0;
 
-  perform billing.check_limit(_org_id, 'storage', _size_mb);
+  perform billing.check_limit(_org_id, 'storage', _size_gb);
   return new;
 end;
 $$;
@@ -193,17 +198,17 @@ set search_path to ''
 as $$
 declare
   _org_id uuid;
-  _size_mb numeric;
+  _size_gb numeric;
 begin
   if tg_op = 'INSERT' then
     _org_id := (string_to_array(new.name, '/'))[2]::uuid;
-    _size_mb := coalesce((new.metadata->>'size')::numeric, 0) / 1000000.0;
-    perform billing.update_usage(_org_id, 'storage', _size_mb);
+    _size_gb := coalesce((new.metadata->>'size')::numeric, 0) / 1000000000.0;
+    perform billing.update_usage(_org_id, 'storage', _size_gb);
     return new;
   elsif tg_op = 'DELETE' then
     _org_id := (string_to_array(old.name, '/'))[2]::uuid;
-    _size_mb := coalesce((old.metadata->>'size')::numeric, 0) / 1000000.0;
-    perform billing.update_usage(_org_id, 'storage', -_size_mb);
+    _size_gb := coalesce((old.metadata->>'size')::numeric, 0) / 1000000000.0;
+    perform billing.update_usage(_org_id, 'storage', -_size_gb);
     return old;
   end if;
 
