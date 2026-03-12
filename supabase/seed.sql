@@ -186,10 +186,10 @@ insert into billing.tiers_products (tier_id, product_id, interval, cap) values
   ('pro',  'ai_credits',    'lifetime', null);
 
 -- Plans (min_tier: minimum tier level required)
-insert into billing.plans (id, min_tier, price, billing_cycle) values
-  ('free',        0, 0,   null),
-  ('pro_monthly', 1, 29,  'month'),
-  ('pro_yearly',  1, 290, 'year');
+insert into billing.plans (id, min_tier, price, billing_cycle, is_default) values
+  ('free',        0, 0,   null,    true),
+  ('pro_monthly', 1, 29,  'month', false),
+  ('pro_yearly',  1, 290, 'year',  false);
 
 -- Plan product allowances and overage pricing (no rows = no charges)
 insert into billing.plans_products (plan_id, product_id, interval, included, unit_price) values

@@ -3,6 +3,7 @@ create table billing.plans (
   min_tier int not null,
   price numeric not null,
   billing_cycle text,
+  is_default boolean not null default false,
   active boolean not null default true,
   created_at timestamp with time zone default now() not null,
   updated_at timestamp with time zone default now() not null
