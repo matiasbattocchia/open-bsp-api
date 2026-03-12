@@ -69,18 +69,6 @@ when (
 )
 execute function public.enforce_invitation_status_flow();
 
-create trigger check_org_limit
-before update
-on public.agents
-for each row
-when (
-  new.ai = false
-  and new.user_id is not null
-  and old.extra->'invitation'->>'status' != 'accepted'
-  and new.extra->'invitation'->>'status' = 'accepted'
-)
-execute function public.check_org_limit_before_update_on_agents();
-
 create trigger prevent_last_owner_deletion_before_update
 before update
 on public.agents
