@@ -1,0 +1,8 @@
+{
+  "imports": {
+    "@modelcontextprotocol/sdk/server/index.js": "npm:@modelcontextprotocol/sdk@1.12.1/server/index.js",
+    "@modelcontextprotocol/sdk/server/stdio.js": "npm:@modelcontextprotocol/sdk@1.12.1/server/stdio.js",
+    "@modelcontextprotocol/sdk/types.js": "npm:@modelcontextprotocol/sdk@1.12.1/types.js",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.49.8"
+  }
+}

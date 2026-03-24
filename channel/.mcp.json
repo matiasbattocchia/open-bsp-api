@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "openbsp": {
+      "command": "deno",
+      "args": ["run", "--allow-net", "--allow-read", "--allow-write", "--allow-env", "--allow-run", "${CLAUDE_PLUGIN_ROOT}/server.ts"]
+    }
+  }
+}
