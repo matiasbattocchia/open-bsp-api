@@ -389,9 +389,23 @@ Deno.serve(async (req) => {
     });
   } catch (error) {
     // https://ai.google.dev/gemini-api/docs/troubleshooting
-    const retryableErrors = [429, 500, 503]; // RESOURCE_EXHAUSTED, INTERNAL, UNAVAILABLE
+    const status = (error as ApiError).status;
 
-    if (retryableErrors.includes((error as ApiError).status)) {
+    // 429 can be rate limiting (retryable) or quota exhaustion (not retryable)
+    if (status === 429) {
+      const message = String(error);
+      const isQuotaExhausted = message.includes("quota") || message.includes("RESOURCE_EXHAUSTED");
+
+      if (isQuotaExhausted) {
+        return log_update_and_respond(
+          "warn",
+          `Gemini API quota exhausted for ${model}. Skipping preprocessing.`,
+        );
+      }
+    }
+
+    // 500, 503: transient server errors worth retrying
+    if ([429, 500, 503].includes(status)) {
       log.error("Retryable Gemini API error in preprocessing", error);
       throw error;
     }

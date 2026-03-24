@@ -56,7 +56,7 @@ insert into billing.plans_products (plan_id, product_id, interval, included, uni
 
   ('starter', 'messages',   'month',    25000, 0.001),
   ('starter', 'storage',    'lifetime', 25,    0.025),
-  ('starter', 'ai_credits', 'lifetime', null,  null);
+  ('starter', 'ai_credits', 'lifetime', 1,     null);
 
 -- Costs (provider-specific pricing structures)
 -- Google: https://ai.google.dev/gemini-api/docs/pricing

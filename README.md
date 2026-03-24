@@ -425,6 +425,14 @@ Finally, update the types
 npx supabase gen types typescript --local > supabase/functions/_shared/db_types.ts
 ```
 
+### REST API docs
+
+Fetch the OpenAPI spec from PostgREST (requires the service role key):
+
+```
+curl "https://<project-id>.supabase.co/rest/v1/" -H "apikey: <service_role_key>" > openapi.json
+```
+
 ### Edge Functions
 
 ```
