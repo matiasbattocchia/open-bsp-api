@@ -9,43 +9,8 @@
  */
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { mkdirSync, readFileSync, writeFileSync, chmodSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
-
-const STATE_DIR =
-  Deno.env.get("OPENBSP_STATE_DIR") ??
-  join(homedir(), ".claude", "channels", "openbsp");
-const SESSION_FILE = join(STATE_DIR, "session.json");
-const ENV_FILE = join(STATE_DIR, ".env");
-
-// Load .env from state dir (same pattern as Telegram channel).
-// Real env vars take precedence.
-try {
-  chmodSync(ENV_FILE, 0o600);
-  for (const line of readFileSync(ENV_FILE, "utf8").split("\n")) {
-    const m = line.match(/^(\w+)=(.*)$/);
-    if (m && Deno.env.get(m[1]) === undefined) {
-      Deno.env.set(m[1], m[2]);
-    }
-  }
-} catch {
-  // .env file doesn't exist yet — that's fine
-}
-
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
-
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  console.error(
-    `openbsp channel: SUPABASE_URL and SUPABASE_ANON_KEY required\n` +
-      `  set in ${ENV_FILE}\n` +
-      `  format:\n` +
-      `    SUPABASE_URL=https://your-project.supabase.co\n` +
-      `    SUPABASE_ANON_KEY=eyJ...`
-  );
-  Deno.exit(1);
-}
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { loadConfig, STATE_DIR, SESSION_FILE } from "./config.ts";
 
 type SavedSession = {
   access_token: string;
@@ -221,7 +186,8 @@ async function oauthLoopback(
  * Tries saved session first, falls back to OAuth loopback.
  */
 export async function authenticate(): Promise<SupabaseClient> {
-  const supabase = createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, {
+  const config = loadConfig();
+  const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey, {
     auth: {
       flowType: "pkce",
       detectSessionInUrl: false,
@@ -289,5 +255,3 @@ export async function authenticate(): Promise<SupabaseClient> {
 
   return supabase;
 }
-
-export { STATE_DIR };

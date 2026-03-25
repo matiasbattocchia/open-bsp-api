@@ -25,74 +25,98 @@ WhatsApp Cloud API
 
 - [Deno](https://deno.com) v2+
 - [Claude Code](https://claude.com/claude-code) v2.1.80+
-- A Supabase project with OpenBSP deployed
 - An OpenBSP user account (Google SSO)
 
-## Configuration
+## Quick start
 
-### 1. Create the state directory and `.env` file
-
-```bash
-mkdir -p ~/.claude/channels/openbsp
-```
-
-Create `~/.claude/channels/openbsp/.env` with your Supabase credentials:
-
-```env
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=eyJ...
-```
-
-These are the same values as `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in the UI app.
-
-### 2. Optional environment variables
-
-Set these in the `.env` file if needed:
-
-| Variable | Description |
-|---|---|
-| `ORG_ID` | Organization ID to use (required if your account belongs to multiple organizations) |
-| `ACCOUNT_PHONE` | WhatsApp account phone number, digits only (required if the org has multiple WhatsApp accounts) |
-| `OPENBSP_STATE_DIR` | Override the state directory (default: `~/.claude/channels/openbsp`) |
-
-### 3. Sender gating (optional)
-
-Create `~/.claude/channels/openbsp/access.json` to restrict which contacts can push messages into your Claude session:
-
-```json
-{
-  "allowedContacts": ["5491155551234", "5491155555678"]
-}
-```
-
-If the file is missing or `allowedContacts` is empty, **all contacts** are forwarded. For security, configure this when using the channel in contexts where prompt injection is a concern.
-
-## Authentication
-
-The channel uses the same Google SSO as the OpenBSP UI app. No API keys or service role keys needed.
-
-**First run:** the server opens your browser for Google sign-in. After authentication, the session (JWT + refresh token) is saved to `~/.claude/channels/openbsp/session.json`.
-
-**Subsequent runs:** the saved session is loaded automatically. If the token has expired, the Supabase client refreshes it. If the refresh token is also expired, the browser opens again.
-
-The session file is created with `0600` permissions (owner-only read/write).
-
-## Usage
-
-### Development (research preview)
-
-During the research preview, custom channels require the development flag:
+**Hosted users (zero config):** Production Supabase credentials are built in. Just authenticate with Google and go.
 
 ```bash
 claude --dangerously-load-development-channels server:openbsp
 ```
 
-This tells Claude Code to:
-1. Read `.mcp.json` and spawn the channel server as a subprocess
-2. Connect over stdio and register the `claude/channel` notification listener
-3. The server authenticates, resolves your org/account, and subscribes to Realtime
+The channel opens your browser for Google sign-in on first run. After that, sessions are refreshed automatically.
 
-### What Claude sees
+**Self-hosted users:** Point to your own Supabase instance:
+
+```
+/openbsp:configure https://your-project.supabase.co your-anon-key
+```
+
+## Configuration
+
+All configuration is managed through skills — no need to hand-edit files.
+
+### Check status
+
+```
+/openbsp:config
+```
+
+Shows: Supabase URL (default or custom), auth state, org, account, and allowed contacts.
+
+### Add contacts (required)
+
+The channel is **secure by default** — no contacts are allowed until explicitly added. All messages from unknown contacts are silently dropped.
+
+```
+/openbsp:config contacts add 5491155551234
+/openbsp:config contacts add 5491155555678
+/openbsp:config contacts                       # show who's allowed
+/openbsp:config contacts remove 5491155551234  # remove one
+/openbsp:config contacts clear                 # block all again
+```
+
+### Multi-org / multi-account
+
+```
+/openbsp:config organization <org-uuid>
+/openbsp:config account <phone-digits>
+```
+
+### Other commands
+
+```
+/openbsp:config login    # clear session, force re-auth on next start
+```
+
+### Advanced: environment variables
+
+Env vars override everything (for CI or scripting):
+
+| Variable | Description |
+|---|---|
+| `SUPABASE_URL` | Supabase project URL |
+| `SUPABASE_ANON_KEY` | Supabase anonymous key |
+| `ORG_ID` | Organization ID (multi-org) |
+| `ACCOUNT_PHONE` | WhatsApp account phone, digits only (multi-account) |
+| `OPENBSP_STATE_DIR` | Override state directory (default: `~/.claude/channels/openbsp`) |
+
+### Config file
+
+All settings are stored in `~/.claude/channels/openbsp/config.json`:
+
+```json
+{
+  "supabaseUrl": "https://custom.supabase.co",
+  "supabaseAnonKey": "eyJ...",
+  "orgId": "uuid",
+  "accountPhone": "1234567890",
+  "allowedContacts": ["5491155551234"]
+}
+```
+
+All fields are optional — missing keys fall back to hardcoded production defaults or auto-detection. An empty or missing `allowedContacts` blocks all messages (secure by default).
+
+## Authentication
+
+The channel uses Google SSO (same as the OpenBSP UI). No API keys or service role keys needed.
+
+**First run:** opens your browser for Google sign-in. The session is saved to `~/.claude/channels/openbsp/session.json` (0600 permissions).
+
+**Subsequent runs:** the saved session is loaded and refreshed automatically. If the refresh token is expired, the browser opens again.
+
+## What Claude sees
 
 When a WhatsApp message arrives:
 
@@ -102,39 +126,18 @@ Hello, I need help with my order
 </channel>
 ```
 
-New conversations also emit an event:
-
-```xml
-<channel source="openbsp" contact_phone="5491155551234" contact_name="John" event="new_conversation" service="whatsapp">
-New conversation started with John
-</channel>
-```
-
 ### Reply tool
 
-Claude can send messages back using the `reply` tool:
+Claude replies using the `reply` tool:
 
 ```
 Tool: reply
 Arguments:
-  contact_phone: "5491155551234"  (from the channel tag)
+  contact_phone: "5491155551234"
   text: "Your order is on the way!"
 ```
 
-The reply is inserted as an outgoing message and dispatched to WhatsApp through the existing pipeline. The 24-hour service window applies — if the contact hasn't messaged in 24h, a template must be sent instead (via the existing MCP server's `send_message` tool).
-
-## Relationship with the existing MCP server
-
-| | Edge Function MCP Server | Claude Code Channel |
-|---|---|---|
-| **Transport** | Streamable HTTP (remote) | stdio (local subprocess) |
-| **Runs where** | Supabase cloud | Your local machine |
-| **Push capability** | No (request-response) | Yes (Realtime notifications) |
-| **Auth** | API key | Google OAuth (JWT) |
-| **Tools** | Full suite (conversations, contacts, templates, send) | `reply` only |
-| **Who can use it** | Any MCP client | Claude Code only |
-
-They complement each other. The channel provides real-time push (incoming messages appear as they arrive), while the edge function MCP server provides the full tool suite for querying conversations, searching contacts, managing templates, etc.
+The 24-hour service window applies — if the contact hasn't messaged in 24h, a template must be sent instead.
 
 ## File structure
 
@@ -142,17 +145,18 @@ They complement each other. The channel provides real-time push (incoming messag
 channel/
 ├── server.ts              # MCP channel server (Realtime + reply tool)
 ├── auth.ts                # OAuth loopback flow + session persistence
+├── config.ts              # Config type, load/save helpers, constants
 ├── types.ts               # OpenBSP types (subset from _shared/supabase.ts)
 ├── deno.json              # Import map
 ├── .mcp.json              # MCP server config for Claude Code
+├── skills/
+│   └── configure/
+│       └── SKILL.md       # /openbsp:config skill
 └── .claude-plugin/
     └── plugin.json        # Plugin metadata
 ```
 
 ## Troubleshooting
-
-**"SUPABASE_URL and SUPABASE_ANON_KEY required"**
-Create the `.env` file as described in [Configuration](#1-create-the-state-directory-and-env-file).
 
 **Browser doesn't open for sign-in**
 The URL is printed to stderr. Copy and paste it manually. This can happen in headless/SSH environments.
@@ -161,10 +165,10 @@ The URL is printed to stderr. Copy and paste it manually. This can happen in hea
 Your Google account isn't associated with any OpenBSP organization. Sign in to the UI app first to verify your account.
 
 **"Multiple accounts found"**
-Set `ACCOUNT_PHONE` in the `.env` file to select which WhatsApp account to use.
+Set the account phone: `/openbsp:configure account <phone>`
 
 **Realtime not receiving messages**
-Check that the `supabase_realtime` publication includes the `messages` and `conversations` tables (it should if OpenBSP migrations have been applied). Check the Claude Code debug log at `~/.claude/debug/<session-id>.txt` for stderr output from the channel.
+Check that the `supabase_realtime` publication includes the `messages` and `conversations` tables. Check the Claude Code debug log at `~/.claude/debug/<session-id>.txt` for stderr output.
 
 **"blocked by org policy"**
 Your Team or Enterprise admin needs to [enable channels](https://code.claude.com/docs/en/channels#enterprise-controls).

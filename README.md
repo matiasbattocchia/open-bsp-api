@@ -51,6 +51,31 @@ Interpret and extract information from media and document files, including:
 - PDF
 - Other text-based documents (CSV, HTML, TXT, etc.)
 
+### Claude Code channel
+
+The OpenBSP channel brings WhatsApp messages into your Claude Code session in real-time. Claude receives incoming messages and can reply back — no polling, no webhooks to configure.
+
+Install the plugin:
+
+```
+/plugin marketplace add matiasbattocchia/open-bsp-api
+/plugin install openbsp@matiasbattocchia-open-bsp-api
+```
+
+Start the channel:
+
+```bash
+claude --dangerously-load-development-channels server:openbsp
+```
+
+On first run, a browser opens for Google sign-in (same account as the web UI). Then configure allowed contacts:
+
+```
+/openbsp:config contacts add 5491155551234
+```
+
+No contacts are forwarded until explicitly added (secure by default). See [`channel/README.md`](channel/README.md) for full documentation.
+
 ### MCP server
 
 The `mcp` Edge Function exposes an [MCP](https://modelcontextprotocol.io) server over SSE, giving agentic access to the WhatsApp API from clients like Claude Desktop or other agent platforms.
