@@ -38,8 +38,13 @@ const app = new Hono<AppEnv>();
 // CORS middleware
 app.use("*", cors());
 
-// Validate user or key
+// Validate user or key (skip for public onboard routes)
 app.use("*", async (c, next) => {
+  if (c.req.path.endsWith("/onboard")) {
+    await next();
+    return;
+  }
+
   const token = c.req.header("Authorization")?.replace("Bearer ", "");
 
   if (!token) {
@@ -261,6 +266,112 @@ app.delete("/whatsapp-management/signup", requireRoles(["owner"]), async (c) => 
   );
 
   return c.json(address);
+});
+
+// Public onboard routes (no auth required, token-based)
+
+app.get("/whatsapp-management/onboard", async (c) => {
+  const token = c.req.query("token");
+
+  if (!token) {
+    throw new HTTPException(400, { message: "Missing 'token' query param" });
+  }
+
+  const client = createUnsecureClient();
+
+  const { data, error } = await client
+    .from("onboarding_tokens")
+    .select("id, organization_id, organizations(name)")
+    .eq("id", token)
+    .eq("status", "active")
+    .gt("expires_at", new Date().toISOString())
+    .maybeSingle();
+
+  if (error || !data) {
+    return c.json({ valid: false });
+  }
+
+  return c.json({
+    valid: true,
+    organization_name: data.organizations?.name,
+  });
+});
+
+app.post("/whatsapp-management/onboard", async (c) => {
+  const body = await c.req.json<{
+    token: string;
+    code: string;
+    application_id?: string;
+    phone_number_id?: string;
+    waba_id?: string;
+    business_id?: string;
+    flow_type?: "only_waba" | "new_phone_number" | "existing_phone_number";
+  }>();
+
+  if (!body.token) {
+    throw new HTTPException(400, { message: "Missing 'token' body param" });
+  }
+
+  log.info("Public onboard payload", { ...body, code: "***" });
+
+  const client = createUnsecureClient();
+
+  // Atomically validate and mark token as used
+  const { data: tokenData, error: tokenError } = await client
+    .from("onboarding_tokens")
+    .update({ status: "used", used_at: new Date().toISOString() })
+    .eq("id", body.token)
+    .eq("status", "active")
+    .gt("expires_at", new Date().toISOString())
+    .select("organization_id")
+    .maybeSingle();
+
+  if (tokenError || !tokenData) {
+    throw new HTTPException(400, {
+      message: "Invalid or expired onboarding token",
+    });
+  }
+
+  const payload: SignupPayload = {
+    code: body.code,
+    application_id: body.application_id,
+    organization_id: tokenData.organization_id,
+    phone_number_id: body.phone_number_id,
+    waba_id: body.waba_id,
+    business_id: body.business_id,
+    flow_type: body.flow_type,
+  };
+
+  try {
+    const address = await performEmbeddedSignup(client, payload);
+
+    return c.json(address);
+  } catch (error) {
+    // Revert token status on failure
+    await client
+      .from("onboarding_tokens")
+      .update({ status: "active", used_at: null })
+      .eq("id", body.token);
+
+    if (error instanceof HTTPException) {
+      log.error(error.message, error);
+
+      await client
+        .from("logs")
+        .insert({
+          organization_id: tokenData.organization_id,
+          category: "signup",
+          level: "error",
+          message: error.message,
+          metadata: error.cause as Json,
+        })
+        .throwOnError();
+    } else {
+      log.error("Public onboard signup failed", error);
+    }
+
+    throw error;
+  }
 });
 
 Deno.serve(app.fetch);
