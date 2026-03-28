@@ -1,5 +1,6 @@
 create table public.onboarding_tokens (
   id uuid primary key default gen_random_uuid(),
+  name text not null,
   organization_id uuid not null,
   created_by uuid not null,
   created_at timestamp with time zone default now() not null,

@@ -941,6 +941,7 @@ export type Database = {
           created_by: string
           expires_at: string
           id: string
+          name: string
           organization_id: string
           status: string
           used_at: string | null
@@ -950,6 +951,7 @@ export type Database = {
           created_by: string
           expires_at: string
           id?: string
+          name: string
           organization_id: string
           status?: string
           used_at?: string | null
@@ -959,6 +961,7 @@ export type Database = {
           created_by?: string
           expires_at?: string
           id?: string
+          name?: string
           organization_id?: string
           status?: string
           used_at?: string | null
