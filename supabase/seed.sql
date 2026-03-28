@@ -148,6 +148,13 @@ insert into public.api_keys (organization_id, key, role, name) values
   ('3a182d8d-d6d8-44bd-b021-029915476b8c', '1234567890', 'member', 'Default')
 ;
 
+-- Onboarding Tokens (for Mountain Peaks - created by Goat)
+insert into public.onboarding_tokens (name, organization_id, created_by, expires_at, status, used_at) values
+  ('Villager Trading Co', '3a182d8d-d6d8-44bd-b021-029915476b8c', '185f2f83-d63a-4c9b-b4a0-7e4a885799e2', now() + interval '7 days', 'active', null),
+  ('Old Nether Portal', '3a182d8d-d6d8-44bd-b021-029915476b8c', '185f2f83-d63a-4c9b-b4a0-7e4a885799e2', now() - interval '1 day', 'expired', null),
+  ('Witch Hut Supply', '3a182d8d-d6d8-44bd-b021-029915476b8c', '185f2f83-d63a-4c9b-b4a0-7e4a885799e2', now() + interval '30 days', 'used', now() - interval '2 days')
+;
+
 -- AI Agents (for Mountain Peaks)
 insert into public.agents (id, name, user_id, organization_id, ai, extra) values
   ('a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d', 'Creeper', null, '3a182d8d-d6d8-44bd-b021-029915476b8c', true, 
