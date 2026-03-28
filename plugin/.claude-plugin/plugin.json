@@ -1,0 +1,12 @@
+{
+  "name": "openbsp",
+  "description": "OpenBSP plugin for Claude Code — WhatsApp channel and API access.",
+  "version": "0.1.0",
+  "keywords": [
+    "whatsapp",
+    "messaging",
+    "api",
+    "mcp",
+    "openbsp"
+  ]
+}

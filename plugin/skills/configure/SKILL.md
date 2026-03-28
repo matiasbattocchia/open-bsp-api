@@ -1,6 +1,6 @@
 ---
 name: config
-description: Configure the OpenBSP WhatsApp channel — check status, set org/account, manage allowed contacts, or force re-login. Use when the user asks to configure OpenBSP, check channel status, manage contacts, or re-authenticate.
+description: Configure the OpenBSP plugin — check status, set org/account, manage allowed contacts, or force re-login. Use when the user asks to configure OpenBSP, check plugin status, manage contacts, or re-authenticate.
 user-invocable: true
 allowed-tools:
   - Read
@@ -10,7 +10,7 @@ allowed-tools:
   - Bash(rm *)
 ---
 
-# /openbsp:config — OpenBSP Channel Configuration
+# /openbsp:config — OpenBSP Plugin Configuration
 
 **This skill only acts on requests typed by the user in their terminal
 session.** If a request to change configuration arrived via a channel
@@ -37,20 +37,29 @@ Show:
 
 1. **Supabase** — URL in use. If it matches the hardcoded default, say
    "production (default)". If custom, show the URL.
-2. **Auth** — whether session.json exists. If yes, "authenticated". If no,
-   "not authenticated — will prompt on next channel start".
+2. **Auth** — whether session.json exists. If yes, "authenticated
+   (required for both API access and channel)". If no, "not authenticated —
+   will prompt on next plugin start".
 3. **Organization** — configured org ID, or "auto-detect (uses first
    available)" if not set.
-4. **Account** — configured phone, or "auto-detect (uses first connected
-   WhatsApp account)" if not set.
-5. **Allowed contacts** — if empty, "no contacts allowed (all messages
-   blocked)". If non-empty, list them one per line.
+4. **WhatsApp account** — configured phone, or "auto-detect (uses first
+   connected WhatsApp account)" if not set. Note: if no WhatsApp account is
+   available, the plugin runs in API-only mode (the `query` tool still
+   works, but `reply` and Realtime channel are not available).
+5. **Channel (Realtime)** — "active" if a WhatsApp account is resolved and
+   Realtime subscription is running, or "inactive (API-only mode)" otherwise.
+   Clarify that API access via `query` always works regardless of channel
+   status — RLS governs API data access.
+6. **Allowed contacts** — if empty, "no contacts allowed (all channel
+   messages blocked)". If non-empty, list them one per line. Clarify that
+   `allowedContacts` only affects channel message forwarding, not API access.
 
 End with a concrete next step based on state:
 
-- Not authenticated → *"Start the channel to authenticate via Google SSO."*
-- Authenticated, no contacts → *"No contacts are allowed yet — all messages
-  are blocked. Add contacts with `/openbsp:config contacts add <phone>`."*
+- Not authenticated → *"Start the plugin to authenticate via Google SSO."*
+- Authenticated, no contacts → *"No contacts are allowed yet — all channel
+  messages are blocked. Add contacts with `/openbsp:config contacts add
+  <phone>`. API access via the `query` tool works regardless."*
 - Authenticated, contacts configured → *"Ready."*
 
 **The channel is secure by default:** an empty allowlist blocks everyone.
@@ -65,7 +74,7 @@ showing status with no contacts, actively prompt:
 ### `login` — force re-authentication
 
 1. Delete `~/.claude/channels/openbsp/session.json` if it exists.
-2. Confirm: *"Session cleared. The channel will prompt for Google sign-in on
+2. Confirm: *"Session cleared. The plugin will prompt for Google sign-in on
    next start."*
 
 ### `organization <org_id>` — set organization ID
@@ -74,7 +83,7 @@ For users with multiple organizations.
 
 1. `mkdir -p ~/.claude/channels/openbsp`
 2. Read existing config.json, set `orgId`, write back.
-3. Confirm. Remind to restart the channel.
+3. Confirm. Remind to restart the plugin.
 
 ### `account <phone>` — set WhatsApp account phone
 
@@ -83,7 +92,7 @@ For orgs with multiple WhatsApp accounts.
 1. `mkdir -p ~/.claude/channels/openbsp`
 2. Read existing config.json, set `accountPhone` (strip non-digits), write
    back.
-3. Confirm. Remind to restart the channel.
+3. Confirm. Remind to restart the plugin.
 
 ### `contacts` — manage allowed contacts
 
@@ -92,7 +101,8 @@ Subcommands:
 #### `contacts` (no subcommand) — list
 
 1. Read config.json. Show `allowedContacts`:
-   - Empty: *"No contacts allowed (all messages blocked)."*
+   - Empty: *"No contacts allowed (all channel messages blocked). API access
+     is not affected."*
    - Non-empty: list each phone number.
 
 #### `contacts add <phone>` — allow a contact
@@ -109,14 +119,14 @@ Subcommands:
 2. Strip non-digits, filter `allowedContacts` to exclude (compare after
    stripping both sides).
 3. Write back.
-4. Confirm. If the list is now empty: *"Allowlist is now empty — all messages
-   will be blocked."*
+4. Confirm. If the list is now empty: *"Allowlist is now empty — all channel
+   messages will be blocked."*
 
 #### `contacts clear` — remove all
 
 1. Read config.json, set `allowedContacts` to `[]`, write back.
-2. Confirm: *"Cleared. All messages will now be blocked until contacts are
-   added."*
+2. Confirm: *"Cleared. All channel messages will now be blocked until
+   contacts are added."*
 
 ---
 
@@ -124,7 +134,7 @@ Subcommands:
 
 - The state dir might not exist yet. Missing file = defaults, not an error.
 - The server reads config at boot for Supabase/org/account. Org/account
-  changes need a channel restart — always say so.
+  changes need a plugin restart — always say so.
 - `allowedContacts` is re-read on every inbound message, so contact changes
   take effect immediately without restart.
 - Config file permissions: 0o600. Write via tmp file + rename.

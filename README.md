@@ -51,9 +51,9 @@ Interpret and extract information from media and document files, including:
 - PDF
 - Other text-based documents (CSV, HTML, TXT, etc.)
 
-### Claude Code channel
+### Claude Code plugin
 
-The OpenBSP channel brings WhatsApp messages into your Claude Code session in real-time. Claude receives incoming messages and can reply back — no polling, no webhooks to configure.
+The OpenBSP plugin gives Claude Code full API access and optionally bridges WhatsApp messages in real-time. Claude can query contacts, conversations, templates, and more via the `query` tool, and reply to WhatsApp messages via the `reply` tool.
 
 Install the plugin:
 
@@ -62,19 +62,13 @@ Install the plugin:
 /plugin install openbsp@matiasbattocchia-open-bsp-api
 ```
 
-Start the channel:
-
-```bash
-claude --dangerously-load-development-channels server:openbsp
-```
-
-On first run, a browser opens for Google sign-in (same account as the web UI). Then configure allowed contacts:
+On first run, a browser opens for Google sign-in (same account as the web UI). Then configure allowed contacts for the WhatsApp channel:
 
 ```
 /openbsp:config contacts add 5491155551234
 ```
 
-No contacts are forwarded until explicitly added (secure by default). See [`channel/README.md`](channel/README.md) for full documentation.
+No contacts are forwarded until explicitly added (secure by default). API access works regardless of channel configuration. See [`plugin/README.md`](plugin/README.md) for full documentation.
 
 ### MCP server
 

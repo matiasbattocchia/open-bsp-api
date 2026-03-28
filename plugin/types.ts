@@ -1,7 +1,7 @@
 /**
  * Types copied from supabase/functions/_shared/supabase.ts
  *
- * These are the subset of OpenBSP types needed by the channel server.
+ * These are the subset of OpenBSP types needed by the plugin server.
  * Kept as a standalone copy because the source file has deep dependency
  * chains (db_types.ts, a2a_types.ts, type-fest, etc.) that don't resolve
  * outside the edge functions context.

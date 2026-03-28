@@ -1,5 +1,5 @@
 /**
- * Unified configuration for the OpenBSP channel.
+ * Unified configuration for the OpenBSP plugin.
  *
  * Priority: env vars > config.json > hardcoded defaults.
  * Production defaults (Supabase URL + anon key) are baked in — these are

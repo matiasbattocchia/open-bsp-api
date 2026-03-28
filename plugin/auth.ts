@@ -144,7 +144,7 @@ async function oauthLoopback(
     throw new Error(`Failed to get OAuth URL: ${error?.message ?? "no url"}`);
   }
 
-  console.error(`openbsp channel: opening browser for Google sign-in...`);
+  console.error(`openbsp: opening browser for Google sign-in...`);
   console.error(`  If the browser doesn't open, visit: ${data.url}`);
 
   // Open browser
@@ -225,14 +225,14 @@ export async function authenticate(): Promise<SupabaseClient> {
       } = await supabase.auth.getUser();
       if (user) {
         console.error(
-          `openbsp channel: authenticated as ${user.email ?? user.id}`
+          `openbsp: authenticated as ${user.email ?? user.id}`
         );
         return supabase;
       }
     }
 
     console.error(
-      `openbsp channel: saved session expired or invalid, re-authenticating...`
+      `openbsp: saved session expired or invalid, re-authenticating...`
     );
   }
 
@@ -250,7 +250,7 @@ export async function authenticate(): Promise<SupabaseClient> {
     data: { user },
   } = await supabase.auth.getUser();
   console.error(
-    `openbsp channel: authenticated as ${user?.email ?? user?.id ?? "unknown"}`
+    `openbsp: authenticated as ${user?.email ?? user?.id ?? "unknown"}`
   );
 
   return supabase;

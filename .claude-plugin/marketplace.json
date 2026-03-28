@@ -2,7 +2,7 @@
   "plugins": [
     {
       "name": "openbsp",
-      "path": "channel"
+      "path": "plugin"
     }
   ]
 }
