@@ -15,3 +15,5 @@ package.json
 package-lock.json
 
 mise.toml
+
+.mcp.json

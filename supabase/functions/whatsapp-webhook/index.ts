@@ -495,7 +495,7 @@ async function processMessage(request: Request): Promise<Response> {
         const { data: address } = await client
           .from("organizations_addresses")
           .select()
-          .eq("extra->>waba_id", value.waba_info.waba_id)
+          .eq("extra->>waba_id", value.waba_info?.waba_id)
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle()
@@ -509,7 +509,7 @@ async function processMessage(request: Request): Promise<Response> {
         log.info("Account update event", {
           organization_id: address.organization_id,
           event: value.event,
-          waba_id: value.waba_info.waba_id,
+          waba_id: value.waba_info?.waba_id,
         });
 
         await client
@@ -533,7 +533,7 @@ async function processMessage(request: Request): Promise<Response> {
             .from("organizations_addresses")
             .update({ status: "disconnected" })
             .eq("organization_id", address.organization_id)
-            .eq("extra->>waba_id", value.waba_info.waba_id)
+            .eq("extra->>waba_id", value.waba_info?.waba_id)
             .throwOnError();
         }
       }
@@ -863,7 +863,7 @@ async function processMessage(request: Request): Promise<Response> {
         );
 
         for (const { count, error } of Object.values(errorCounts)) {
-          log.error(`Received ${count} error messages with code ${error.code}`, {
+          log.warn(`Received ${count} error messages with code ${error.code}`, {
             organization_id,
             organization_address,
             error_code: error.code,

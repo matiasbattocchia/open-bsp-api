@@ -162,7 +162,7 @@ function requireRoles(
 
 // Templates routes
 
-app.get("/whatsapp-management/templates", requireRoles(["member", "admin", "owner"]), async (c) => {
+app.put("/whatsapp-management/templates", requireRoles(["member", "admin", "owner"]), async (c) => {
   const { organization_id, organization_address, template } = await c.req.json<TemplatePayload>();
 
   const client = c.get("supabase");
