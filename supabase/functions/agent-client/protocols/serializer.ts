@@ -41,13 +41,17 @@ export function serializePartAsXML(part: Part & Partial<ReferralInfo>): string {
     }
 
     case "data": {
-      lines.push(
-        `<${part.kind}>`,
-        inspect(part.data, { compact: false, depth: Infinity, colors: false }),
-        `</${part.kind}>`,
-      );
+      if (part.text) {
+        lines.push(`<${part.kind}>`, part.text, `</${part.kind}>`);
+      } else {
+        lines.push(
+          `<${part.kind}>`,
+          inspect(part.data, { compact: false, depth: Infinity, colors: false }),
+          `</${part.kind}>`,
+        );
+      }
 
-      break
+      break;
     }
 
     case "file": {
