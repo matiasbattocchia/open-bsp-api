@@ -887,10 +887,17 @@ async function processMessage(request: Request): Promise<Response> {
     }
   }
 
+  const orgSummary = Array.from(orgAddressMap.entries()).map(([address, row]) => ({
+    organization_id: row.organization_id,
+    organization_address: address,
+    waba_id: row.extra?.waba_id,
+  }));
+
   log.info("Webhook processing summary", {
     messages: messages.length,
     statuses: statuses.length,
     contacts_addresses: contacts_addresses.length,
+    organizations: orgSummary,
   });
 
   const downloadMediaPromise = Promise.all(
@@ -907,10 +914,18 @@ async function processMessage(request: Request): Promise<Response> {
   );
 
   if (contacts_addresses.length > 0) {
-    await client
+    const { error: contactsError } = await client
       .from("contacts_addresses")
-      .upsert(contacts_addresses)
-      .throwOnError();
+      .upsert(contacts_addresses);
+
+    if (contactsError) {
+      log.error("Failed to upsert contacts_addresses", {
+        error: contactsError,
+        organizations: orgSummary,
+        contacts_addresses,
+      });
+      throw contactsError;
+    }
 
     log.info("Persisted contacts_addresses", { count: contacts_addresses.length });
   }
@@ -932,12 +947,20 @@ async function processMessage(request: Request): Promise<Response> {
   const allMessages = [...statuses, ...patchedMessages];
 
   if (allMessages.length > 0) {
-    await client
+    const { error: messagesError } = await client
       .from("messages")
       .upsert(allMessages, {
         onConflict: "external_id",
-      })
-      .throwOnError();
+      });
+
+    if (messagesError) {
+      log.error("Failed to upsert messages", {
+        error: messagesError,
+        organizations: orgSummary,
+        message_count: allMessages.length,
+      });
+      throw messagesError;
+    }
 
     log.info("Persisted messages", {
       total: allMessages.length,
