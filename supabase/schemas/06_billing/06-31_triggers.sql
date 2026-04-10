@@ -7,15 +7,25 @@ execute function billing.initialize_subscription();
 
 -- Check billing limit before message insert
 -- Named to sort before "handle_new_message" (alphabetical trigger execution)
+-- Only for recent messages (excludes history sync which has old timestamps)
 create trigger check_billing_message_limit
 before insert
 on public.messages
 for each row
+when (new.timestamp >= now() - interval '10 seconds')
 execute function billing.check_product_limit();
 
--- Update message usage after insert or delete
+-- Update message usage after insert (only recent, excludes history sync)
 create trigger update_billing_message_usage
-after insert or delete
+after insert
+on public.messages
+for each row
+when (new.timestamp >= now() - interval '10 seconds')
+execute function billing.update_product_usage();
+
+-- Update message usage after delete (always, to keep counters accurate)
+create trigger update_billing_message_usage_on_delete
+after delete
 on public.messages
 for each row
 execute function billing.update_product_usage();

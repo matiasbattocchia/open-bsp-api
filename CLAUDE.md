@@ -47,4 +47,6 @@ ORDER BY created_at DESC;
 
 ## Database migrations
 
-Never modify applied migrations. Always create new ones. See README.md "Local development > Database" for the full workflow.
+- Never modify applied migrations. Always create new ones.
+- Migrations are **generated** from schema diffs, not manually written: edit the schema files under `supabase/schemas/`, then run `npx supabase db diff -f <migration_name>`.
+- See README.md "Local development > Database" for the full workflow.
