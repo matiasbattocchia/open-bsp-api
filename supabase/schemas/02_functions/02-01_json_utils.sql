@@ -75,7 +75,7 @@ begin
   new_jsonb := to_jsonb(NEW);
 
   -- Get the column values and perform the merge
-  merged_value := merge_update_jsonb(
+  merged_value := public.merge_update_jsonb(
     old_jsonb -> column_name,
     '{}'::text[],
     new_jsonb -> column_name
