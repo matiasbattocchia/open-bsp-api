@@ -18,6 +18,21 @@ using (
   )
 );
 
+create policy "owners can update their orgs"
+on public.organizations
+for update
+to authenticated, anon
+using (
+  id in (
+    select public.get_authorized_orgs('owner')
+  )
+)
+with check (
+  id in (
+    select public.get_authorized_orgs('owner')
+  )
+);
+
 create policy "admins can update their orgs, without changing their name"
 on public.organizations
 for update

@@ -49,4 +49,5 @@ ORDER BY created_at DESC;
 
 - Never modify applied migrations. Always create new ones.
 - Migrations are **generated** from schema diffs, not manually written: edit the schema files under `supabase/schemas/`, then run `npx supabase db diff -f <migration_name>`.
+- Migrations apply automatically via CI: pushing to `origin/develop` deploys to DEV, pushing to `origin/main` deploys to PROD. Never apply migrations manually or execute DDL directly on production.
 - See README.md "Local development > Database" for the full workflow.
