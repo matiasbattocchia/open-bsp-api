@@ -60,6 +60,10 @@ create index messages_updated_at_idx
 on public.messages
 using btree (updated_at);
 
+create index messages_org_conv_timestamp_idx
+on public.messages
+using btree (organization_id, conversation_id, timestamp desc);
+
 create trigger handle_new_message
 before insert
 on public.messages

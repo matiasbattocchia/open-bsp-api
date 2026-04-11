@@ -1151,6 +1151,16 @@ export type Database = {
         Args: { role?: Database["public"]["Enums"]["role"] }
         Returns: string[]
       }
+      init_data: {
+        Args: {
+          p_limit?: number
+          p_organization_id: string
+          p_per_conversation?: number
+          p_since?: string
+          p_until?: string
+        }
+        Returns: Json
+      }
       member_self_update_rules: {
         Args: {
           p_ai: boolean
