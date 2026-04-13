@@ -914,15 +914,28 @@ async function processMessage(request: Request): Promise<Response> {
   );
 
   if (contacts_addresses.length > 0) {
+    // Deduplicate by (organization_id, address, service): Meta may send the
+    // same contact multiple times in one payload (e.g. accumulated state sync
+    // events). PostgreSQL's ON CONFLICT cannot affect the same row twice in a
+    // single statement. Keep the last entry — most recent event wins.
+    const dedupedContactsAddresses = Array.from(
+      new Map(
+        contacts_addresses.map((ca) => [
+          `${ca.organization_id}|${ca.address}|${ca.service}`,
+          ca,
+        ]),
+      ).values(),
+    );
+
     const { error: contactsError } = await client
       .from("contacts_addresses")
-      .upsert(contacts_addresses);
+      .upsert(dedupedContactsAddresses);
 
     if (contactsError) {
       log.error("Failed to upsert contacts_addresses", {
         error: contactsError,
         organizations: orgSummary,
-        contacts_addresses,
+        contacts_addresses: dedupedContactsAddresses,
       });
       throw contactsError;
     }
