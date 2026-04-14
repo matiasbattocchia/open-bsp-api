@@ -126,10 +126,6 @@ async function validateWebhookSignature(request: Request, body: string): Promise
   const url = new URL(request.url);
   const appId = url.searchParams.get("app_id");
 
-  if (appId === "no-verify") {
-    return true;
-  }
-
   if (appId) {
     idIndex = ids.indexOf(appId);
 
