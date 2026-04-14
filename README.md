@@ -1,10 +1,19 @@
-# Open BSP API
+<h1 align="center">Open BSP API</h1>
+<p align="center">
+  <strong>Open-source WhatsApp Business Platform</strong>
+</p>
+<p align="center">
+  Self-hostable, multi-tenant, AI-agent ready. Built with Deno 🦕 and powered by Supabase ⚡
+</p>
 
-The Open Business Service Provider API integrates with the **WhatsApp Business Platform**. It is built with Deno 🦕, powered by Postgres 🐘 and runs on Supabase ⚡ for scalable, modern backend infrastructure.
+<p align="center">
+  <a href="https://web.openbsp.dev"><img src="https://img.shields.io/badge/%F0%9F%9A%80_Try_it-web.openbsp.dev-C26A3D" alt="Try it"></a>&nbsp;
+  <a href="https://unlicense.org/"><img src="https://img.shields.io/badge/license-Unlicense-blue.svg" alt="License: Unlicense"></a>&nbsp;
+  <a href="https://github.com/matiasbattocchia/open-bsp-api/stargazers"><img src="https://img.shields.io/github/stars/matiasbattocchia/open-bsp-api" alt="GitHub Stars"></a>&nbsp;
+  <a href="https://github.com/matiasbattocchia/open-bsp-api/commits/main"><img src="https://img.shields.io/github/last-commit/matiasbattocchia/open-bsp-api" alt="Last Commit"></a>
+</p>
 
 Open BSP is designed for both individual businesses and service providers. You can use it to manage your own WhatsApp messaging, or leverage its features to become a [Meta Business Partner](https://developers.facebook.com/docs/whatsapp/solution-providers) and offer WhatsApp messaging services to other organizations.
-
-> **Sign up for a free account (requires a Google account) and try it out at [web.openbsp.dev](https://web.openbsp.dev)**!
 
 🚀 **Powering production-grade AI agents at [Mirlo.com](https://mirlo.com/agentes-ia/whatsapp)**
 
@@ -148,7 +157,7 @@ You are live! 🚀
 
 1. Click **Run workflow**
 
-## WhatsApp Integration
+## WhatsApp integration
 
 To connect your OpenBSP project to the WhatsApp API, you'll need to setup a Meta App with the WhatsApp product and configure the following Edge Functions secrets. You can set these up in two ways:
 
@@ -444,6 +453,12 @@ Finally, update the types
 npx supabase gen types typescript --local > supabase/functions/_shared/db_types.ts
 ```
 
+### Edge Functions
+
+```
+npx supabase functions serve
+```
+
 ### REST API docs
 
 Fetch the OpenAPI spec from PostgREST (requires the service role key):
@@ -451,28 +466,3 @@ Fetch the OpenAPI spec from PostgREST (requires the service role key):
 ```
 curl "https://<project-id>.supabase.co/rest/v1/" -H "apikey: <service_role_key>" > openapi.json
 ```
-
-### Edge Functions
-
-```
-npx supabase functions serve
-```
-
-## Roadmap
-
-The roadmap includes support for new protocols:
-
-- `responses` (OpenAI)
-- `messages` (Anthropic)
-- `generation` (Google)
-
-Two more tools:
-
-- Calendar (date calculator)
-- Code execution (E2B)
-
-An improved media preprocessor (more/different providers por document type) and more
-types:
-
-- DOC
-- XLS
