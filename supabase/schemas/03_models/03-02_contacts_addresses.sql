@@ -56,6 +56,19 @@ when (
 )
 execute function public.manage_contact_on_address_sync();
 
+-- Runs before cleanup_unlinked_address_if_empty (alphabetical order) so that
+-- the orphaned contact is deleted before the current address (if any) is.
+create trigger cleanup_orphaned_contact_on_sync
+after update
+on public.contacts_addresses
+for each row
+when (
+  old.contact_id is not null
+  and new.contact_id is null
+  and new.extra->'synced'->>'action' = 'remove'
+)
+execute function public.cleanup_orphaned_contact_on_sync();
+
 create trigger cleanup_unlinked_address_if_empty
 after update
 on public.contacts_addresses

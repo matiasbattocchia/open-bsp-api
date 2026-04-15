@@ -178,12 +178,12 @@ begin
 end;
 $$;
 
+-- BEFORE trigger: creates contact on ADD, unlinks on REMOVE.
+-- Must stay BEFORE to modify new.contact_id.
 create function public.manage_contact_on_address_sync() returns trigger
 language plpgsql
 set search_path = ''
 as $$
-declare
-  _other_active_count int;
 begin
   -- Case 1: Synced Action = ADD
   if new.extra->'synced'->>'action' = 'add' then
@@ -200,29 +200,41 @@ begin
   end if;
 
   -- Case 2: Synced Action = REMOVE
+  -- Unlink. The orphan cleanup happens in the AFTER trigger below to avoid
+  -- error 27000 ("tuple to be updated was already modified by an operation
+  -- triggered by the current command") caused by the ON DELETE SET NULL
+  -- cascade touching the current row.
+  -- Note: the address itself might be deleted by cleanup_unlinked_address_if_empty.
   if new.extra->'synced'->>'action' = 'remove' then
-    -- If there was a contact linked, check if it becomes orphaned
-    if old.contact_id is not null then
-       -- Count OTHER active addresses for this contact
-       select count(*) into _other_active_count
-       from public.contacts_addresses
-       where contact_id = old.contact_id
-         and status = 'active'
-         -- Exclude the current address being processed
-         and not (organization_id = new.organization_id and address = new.address);
-       
-       -- If no other addresses reference it, delete the contact
-       if _other_active_count = 0 then
-         delete from public.contacts where id = old.contact_id;
-       end if;
-    end if;
-
-    -- Unlink
-    -- Note: the address might be deleted by cleanup_unlinked_address_if_empty
     new.contact_id := null;
   end if;
 
   return new;
+end;
+$$;
+
+-- AFTER trigger: cleans up orphaned contact when the last address that
+-- referenced it is unlinked via a REMOVE sync event.
+create function public.cleanup_orphaned_contact_on_sync() returns trigger
+language plpgsql
+set search_path = ''
+as $$
+declare
+  _active_count int;
+begin
+  -- At this point new.contact_id is null (set by manage_contact_on_address_sync).
+  -- Count any other active addresses still referencing the old contact.
+  select count(*) into _active_count
+  from public.contacts_addresses
+  where contact_id = old.contact_id
+    and status = 'active';
+
+  -- If no other addresses reference it, delete the orphaned contact.
+  if _active_count = 0 then
+    delete from public.contacts where id = old.contact_id;
+  end if;
+
+  return null;
 end;
 $$;
 
