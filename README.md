@@ -140,10 +140,10 @@ AI Credits apply only when agents use the built-in LLM gateway. Configuring an a
 
 Includes 25,000 messages per month and 25 GB of storage. Overage is billed at $0.001 per message and $0.025 per GB, up to the tier caps of 100,000 messages / month and 100 GB lifetime.
 
-## Deployment
+## Self-host deployment
 
 > [!NOTE]
-> **Deploy in under 15 minutes** — no local environment required.
+> **Deploy your own instance in under 15 minutes** — no local environment required.
 
 1. Create a [Supabase](https://supabase.com) project (5 min)
 2. [Fork](https://github.com/matiasbattocchia/open-bsp-api/fork) this repo (1 min)
@@ -347,12 +347,11 @@ insert into public.organizations_addresses (address, organization_id, service, e
 
 ## Architecture
 
+New to Supabase? In one sentence: it's a hosted Postgres platform that auto-exposes your tables over a REST and realtime API, runs Deno-based Edge Functions for server-side logic, and handles auth and file storage on top. OpenBSP leans heavily on those primitives — most business logic lives as SQL triggers and Edge Functions, and clients (the web UI, the Claude Code plugin, custom integrations) talk to Postgres directly through a [Supabase client library](https://supabase.com/docs/guides/api/rest/client-libs) rather than through a separate backend layer.
+
 <img src="./architecture.png" alt="Architecture diagram" width="600">
 
-In the image, green boxes are external services, red are Edge Functions and
-blue, database tables. White boxes, clients, connect to the API via one of the
-Supabase
-[client libraries](https://supabase.com/docs/guides/api/rest/client-libs).
+In the image, green boxes are external services, red are Edge Functions and blue, database tables. White boxes are clients.
 
 The system uses a reactive, function-based architecture:
 
@@ -376,19 +375,22 @@ This event-driven flow ensures that each component is decoupled and scalable.
 
 #### Agent
 
-- `agent-client`: Orchestrates agent interactions, builds conversation context, and communicates with external agent APIs.
+- `agent-client`: Orchestrates agent interactions, builds conversation context, and communicates with external agent APIs over [Chat Completions](https://platform.openai.com/docs/api-reference/chat) or [A2A](https://github.com/google/A2A) protocols.
 
 ### Database models
 
-- **users**: Registered user in the application.
+- **users**: Registered user in the application (mapped to Supabase Auth).
 - **organizations**: Tenant entity; holds organization metadata.
-- **organizations_addresses**: Organization's addresses per service; belongs to an `organization`.
-- **contacts**: People associated with an `organization` (address book).
-- **conversations**: Conversation between an organization_address and a contact_address for a service; belongs to an `organization`, optionally to a `contact`.
-- **messages**: Messages within a `conversation` context; carries direction, type, payload, status, and timestamps.
+- **organizations_addresses**: An organization's connected addresses per service — e.g. a WhatsApp phone number. Belongs to an `organization`.
+- **contacts**: People associated with an `organization` — the address-book entry that groups one or more addresses under a name.
+- **contacts_addresses**: Addresses a contact can be reached at (e.g. a phone number for WhatsApp). An address can exist unlinked to any contact, so addresses and contacts have independent lifecycles — the sync triggers in this table manage linking/unlinking and orphan cleanup.
+- **conversations**: A conversation between an `organization_address` and a `contact_address` (or `group_address`) for a given service; belongs to an `organization`.
+- **messages**: Messages within a `conversation`; carry direction, type, payload, status, and timestamps.
 - **agents**: Human or AI agents for an `organization`; optionally linked to an auth `user`.
 - **api_keys**: API access keys scoped to an `organization`.
 - **webhooks**: Outbound webhook subscriptions per `organization`.
+- **quick_replies**: Reusable response snippets scoped to an `organization`.
+- **logs**: Application-level log entries (errors, warnings) written by Edge Functions.
 
 ## Configuration
 
