@@ -25,7 +25,7 @@ For a complete web-based interface to manage conversations check out the compani
 **🖥️ [OpenBSP UI](https://github.com/matiasbattocchia/open-bsp-ui)** — A modern, responsive web interface built with React and Tailwind.
 
 <p align="center">
-  <img src="./ui.png" alt="OpenBSP UI Screenshot" width="800">
+  <video src="./demo.mp4" width="800" autoplay loop muted></video>
 </p>
 
 ## Description
