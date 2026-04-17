@@ -459,9 +459,9 @@ async function processMessage(request: Request): Promise<Response> {
   const isValidSignature = await validateWebhookSignature(request, body);
 
   if (!isValidSignature) {
-    return new Response("Unauthorized: Invalid webhook signature", {
-      status: 401,
-    });
+    // Return 200 to prevent Meta from retrying. Common cause: the user deleted
+    // their org but didn't remove the webhook from their Meta app configuration.
+    return new Response();
   }
 
   const client = createUnsecureClient();

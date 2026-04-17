@@ -106,3 +106,55 @@ async function resolveAgentConfig(agent: Agent): Promise<ResolvedAgentExtra> {
 - **Versioning**: What if publisher breaks something? Pinned versions?
 - **Billing**: Usage tracking for revenue share (future)
 - **Unpublishing**: Graceful degradation when prototype becomes unavailable
+
+## Data Export (Hosted → Self-Hosted)
+
+Allow users to export their organization data from the hosted instance (web.openbsp.dev) and import it into a self-hosted deployment.
+
+### Why it works
+
+- All data is cleanly partitioned by `organization_id` — no cross-org FK references.
+- All primary keys are UUIDs — no sequence collisions on import.
+- Both instances run the same schema.
+
+### Export script (TypeScript + Supabase client)
+
+The user authenticates with an **owner-role API key** via the `api-key` header. Almost every table is readable through PostgREST + RLS:
+
+| Table | API-key readable | Role needed |
+|-------|------------------|-------------|
+| organizations | Yes | member |
+| organizations_addresses | Yes | member |
+| contacts | Yes | member |
+| contacts_addresses | Yes | member |
+| conversations | Yes | member |
+| messages | Yes | member |
+| agents | Yes | member |
+| api_keys | Yes | owner |
+| webhooks | Yes | admin |
+| quick_replies | Yes | member |
+| storage.objects | Yes (Storage API for files) | member |
+| onboarding_tokens | No (JWT only) | — |
+| logs | No (no RLS policies) | — |
+
+The two inaccessible tables (onboarding_tokens, logs) are not important for migration. Storage files need the Storage API to download (not PostgREST).
+
+Output: JSON dump + downloaded media files.
+
+### Import script (SQL)
+
+The self-hosted owner has DB credentials. Procedure:
+
+1. Disable triggers on all target tables (`DISABLE TRIGGER ALL`)
+2. INSERT org data from the JSON dump
+3. Import agents with `user_id = NULL` (users will re-link on signup via the existing `lookup_agents_by_email` trigger)
+4. Re-enable triggers (`ENABLE TRIGGER ALL`)
+5. Call `billing.initialize_subscription(<org_id>)` to set up fresh billing
+6. Re-upload storage files via Storage API
+
+### Key decisions
+
+- **Skip billing data** — let the self-hosted instance initialize fresh subscriptions; importing stale usage counters would be confusing.
+- **Skip auth.users** — Supabase Auth (GoTrue) manages these; can't INSERT directly. Instead, agents arrive with `user_id = NULL` and pending invitations. When users sign up on the new instance, the `lookup_agents_by_email_after_insert_on_auth_users` trigger auto-links them by email.
+- **Triggers must be disabled during import** — otherwise message inserts fire `agent-client` (LLM calls), `whatsapp-dispatcher` (sends to WhatsApp), billing checks, and webhook notifications.
+- **WhatsApp webhook URL must be updated** — after migration, each connected WhatsApp account's callback URL in the Meta App Dashboard still points to the hosted instance (`nheelwshzbgenpavwhcy.supabase.co`). It needs to be re-pointed to the new Supabase project's `whatsapp-webhook` endpoint. This could be automated via the WhatsApp Business Management API (`POST /{app-id}/subscriptions`) or done manually per app in Meta > WhatsApp > Configuration.
