@@ -187,8 +187,12 @@ as $$
 begin
   -- Case 1: Synced Action = ADD
   if new.extra->'synced'->>'action' = 'add' then
-    -- If no contact linked (neither from old row nor provided in new data), create one
-    if (old is null or old.contact_id is null) and new.contact_id is null then
+    if old is not null and old.contact_id is not null then
+      -- Preserve existing link: the upsert payload doesn't include contact_id,
+      -- so new.contact_id would be null and overwrite the existing link.
+      new.contact_id := old.contact_id;
+    elsif new.contact_id is null then
+      -- No contact linked from either side, create one
       insert into public.contacts (
         organization_id,
         name
