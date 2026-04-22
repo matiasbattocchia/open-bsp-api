@@ -1152,9 +1152,8 @@ export type AIAgentExtra = {
   api_url?: string;
   api_key?: string;
   model?: string;
-  // TODO: Deprecate assistants. Add responses (openai), messages (anthropic), generate-content (google).
-  protocol?: "a2a" | "chat_completions" | "assistants";
-  assistant_id?: string;
+  // TODO: Add responses (openai), messages (anthropic), generate-content (google).
+  protocol?: "a2a" | "chat_completions";
   max_messages?: number;
   temperature?: number;
   max_tokens?: number;

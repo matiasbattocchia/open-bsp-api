@@ -4,7 +4,6 @@ import {
   createUnsecureClient,
   type IncomingMessage,
   type MessageInsert,
-  type ContactInsert,
   type MetaWebhookPayload,
   type OutgoingMessage,
   type WebhookEchoMessage,
@@ -15,7 +14,7 @@ import {
   type OrganizationAddressRow,
   type ContactAddressInsert
 } from "../_shared/supabase.ts";
-import { fetchMedia, uploadToStorage } from "../_shared/media.ts";
+import { fetchMedia, uploadToStorage, MAX_STORAGE_UPLOAD_SIZE } from "../_shared/media.ts";
 import { whatsappToMarkdown } from "../_shared/markdown.ts";
 
 const API_VERSION = "v24.0";
@@ -231,6 +230,24 @@ async function downloadMediaItem({
     mime_type: mediaMetadata.mime_type,
   });
 
+  message.content.file.size = mediaMetadata.file_size;
+
+  // Check storage upload size limit before downloading
+  if (mediaMetadata.file_size > MAX_STORAGE_UPLOAD_SIZE) {
+    const sizeMB = (mediaMetadata.file_size / (1000 * 1000)).toFixed(1);
+    const limitMB = (MAX_STORAGE_UPLOAD_SIZE / (1000 * 1000)).toFixed(0);
+
+    log.warn("Media file exceeds storage upload limit", {
+      media_id,
+      file_size: mediaMetadata.file_size,
+      limit: MAX_STORAGE_UPLOAD_SIZE,
+    });
+
+    // Preserve message with original WhatsApp media reference and error status
+    message.status = { error: `File too large: ${sizeMB} MB (limit: ${limitMB} MB)` };
+    return message;
+  }
+
   // Fetch part 2: Get the file using the download url
   const file = await fetchMedia(mediaMetadata.url, access_token);
 
@@ -238,7 +255,6 @@ async function downloadMediaItem({
   const uri = await uploadToStorage(client, organization_id, file, filename);
 
   message.content.file.uri = uri; // Overwrite WA media id with the internal uri
-  message.content.file.size = mediaMetadata.file_size;
 
   return message;
 }
@@ -897,15 +913,27 @@ async function processMessage(request: Request): Promise<Response> {
   });
 
   const downloadMediaPromise = Promise.all(
-    messages.map((message) => {
+    messages.map(async (message) => {
       const orgAddress = orgAddressMap.get(message.organization_address)!;
 
-      return downloadMediaItem({
-        organization_id: orgAddress.organization_id,
-        access_token: orgAddress.extra?.access_token || DEFAULT_ACCESS_TOKEN,
-        message,
-        client,
-      });
+      try {
+        return await downloadMediaItem({
+          organization_id: orgAddress.organization_id,
+          access_token: orgAddress.extra?.access_token || DEFAULT_ACCESS_TOKEN,
+          message,
+          client,
+        });
+      } catch (error) {
+        log.warn("Failed to download media, preserving message with original reference", {
+          error: error instanceof Error ? error.message : String(error),
+          message_id: message.external_id,
+        });
+
+        message.status = {
+          error: error instanceof Error ? error.message : String(error),
+        };
+        return message;
+      }
     }),
   );
 

@@ -61,13 +61,22 @@ class WhatsAppError extends Error {
  * Video: up to 16 MB
  * - video/mp4
  * - video/3gpp
- *
- * @param phone_number_id
- * @param media_id
- * @param mime_type
- * @param access_token
- * @returns WA media id
  */
+
+// WhatsApp Cloud API file size limits per media type
+const WHATSAPP_MAX_FILE_SIZE: Record<string, number> = {
+  audio: 16 * 1000 * 1000,      // 16 MB
+  document: 100 * 1000 * 1000,  // 100 MB
+  image: 5 * 1000 * 1000,       // 5 MB
+  sticker: 500 * 1000,          // 500 KB (animated), 100 KB static
+  video: 16 * 1000 * 1000,      // 16 MB
+};
+
+function formatSize(bytes: number): string {
+  if (bytes < 1000) return `${bytes} B`;
+  if (bytes < 1000 * 1000) return `${(bytes / 1000).toFixed(0)} KB`;
+  return `${(bytes / (1000 * 1000)).toFixed(1)} MB`;
+}
 /**
  * Checks if a URI uses an external protocol (http/https)
  */
@@ -94,6 +103,21 @@ async function uploadMediaItem({
   }
 
   let file = await downloadFromStorage(client, message.content.file.uri);
+
+  // Validate file size against WhatsApp limits before uploading
+  const kind = message.content.kind;
+  const maxSize = WHATSAPP_MAX_FILE_SIZE[kind];
+
+  if (maxSize && file.size > maxSize) {
+    log.warn("File exceeds WhatsApp size limit", {
+      kind,
+      size: file.size,
+      limit: maxSize,
+    });
+    throw new WhatsAppError(
+      `File too large for WhatsApp: ${formatSize(file.size)} (limit: ${formatSize(maxSize)} for ${kind})`,
+    );
+  }
 
   let mime_type = message.content.file.mime_type;
 
@@ -322,18 +346,18 @@ Deno.serve(async (req) => {
   const access_token = account.access_token || DEFAULT_ACCESS_TOKEN;
 
   if (message.direction === "outgoing") {
-    const patchedMessage = await uploadMediaItem({
-      message,
-      access_token,
-      client,
-    });
-
-    const payload = await outgoingMessageToEndpointMessage({
-      content: patchedMessage.content as OutgoingMessage,
-      to: message.contact_address,
-    });
-
     try {
+      const patchedMessage = await uploadMediaItem({
+        message,
+        access_token,
+        client,
+      });
+
+      const payload = await outgoingMessageToEndpointMessage({
+        content: patchedMessage.content as OutgoingMessage,
+        to: message.contact_address,
+      });
+
       const response = await postPayloadToWhatsAppEndpoint({
         payload,
         phone_number_id: message.organization_address,
@@ -361,7 +385,7 @@ Deno.serve(async (req) => {
         .update({
           status: {
             failed: new Date().toISOString(),
-            errors: [error.cause as Json],
+            errors: [(error.cause ?? error.message) as Json],
           },
         })
         .eq("id", message.id)

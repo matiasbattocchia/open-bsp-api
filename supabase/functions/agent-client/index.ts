@@ -123,6 +123,12 @@ Deno.serve(async (req) => {
 
   const { organizations: org, contacts_addresses: contact_address, ...conversation } = conv;
 
+  log.info("Agent client context", {
+    conversation_id: conv.id,
+    has_org: !!org,
+    has_contact_address: !!contact_address,
+  });
+
   const organization_id = org.id;
 
   if (!org.extra) {
@@ -854,16 +860,21 @@ Deno.serve(async (req) => {
         timestamp: new Date(Date.now() + index).toISOString(),
       }));
 
-      // Insert and select the inserted messages
-      const { data: inserted_messages } = await client
-        .from("messages")
-        .insert(output_messages)
-        .select()
-        .order("timestamp")
-        .throwOnError();
+      try {
+        // Insert and select the inserted messages
+        const { data: inserted_messages } = await client
+          .from("messages")
+          .insert(output_messages)
+          .select()
+          .order("timestamp")
+          .throwOnError();
 
-      // Append generated messages to the context
-      messages.push(...inserted_messages);
+        // Append generated messages to the context
+        messages.push(...inserted_messages);
+      } catch (storageError) {
+        log.error("Failed to store agent response", storageError as Error);
+        shouldContinue = false;
+      }
     }
   }
 

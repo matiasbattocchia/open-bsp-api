@@ -6,6 +6,10 @@ import { encodeBase64Url } from "jsr:@std/encoding/base64url";
 const SIGNED_URL_EXPIRATION_SECONDS = 3600; // 1 hour
 const BASE_URI = "internal://media";
 
+export const MAX_STORAGE_UPLOAD_SIZE = parseInt(
+  Deno.env.get("MAX_STORAGE_UPLOAD_SIZE") || String(50 * 1000 * 1000),
+); // 50 MB default (Supabase free tier)
+
 export async function fetchMedia(url: string, token?: string) {
   return await ky(url, {
     method: "GET",
