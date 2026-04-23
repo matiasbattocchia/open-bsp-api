@@ -29,6 +29,39 @@ class WhatsAppError extends Error {
   }
 }
 
+/**
+ * WhatsApp Cloud API error codes that are transient and should be retried.
+ * All other codes are treated as permanent and mark the message as failed.
+ *
+ * Source: https://developers.facebook.com/docs/whatsapp/cloud-api/support/error-codes/
+ *
+ * Transient:
+ *   1      API Unknown — "possible server error"
+ *   2      API Service — downtime/overloaded (503)
+ *   4      API Too Many Calls — app rate limit
+ *   80007  Rate limit issues — WABA rate limit
+ *   130429 Rate limit hit — throughput limit
+ *   131000 Something went wrong — unknown error (500)
+ *   131016 Service unavailable — temporary (500)
+ *   131048 Spam rate limit hit — too many blocked
+ *   131056 Pair rate limit hit — too many to same recipient
+ *   131057 Account in maintenance mode (500)
+ *   131064 Template classification limit — auto-lifted
+ *   133004 Server Temporarily Unavailable (503)
+ *
+ * Permanent (everything else), including:
+ *   0, 3, 10, 190, 200-299 — auth/permission
+ *   33, 100, 131008, 131009 — invalid parameters
+ *   131021, 131026, 131037, 131042, 131047 — undeliverable
+ *   131049, 131050 — Meta chose not to deliver / user opted out
+ *   131051, 131052, 131053 — media errors
+ *   132xxx — template errors
+ *   368, 130497, 131031 — policy/integrity
+ */
+const RETRYABLE_META_CODES = new Set([
+  1, 2, 4, 80007, 130429, 131000, 131016, 131048, 131056, 131057, 131064, 133004,
+]);
+
 /** Uploads media to WA servers
  *
  * Allowed MIME types:
@@ -376,16 +409,36 @@ Deno.serve(async (req) => {
         .eq("id", message.id)
         .throwOnError();
     } catch (error) {
-      if (!(error instanceof WhatsAppError)) {
+      const isWhatsAppError = error instanceof WhatsAppError;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const metaCode = isWhatsAppError ? (error.cause as any)?.error?.code as number | undefined : undefined;
+      const isRetryable = metaCode != null && RETRYABLE_META_CODES.has(metaCode);
+      const errorDetail: Json = isWhatsAppError ? error.cause as Json : errorMessage;
+
+      if (isRetryable) {
+        // Transient: record the error for user visibility but keep retryable (no "failed" key).
+        // The merge_update trigger overwrites the errors array on each retry.
+        log.warn("Dispatch failed (transient, will retry)", { message_id: message.id, code: metaCode, error: errorMessage });
+
+        await client
+          .from("messages")
+          .update({ status: { errors: [errorDetail] } })
+          .eq("id", message.id)
+          .throwOnError();
+
+        // Rethrow so the function returns 500 and the cron retries.
         throw error;
       }
+
+      // Permanent: mark as failed to stop retries.
+      log.error("Dispatch failed (permanent)", { message_id: message.id, code: metaCode, error: errorMessage });
 
       await client
         .from("messages")
         .update({
           status: {
             failed: new Date().toISOString(),
-            errors: [(error.cause ?? error.message) as Json],
+            errors: [errorDetail],
           },
         })
         .eq("id", message.id)

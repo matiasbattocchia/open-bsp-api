@@ -23,6 +23,7 @@ export async function fetchMedia(url: string, token?: string) {
 
 export function base64ToBlob(base64: string, mime_type?: string) {
   const buffer = decodeBase64(base64);
+  // @ts-ignore: Uint8Array<ArrayBufferLike> is valid as BlobPart at runtime
   return new Blob([buffer], { type: mime_type || "application/octet-stream" });
 }
 
