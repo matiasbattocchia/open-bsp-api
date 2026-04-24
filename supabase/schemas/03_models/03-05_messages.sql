@@ -15,9 +15,12 @@ create table public.messages (
   ----
   content jsonb not null,
   constraint messages_content_schema check (
-    content->>'version' is not null
-    and content->>'type' in ('text', 'file', 'data')
-    and content->>'kind' is not null
+    content = '{}'::jsonb -- status-only upserts (content merged later)
+    or (
+      content->>'version' is not null
+      and content->>'type' in ('text', 'file', 'data')
+      and content->>'kind' is not null
+    )
   ),
   status jsonb default jsonb_build_object('pending', now()) not null,
   timestamp timestamp with time zone default now() not null,
