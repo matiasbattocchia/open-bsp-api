@@ -30,7 +30,7 @@ Monetization (medium-term)
 
 - [x] API keys equal agents (same roles and policies)
 
-- [ ] Split supabase.ts into different files
+- [x] Split supabase.ts into different files
 
 - [x] Revisit contacts and contacts_addresses
 
