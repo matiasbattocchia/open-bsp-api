@@ -6,6 +6,10 @@ Open BSP API — a multi-tenant WhatsApp Business Platform integration built wit
 
 ## Debugging production edge functions
 
+### Timestamps
+
+The current date/time is NOT reliably in the conversation context. When querying logs with time ranges (e.g., "last 12 hours"), **always run `date -u` first** to get the actual current UTC time. Do not guess or hardcode timestamps.
+
 ### Querying stdout logs (console.log / console.error)
 
 Use the Supabase Management API to query `function_logs` (edge function stdout):
@@ -31,8 +35,8 @@ Use the Supabase MCP server `get_logs` tool with `service: "edge-function"`. Thi
 
 1. Edit the schema file under `supabase/schemas/`
 2. Generate migration: `npx supabase db diff -f <migration_name>`
-3. Apply locally: `npx supabase migration up --local`
-4. For urgent production fixes, apply directly via the Supabase MCP `execute_sql` tool, then follow up with the migration file for consistency
+3. Apply locally: `npx supabase migration up --local` (test before committing)
+4. Commit — the user pushes and CI deploys automatically
 
 ### Application-level error logs
 
