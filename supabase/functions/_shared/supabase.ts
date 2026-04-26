@@ -17,15 +17,15 @@ export type {
   OrganizationAddressRow,
   OrganizationRow,
   Tables,
-} from "./supabase_database.ts";
-export type { WebhookError } from "./webhook_error.ts";
+} from "./types/supabase_database.ts";
+export type { WebhookError } from "./types/webhook_error.ts";
 export type {
   EndpointStatus,
   EndpointStatusResponse,
   IncomingStatus,
   OutgoingStatus,
   WebhookStatus,
-} from "./status_types.ts";
+} from "./types/status_types.ts";
 export type {
   AudioMessage,
   ButtonMessage,
@@ -50,7 +50,7 @@ export type {
   UnsupportedMessage,
   VideoMessage,
   WebhookMessageBase,
-} from "./whatsapp_incoming_message_types.ts";
+} from "./types/whatsapp_incoming_message_types.ts";
 export type {
   OutgoingAudio,
   OutgoingContextInfo,
@@ -60,10 +60,10 @@ export type {
   OutgoingSticker,
   OutgoingText,
   OutgoingVideo,
-} from "./whatsapp_cloud_outgoing_types.ts";
-export type { Template, TemplateData, TemplateMessage } from "./whatsapp_template_types.ts";
-export type { EndpointMessage, EndpointMessageResponse } from "./whatsapp_endpoint_types.ts";
-export { MediaTypes } from "./protocol_message_types.ts";
+} from "./types/whatsapp_cloud_outgoing_types.ts";
+export type { Template, TemplateData, TemplateMessage } from "./types/whatsapp_template_types.ts";
+export type { EndpointMessage, EndpointMessageResponse } from "./types/whatsapp_endpoint_types.ts";
+export { MediaTypes } from "./types/protocol_message_types.ts";
 export type {
   DataPart,
   FilePart,
@@ -77,7 +77,7 @@ export type {
   TextPart,
   ToolEventInfo,
   ToolInfo,
-} from "./protocol_message_types.ts";
+} from "./types/protocol_message_types.ts";
 export type {
   AIAgentExtra,
   ContactAddressExtra,
@@ -96,7 +96,7 @@ export type {
   OrganizationExtra,
   PreprocessingConfig,
   ToolConfig,
-} from "./org_and_tool_extras.ts";
+} from "./types/org_and_tool_extras.ts";
 export type {
   MetaWebhookPayload,
   WebhookAccountUpdate_Account,
@@ -122,4 +122,4 @@ export type {
   WebhookValueMessagesError,
   WebhookValueStateSync,
   WebhookValueStatuses,
-} from "./webhook_types.ts";
+} from "./types/webhook_types.ts";

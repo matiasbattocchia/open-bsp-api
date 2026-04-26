@@ -1,5 +1,5 @@
-import type { TaskState } from "./a2a_types.ts";
-import type { Json } from "./db_types.ts";
+import type { TaskState } from "../a2a_types.ts";
+import type { Json } from "../db_types.ts";
 import type {
   ButtonMessage,
   Contact,

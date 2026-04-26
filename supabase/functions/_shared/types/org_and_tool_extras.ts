@@ -1,5 +1,5 @@
-import type { Database as DatabaseGenerated } from "./db_types.ts";
-import type { SQLToolConfig } from "../agent-client/tools/sql.ts";
+import type { Database as DatabaseGenerated } from "../db_types.ts";
+import type { SQLToolConfig } from "../../agent-client/tools/sql.ts";
 
 //===================================
 // Extra
