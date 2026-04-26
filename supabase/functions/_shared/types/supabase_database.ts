@@ -1,4 +1,4 @@
-import type { Database as DatabaseGenerated, Json, Tables } from "./db_types.ts";
+import type { Database as DatabaseGenerated, Json, Tables } from "../db_types.ts";
 import { MergeDeep } from "https://esm.sh/type-fest@^4.11.1";
 import type { IncomingMessage, InternalMessage, OutgoingMessage } from "./protocol_message_types.ts";
 import type { IncomingStatus, OutgoingStatus } from "./status_types.ts";
