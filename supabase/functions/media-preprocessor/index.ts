@@ -253,6 +253,40 @@ Deno.serve(async (req) => {
     );
   }
 
+  // Check AI credits balance before touching storage (only when using our API key)
+  const billable = !config.api_key;
+
+  // Fetch cost pricing before the LLM call
+  const { data: costs } = await client
+    .schema("billing")
+    .from("costs")
+    .select("pricing, quantity")
+    .eq("provider", "google")
+    .eq("product", model)
+    .lte("effective_at", new Date().toISOString())
+    .order("effective_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+    .throwOnError();
+
+  if (billable) {
+    if (!costs) {
+      return log_update_and_respond("warn", `No pricing found for google/${model}`);
+    }
+
+    const { error } = await client
+      .schema("billing")
+      .rpc("check_limit", {
+        _organization_id: org.id,
+        _product_id: "ai_credits",
+        _amount: 0,
+      });
+
+    if (error) {
+      return log_update_and_respond("warn", `AI credits check failed: ${error.message}`);
+    }
+  }
+
   await client
     .from("messages")
     .update({ status: { preprocessing: new Date().toISOString() } })
@@ -340,40 +374,6 @@ Deno.serve(async (req) => {
     contents.push({ text: prompt });
   } else {
     contents.unshift({ text: prompt });
-  }
-
-  // Check AI credits balance before calling the LLM (only when using our API key)
-  const billable = !config.api_key;
-
-  // Fetch cost pricing before the LLM call
-  const { data: costs } = await client
-    .schema("billing")
-    .from("costs")
-    .select("pricing, quantity")
-    .eq("provider", "google")
-    .eq("product", model)
-    .lte("effective_at", new Date().toISOString())
-    .order("effective_at", { ascending: false })
-    .limit(1)
-    .maybeSingle()
-    .throwOnError();
-
-  if (billable) {
-    if (!costs) {
-      return log_update_and_respond("warn", `No pricing found for google/${model}`);
-    }
-
-    const { error } = await client
-      .schema("billing")
-      .rpc("check_limit", {
-        _organization_id: org.id,
-        _product_id: "ai_credits",
-        _amount: 0,
-      });
-
-    if (error) {
-      return log_update_and_respond("warn", `AI credits check failed: ${error.message}`);
-    }
   }
 
   let response: GenerateContentResponse;
