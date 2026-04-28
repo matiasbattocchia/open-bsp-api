@@ -11,8 +11,9 @@ import {
   type WebhookHistoryMessage,
   type WebhookIncomingMessage,
   type Database,
+  type ContactAddressInsert,
   type OrganizationAddressRow,
-  type ContactAddressInsert
+  type WhatsAppOrganizationAddressExtra
 } from "../_shared/supabase.ts";
 import { fetchMedia, uploadToStorage, MAX_STORAGE_UPLOAD_SIZE } from "../_shared/media.ts";
 import { whatsappToMarkdown } from "../_shared/markdown.ts";
@@ -36,13 +37,16 @@ async function buildOrgAddressMap(
     .select()
     .in("address", addresses)
     .eq("status", "connected")
+    .eq("service", "whatsapp")
     .order("created_at", { ascending: false })
     .throwOnError();
 
   // Build map, keeping only the first (most recent) address per address value
-  const map = new Map<string, typeof data[number]>();
+  const map = new Map<string, OrganizationAddressRow>();
 
   for (const row of data) {
+    // Narrow the discriminated union — SELECT filtered to "whatsapp".
+    //if (row.service !== "whatsapp") continue;
     if (!map.has(row.address)) {
       map.set(row.address, row);
     }
@@ -902,7 +906,7 @@ async function processMessage(request: Request): Promise<Response> {
   const orgSummary = Array.from(orgAddressMap.entries()).map(([address, row]) => ({
     organization_id: row.organization_id,
     organization_address: address,
-    waba_id: row.extra?.waba_id,
+    waba_id: (row.extra as WhatsAppOrganizationAddressExtra)?.waba_id,
   }));
 
   log.info("Webhook processing summary", {

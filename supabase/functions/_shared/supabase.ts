@@ -223,6 +223,134 @@ export type MetaWebhookPayload = {
 };
 
 //===================================
+// Instagram Webhook Payload Types
+// (Instagram API with Instagram Login)
+// https://developers.facebook.com/docs/instagram-platform/webhooks/examples#business-login-for-instagram
+//
+// Instagram is event-oriented (Messenger-style), not array-oriented like WhatsApp.
+// An InstagramEvent is a tagged-union container: it carries sender + recipient +
+// timestamp plus zero-or-one of {message, postback, reaction, read, message_edit, referral}.
+//===================================
+
+export type InstagramAttachmentType =
+  | "audio"
+  | "file"
+  | "image"
+  | "video"
+  | "media"
+  | "ig_post"
+  | "story_mention"
+  | "ig_reel"
+  | "reel"
+  | "story"
+  | "ig_story";
+
+export type InstagramAttachmentPayload = {
+  url?: string;
+  title?: string;
+};
+
+export type InstagramAttachment = {
+  type: InstagramAttachmentType;
+  payload: InstagramAttachmentPayload;
+};
+
+export type InstagramQuickReply = {
+  payload: string;
+};
+
+export type InstagramReplyTo = {
+  mid?: string;
+  story?: { url: string; id: string };
+};
+
+// Covers both shapes:
+// - inline message.referral (CTD ad form with ads_context_data)
+// - top-level event.referral (messaging_referral, ig.me link clicks)
+export type InstagramReferral = {
+  ref?: string;
+  ad_id?: string;
+  source: string; // "ADS" for CTD ads; an ig.me source link for messaging_referral
+  type?: "OPEN_THREAD";
+  ads_context_data?: {
+    ad_title?: string;
+    photo_url?: string;
+    video_url?: string;
+  };
+};
+
+export type InstagramMessage = {
+  mid: string;
+  text?: string;
+  attachments?: InstagramAttachment[];
+  quick_reply?: InstagramQuickReply;
+  reply_to?: InstagramReplyTo;
+  referral?: InstagramReferral;
+  is_echo?: boolean;
+  is_self?: boolean;
+  is_deleted?: boolean;
+  is_unsupported?: boolean;
+};
+
+export type InstagramPostback = {
+  mid: string;
+  title: string;
+  payload: string;
+};
+
+export type InstagramReaction = {
+  mid: string;
+  action: "react" | "unreact";
+  reaction?: string;
+  emoji?: string;
+};
+
+export type InstagramRead = {
+  mid: string;
+};
+
+export type InstagramMessageEdit = {
+  mid: string;
+  text: string;
+  num_edit: string;
+};
+
+export type InstagramEvent = {
+  sender: { id: string };
+  recipient: { id: string };
+  timestamp: number;
+  message?: InstagramMessage;
+  postback?: InstagramPostback;
+  reaction?: InstagramReaction;
+  read?: InstagramRead;
+  message_edit?: InstagramMessageEdit;
+  referral?: InstagramReferral;
+};
+
+export type InstagramChange = {
+  field:
+  | "messages"
+  | "messaging_postbacks"
+  | "messaging_seen"
+  | "message_reactions"
+  | "message_edit"
+  | "messaging_referral";
+  value: InstagramEvent;
+};
+
+export type InstagramEntry = {
+  id: string; // IGSID of the IG business account receiving the event
+  time: number;
+  messaging?: InstagramEvent[];
+  changes?: InstagramChange[];
+};
+
+export type InstagramWebhookPayload = {
+  object: "instagram";
+  entry: InstagramEntry[];
+};
+
+//===================================
 // Webhook Message, as received from WhatsApp
 //===================================
 
@@ -264,6 +392,29 @@ export type IncomingContextInfo = {
   };
 };
 
+// Click-to-WhatsApp ad referral payload, attached to incoming WA messages.
+export type WhatsAppReferral = {
+  source_url: string;
+  source_type: "ad" | "post";
+  source_id: string;
+  headline: string;
+  body: string;
+  ctwa_clid?: string; // The ctwa_clid property is omitted entirely for messages originating from an ad in WhatsApp Status
+  welcome_message: {
+    text: string;
+  };
+} & (
+    | {
+      media_type: "image";
+      image_url: string;
+    }
+    | {
+      media_type: "video";
+      video_url: string;
+      thumbnail_url?: string;
+    }
+  );
+
 /** Present in types:
  * - text
  * - location
@@ -275,27 +426,7 @@ export type IncomingContextInfo = {
  * - sticker
  */
 export type ReferralInfo = {
-  referral?: {
-    source_url: string;
-    source_type: "ad" | "post";
-    source_id: string;
-    headline: string;
-    body: string;
-    ctwa_clid?: string; // The ctwa_clid property is omitted entirely for messages originating from an ad in WhatsApp Status
-    welcome_message: {
-      text: string;
-    };
-  } & (
-    | {
-      media_type: "image";
-      image_url: string;
-    }
-    | {
-      media_type: "video";
-      video_url: string;
-      thumbnail_url?: string;
-    }
-  );
+  referral?: WhatsAppReferral;
 };
 
 // Text based
@@ -726,6 +857,8 @@ export const MediaTypes = [
   "video",
   "document",
   "sticker",
+  "file", // Instagram native attachment type (e.g. pdf)
+  "media", // Instagram generic media attachment
 ] as const;
 
 /**
@@ -783,9 +916,31 @@ type UnsupportedPart = DataPart<
   UnsupportedMessage["unsupported"]
 >;
 
+// Instagram-native data parts. Kind = native IG attachment type; data carries the raw
+// attachment payload so business logic can resolve it later (e.g. fetching post media).
+type IgPostPart = DataPart<"ig_post", InstagramAttachmentPayload>;
+type StoryMentionPart = DataPart<"story_mention", InstagramAttachmentPayload>;
+type IgReelPart = DataPart<"ig_reel", InstagramAttachmentPayload>;
+type ReelPart = DataPart<"reel", InstagramAttachmentPayload>;
+type StoryPart = DataPart<"story", InstagramAttachmentPayload>;
+type IgStoryPart = DataPart<"ig_story", InstagramAttachmentPayload>;
+// Synthetic content for messaging_referral events (no message attached).
+type ReferralPart = DataPart<"referral", InstagramReferral>;
+
 // Multi-part messages
 
-export type Part = TextPart | DataPart | FilePart;
+export type Part =
+  | TextPart
+  | DataPart
+  | FilePart
+  // Instagram-native data parts can appear inside a Parts bundle (e.g. when an
+  // event delivers multiple attachments alongside text).
+  | IgPostPart
+  | StoryMentionPart
+  | IgReelPart
+  | ReelPart
+  | StoryPart
+  | IgStoryPart;
 
 // Parts type is not used yet. It is a proof of concept.
 export type Parts = {
@@ -810,13 +965,14 @@ export type IncomingMessage =
   & {
     version: "1";
     re_message_id?: string; // replied, reacted or forwarded message id
+    re_story?: { url: string; id: string }; // Instagram story reply (no mid)
     forwarded?: boolean;
     referred_product?: {
       catalog_id: string;
       product_retailer_id: string;
     };
+    referral?: WhatsAppReferral | InstagramReferral;
   }
-  & ReferralInfo
   & TaskInfo
   & (
     | TextPart
@@ -828,6 +984,14 @@ export type IncomingMessage =
     | ButtonPart
     | MediaPlaceholderPart
     | UnsupportedPart
+    | IgPostPart
+    | StoryMentionPart
+    | IgReelPart
+    | ReelPart
+    | StoryPart
+    | IgStoryPart
+    | ReferralPart
+    | Parts
   );
 
 export type InternalMessage =
@@ -989,6 +1153,8 @@ export type IncomingStatus = {
   typing?: string;
   preprocessing?: string;
   preprocessed?: string;
+  edited?: string; // Instagram message edit
+  deleted?: string; // Instagram message deletion
 };
 
 export type OutgoingStatus = {
@@ -1001,6 +1167,8 @@ export type OutgoingStatus = {
   failed?: string;
   preprocessing?: string;
   preprocessed?: string;
+  edited?: string; // Instagram message edit (echoes)
+  deleted?: string; // Instagram message deletion (echoes)
   errors?: WebhookError[];
 };
 
@@ -1042,13 +1210,25 @@ export type OrganizationExtra = {
   error_messages_direction?: "internal" | "outgoing";
 };
 
-export type OrganizationAddressExtra = {
+export type WhatsAppOrganizationAddressExtra = {
   waba_id?: string;
   phone_number?: string;
   verified_name?: string;
-  access_token?: string;
   flow_type?: "only_waba" | "new_phone_number" | "existing_phone_number";
+  access_token?: string; // Meta system-user token
 };
+
+export type InstagramOrganizationAddressExtra = {
+  ig_user_id?: string;
+  username?: string;
+  access_token?: string; // Per-IG-account OAuth user token
+};
+
+// Union — the column accepts either shape; consumers narrow via the row's
+// `service` column (or via a cast at WA-/IG-specific read sites).
+export type OrganizationAddressExtra =
+  | WhatsAppOrganizationAddressExtra
+  | InstagramOrganizationAddressExtra;
 
 export type ConversationExtra = {
   memory?: Memory;
@@ -1070,15 +1250,33 @@ export type ConversationExtra = {
 
 export type ContactExtra = Record<PropertyKey, never>;
 
-export type ContactAddressExtra = {
+export type WhatsAppContactAddressExtra = {
   name?: string;
   synced?: { // if the contact address was synced from WhatsApp
     name: string;
     action: "add" | "remove";
-  }
+  };
   replaces_address?: string;
   replaced_by_address?: string;
-}
+};
+
+export type InstagramContactAddressExtra = {
+  name?: string;
+  username?: string;
+  biography?: string;
+  profile_picture_url?: string;
+  // ISO timestamp — set on every fetch (success or failure) so the TTL guard
+  // suppresses retries until the refresh window elapses.
+  name_fetched_at?: string;
+  replaces_address?: string;
+  replaced_by_address?: string;
+};
+
+// Union — the column accepts either shape; consumers narrow via the row's
+// `service` column (or via the per-service Row/Insert aliases below).
+export type ContactAddressExtra =
+  | WhatsAppContactAddressExtra
+  | InstagramContactAddressExtra;
 
 // Function tools have a JSON input (data part).
 export type LocalFunctionToolConfig = {
@@ -1182,14 +1380,25 @@ export type Database = MergeDeep<
           };
         };
         organizations_addresses: {
-          Row: {
-            extra: OrganizationAddressExtra | null;
+          // Discriminated by `service`: WA + local share the WA-shaped extra;
+          // IG has its own profile fields.
+          Row:
+          | {
+            service: "whatsapp";
+            extra: WhatsAppOrganizationAddressExtra | null;
+          }
+          | {
+            service: "instagram";
+            extra: InstagramOrganizationAddressExtra | null;
           };
-          Insert: {
-            extra?: OrganizationAddressExtra;
-          };
-          Update: {
-            extra?: OrganizationAddressExtra;
+          Insert:
+          | {
+            service: "whatsapp";
+            extra?: WhatsAppOrganizationAddressExtra;
+          }
+          | {
+            service: "instagram";
+            extra?: InstagramOrganizationAddressExtra;
           };
         };
         conversations: {
@@ -1252,14 +1461,25 @@ export type Database = MergeDeep<
           };
         };
         contacts_addresses: {
-          Row: {
-            extra: ContactAddressExtra | null;
+          // Discriminated by `service`: WA + local share the WA-shaped extra;
+          // IG has its own profile fields.
+          Row:
+          | {
+            service: "whatsapp";
+            extra: WhatsAppContactAddressExtra | null;
+          }
+          | {
+            service: "instagram";
+            extra: InstagramContactAddressExtra | null;
           };
-          Insert: {
-            extra?: ContactAddressExtra;
-          };
-          Update: {
-            extra?: ContactAddressExtra;
+          Insert:
+          | {
+            service: "whatsapp";
+            extra?: WhatsAppContactAddressExtra;
+          }
+          | {
+            service: "instagram";
+            extra?: InstagramContactAddressExtra;
           };
         };
         agents: {

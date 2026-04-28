@@ -456,6 +456,7 @@ export async function deleteSignup(
     .select()
     .eq("organization_id", organization_id)
     .eq("address", phone_number_id)
+    .eq("service", "whatsapp")
     .single()
     .throwOnError();
 
@@ -477,6 +478,7 @@ export async function deleteSignup(
     })
     .eq("organization_id", organization_id)
     .eq("address", phone_number_id)
+    .eq("service", "whatsapp")
     .select()
     .single()
     .throwOnError();
