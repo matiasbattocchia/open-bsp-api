@@ -12,7 +12,8 @@ import {
   type WebhookIncomingMessage,
   type Database,
   type ContactAddressInsert,
-  type WhatsAppOrganizationAddressRow
+  type OrganizationAddressRow,
+  type WhatsAppOrganizationAddressExtra
 } from "../_shared/supabase.ts";
 import { fetchMedia, uploadToStorage, MAX_STORAGE_UPLOAD_SIZE } from "../_shared/media.ts";
 import { whatsappToMarkdown } from "../_shared/markdown.ts";
@@ -30,7 +31,7 @@ const DEFAULT_ACCESS_TOKEN = Deno.env.get("META_SYSTEM_USER_ACCESS_TOKEN") || ""
 async function buildOrgAddressMap(
   client: SupabaseClient<Database>,
   addresses: string[],
-): Promise<Map<string, WhatsAppOrganizationAddressRow>> {
+): Promise<Map<string, OrganizationAddressRow>> {
   const { data } = await client
     .from("organizations_addresses")
     .select()
@@ -41,11 +42,13 @@ async function buildOrgAddressMap(
     .throwOnError();
 
   // Build map, keeping only the first (most recent) address per address value
-  const map = new Map<string, WhatsAppOrganizationAddressRow>();
+  const map = new Map<string, OrganizationAddressRow>();
 
   for (const row of data) {
+    // Narrow the discriminated union — SELECT filtered to "whatsapp".
+    //if (row.service !== "whatsapp") continue;
     if (!map.has(row.address)) {
-      map.set(row.address, row as WhatsAppOrganizationAddressRow);
+      map.set(row.address, row);
     }
   }
 
@@ -903,7 +906,7 @@ async function processMessage(request: Request): Promise<Response> {
   const orgSummary = Array.from(orgAddressMap.entries()).map(([address, row]) => ({
     organization_id: row.organization_id,
     organization_address: address,
-    waba_id: row.extra?.waba_id,
+    waba_id: (row.extra as WhatsAppOrganizationAddressExtra)?.waba_id,
   }));
 
   log.info("Webhook processing summary", {

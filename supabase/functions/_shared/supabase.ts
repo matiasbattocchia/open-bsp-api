@@ -329,12 +329,12 @@ export type InstagramEvent = {
 
 export type InstagramChange = {
   field:
-    | "messages"
-    | "messaging_postbacks"
-    | "messaging_seen"
-    | "message_reactions"
-    | "message_edit"
-    | "messaging_referral";
+  | "messages"
+  | "messaging_postbacks"
+  | "messaging_seen"
+  | "message_reactions"
+  | "message_edit"
+  | "messaging_referral";
   value: InstagramEvent;
 };
 
@@ -404,16 +404,16 @@ export type WhatsAppReferral = {
     text: string;
   };
 } & (
-  | {
-    media_type: "image";
-    image_url: string;
-  }
-  | {
-    media_type: "video";
-    video_url: string;
-    thumbnail_url?: string;
-  }
-);
+    | {
+      media_type: "image";
+      image_url: string;
+    }
+    | {
+      media_type: "video";
+      video_url: string;
+      thumbnail_url?: string;
+    }
+  );
 
 /** Present in types:
  * - text
@@ -1380,14 +1380,25 @@ export type Database = MergeDeep<
           };
         };
         organizations_addresses: {
-          Row: {
-            extra: OrganizationAddressExtra | null;
+          // Discriminated by `service`: WA + local share the WA-shaped extra;
+          // IG has its own profile fields.
+          Row:
+          | {
+            service: "whatsapp";
+            extra: WhatsAppOrganizationAddressExtra | null;
+          }
+          | {
+            service: "instagram";
+            extra: InstagramOrganizationAddressExtra | null;
           };
-          Insert: {
-            extra?: OrganizationAddressExtra;
-          };
-          Update: {
-            extra?: OrganizationAddressExtra;
+          Insert:
+          | {
+            service: "whatsapp";
+            extra?: WhatsAppOrganizationAddressExtra;
+          }
+          | {
+            service: "instagram";
+            extra?: InstagramOrganizationAddressExtra;
           };
         };
         conversations: {
@@ -1450,14 +1461,25 @@ export type Database = MergeDeep<
           };
         };
         contacts_addresses: {
-          Row: {
-            extra: ContactAddressExtra | null;
+          // Discriminated by `service`: WA + local share the WA-shaped extra;
+          // IG has its own profile fields.
+          Row:
+          | {
+            service: "whatsapp";
+            extra: WhatsAppContactAddressExtra | null;
+          }
+          | {
+            service: "instagram";
+            extra: InstagramContactAddressExtra | null;
           };
-          Insert: {
-            extra?: ContactAddressExtra;
-          };
-          Update: {
-            extra?: ContactAddressExtra;
+          Insert:
+          | {
+            service: "whatsapp";
+            extra?: WhatsAppContactAddressExtra;
+          }
+          | {
+            service: "instagram";
+            extra?: InstagramContactAddressExtra;
           };
         };
         agents: {
@@ -1494,34 +1516,10 @@ export type ContactAddressRow =
 export type ContactAddressInsert =
   Database["public"]["Tables"]["contacts_addresses"]["Insert"];
 
-// Service-narrowed contact address aliases. Use these at boundaries (the
-// SELECT/UPSERT call sites) so that downstream code reads/writes the
-// service-specific extra shape without per-field casts.
-export type WhatsAppContactAddressRow =
-  & Omit<ContactAddressRow, "extra">
-  & { extra: WhatsAppContactAddressExtra | null };
-export type WhatsAppContactAddressInsert =
-  & Omit<ContactAddressInsert, "extra">
-  & { extra?: WhatsAppContactAddressExtra };
-export type InstagramContactAddressRow =
-  & Omit<ContactAddressRow, "extra">
-  & { extra: InstagramContactAddressExtra | null };
-export type InstagramContactAddressInsert =
-  & Omit<ContactAddressInsert, "extra">
-  & { extra?: InstagramContactAddressExtra };
-
 export type AgentRow = Database["public"]["Tables"]["agents"]["Row"];
 
 export type OrganizationAddressRow =
   Database["public"]["Tables"]["organizations_addresses"]["Row"];
-
-// Same pattern for organization addresses — narrow at the boundary.
-export type WhatsAppOrganizationAddressRow =
-  & Omit<OrganizationAddressRow, "extra">
-  & { extra: WhatsAppOrganizationAddressExtra | null };
-export type InstagramOrganizationAddressRow =
-  & Omit<OrganizationAddressRow, "extra">
-  & { extra: InstagramOrganizationAddressExtra | null };
 
 export type ApiKeyRow = Database["public"]["Tables"]["api_keys"]["Row"];
 

@@ -1,21 +1,22 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import * as log from "../_shared/logger.ts";
 import {
+  type ContactAddressInsert,
   createUnsecureClient,
   type Database,
   type IncomingMessage,
   type InstagramAttachment,
   type InstagramContactAddressExtra,
-  type InstagramContactAddressInsert,
   type InstagramEvent,
   type InstagramMessage,
-  type InstagramOrganizationAddressRow,
   type InstagramReferral,
   type InstagramWebhookPayload,
   type MessageInsert,
+  type OrganizationAddressRow,
   type OutgoingMessage,
   type Part,
 } from "../_shared/supabase.ts";
+
 import {
   fetchMedia,
   MAX_STORAGE_UPLOAD_SIZE,
@@ -44,7 +45,7 @@ type IgProfile = {
 async function buildOrgAddressMap(
   client: SupabaseClient<Database>,
   addresses: string[],
-): Promise<Map<string, InstagramOrganizationAddressRow>> {
+): Promise<Map<string, OrganizationAddressRow>> {
   if (addresses.length === 0) return new Map();
 
   const { data } = await client
@@ -56,11 +57,11 @@ async function buildOrgAddressMap(
     .order("created_at", { ascending: false })
     .throwOnError();
 
-  const map = new Map<string, InstagramOrganizationAddressRow>();
+  const map = new Map<string, OrganizationAddressRow>();
 
   for (const row of data) {
     if (!map.has(row.address)) {
-      map.set(row.address, row as InstagramOrganizationAddressRow);
+      map.set(row.address, row);
     }
   }
 
@@ -506,7 +507,7 @@ async function processMessage(request: Request): Promise<Response> {
   type ContactNeed = {
     organization_id: string;
     igsid: string;
-    orgAddress: InstagramOrganizationAddressRow;
+    orgAddress: OrganizationAddressRow;
   };
   const contactNeeds = new Map<ContactKey, ContactNeed>();
 
@@ -541,16 +542,18 @@ async function processMessage(request: Request): Promise<Response> {
 
     const { data } = await client
       .from("contacts_addresses")
-      .select("organization_id, address, extra")
+      .select("organization_id, address, service, extra")
       .in("organization_id", orgIds)
       .eq("service", "instagram")
       .in("address", igsids)
       .throwOnError();
 
     for (const row of data) {
+      // Narrow union via the discriminant.
+      if (row.service !== "instagram") continue;
       cache.set(
         `${row.organization_id}|${row.address}`,
-        (row.extra ?? {}) as InstagramContactAddressExtra,
+        row.extra ?? {},
       );
     }
   }
@@ -579,7 +582,7 @@ async function processMessage(request: Request): Promise<Response> {
   // Build contacts_addresses upserts. Each fetch task produces one row; the
   // row is also written when the fetch failed (with only `name_fetched_at`)
   // so the next webhook within the TTL doesn't retry.
-  const contacts_addresses: InstagramContactAddressInsert[] = [];
+  const contacts_addresses: ContactAddressInsert[] = [];
   const fetchedAtIso = new Date().toISOString();
   for (const { contact, profile } of fetchedProfiles) {
     const extra: InstagramContactAddressExtra = { name_fetched_at: fetchedAtIso };
