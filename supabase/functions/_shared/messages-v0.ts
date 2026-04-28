@@ -655,6 +655,15 @@ export function toV1(row: MessageRowV0): MessageRow | undefined {
 }
 
 export function fromV1(row: MessageRow): MessageRowV0 | undefined {
+  // v0 redefines content/Part shapes locally (this file is legacy and slated
+  // for removal). The shared v1 union has since grown new kinds (Instagram-
+  // native attachment kinds, the "media"/"file" media types) that the local
+  // v0 types don't enumerate. There are no v0 IG rows in prod, so we coerce
+  // shared types into v0's narrower shapes via the helpers below.
+  // deno-lint-ignore no-explicit-any
+  const vArtifacts = (a: unknown) => a as any as Part[] | undefined;
+  // deno-lint-ignore no-explicit-any
+  const vKind = (k: unknown) => k as any;
   if (
     row.direction === "internal" &&
     row.content.tool?.event === "use" &&
@@ -675,7 +684,7 @@ export function fromV1(row: MessageRow): MessageRowV0 | undefined {
             arguments: JSON.stringify(row.content.data),
           },
           tool: row.content.tool,
-          artifacts: row.content.artifacts,
+          artifacts: vArtifacts(row.content.artifacts),
         },
       };
     }
@@ -694,7 +703,7 @@ export function fromV1(row: MessageRow): MessageRowV0 | undefined {
             arguments: row.content.text,
           },
           tool: row.content.tool,
-          artifacts: row.content.artifacts,
+          artifacts: vArtifacts(row.content.artifacts),
         },
       };
     }
@@ -716,7 +725,7 @@ export function fromV1(row: MessageRow): MessageRowV0 | undefined {
           tool_name: row.content.tool.name,
           content: JSON.stringify(row.content.data),
           tool: row.content.tool,
-          artifacts: row.content.artifacts,
+          artifacts: vArtifacts(row.content.artifacts),
         },
       };
     }
@@ -733,7 +742,7 @@ export function fromV1(row: MessageRow): MessageRowV0 | undefined {
           tool_name: row.content.tool.name,
           content: row.content.text,
           tool: row.content.tool,
-          artifacts: row.content.artifacts,
+          artifacts: vArtifacts(row.content.artifacts),
         },
       };
     }
@@ -745,7 +754,7 @@ export function fromV1(row: MessageRow): MessageRowV0 | undefined {
         // @ts-expect-error type
         type: row.content.kind,
         content: row.content.text,
-        artifacts: row.content.artifacts,
+        artifacts: vArtifacts(row.content.artifacts),
       },
     };
   } else if (row.content.type === "file") {
@@ -764,7 +773,7 @@ export function fromV1(row: MessageRow): MessageRowV0 | undefined {
       ...row,
       content: {
         version: "0",
-        type: row.content.kind,
+        type: vKind(row.content.kind),
         content:
           row.content.kind === "audio" ? transcription : row.content.text,
         media: {
@@ -777,7 +786,7 @@ export function fromV1(row: MessageRow): MessageRowV0 | undefined {
             ? {}
             : { annotation: transcription }),
         },
-        artifacts: row.content.artifacts,
+        artifacts: vArtifacts(row.content.artifacts),
       },
     };
   } else if (row.content.type === "data") {
@@ -788,7 +797,7 @@ export function fromV1(row: MessageRow): MessageRowV0 | undefined {
         // @ts-expect-error type
         type: row.content.kind,
         [row.content.kind]: row.content.data,
-        artifacts: row.content.artifacts,
+        artifacts: vArtifacts(row.content.artifacts),
       },
     };
   }

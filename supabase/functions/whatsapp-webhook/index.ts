@@ -11,8 +11,8 @@ import {
   type WebhookHistoryMessage,
   type WebhookIncomingMessage,
   type Database,
-  type OrganizationAddressRow,
-  type ContactAddressInsert
+  type ContactAddressInsert,
+  type WhatsAppOrganizationAddressRow
 } from "../_shared/supabase.ts";
 import { fetchMedia, uploadToStorage, MAX_STORAGE_UPLOAD_SIZE } from "../_shared/media.ts";
 import { whatsappToMarkdown } from "../_shared/markdown.ts";
@@ -30,21 +30,22 @@ const DEFAULT_ACCESS_TOKEN = Deno.env.get("META_SYSTEM_USER_ACCESS_TOKEN") || ""
 async function buildOrgAddressMap(
   client: SupabaseClient<Database>,
   addresses: string[],
-): Promise<Map<string, OrganizationAddressRow>> {
+): Promise<Map<string, WhatsAppOrganizationAddressRow>> {
   const { data } = await client
     .from("organizations_addresses")
     .select()
     .in("address", addresses)
     .eq("status", "connected")
+    .eq("service", "whatsapp")
     .order("created_at", { ascending: false })
     .throwOnError();
 
   // Build map, keeping only the first (most recent) address per address value
-  const map = new Map<string, typeof data[number]>();
+  const map = new Map<string, WhatsAppOrganizationAddressRow>();
 
   for (const row of data) {
     if (!map.has(row.address)) {
-      map.set(row.address, row);
+      map.set(row.address, row as WhatsAppOrganizationAddressRow);
     }
   }
 

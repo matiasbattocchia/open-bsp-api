@@ -1,19 +1,20 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import * as log from "../_shared/logger.ts";
 import {
-  type ContactAddressExtra,
-  type ContactAddressInsert,
   createUnsecureClient,
   type Database,
   type IncomingMessage,
   type InstagramAttachment,
+  type InstagramContactAddressExtra,
+  type InstagramContactAddressInsert,
   type InstagramEvent,
   type InstagramMessage,
+  type InstagramOrganizationAddressRow,
   type InstagramReferral,
   type InstagramWebhookPayload,
   type MessageInsert,
-  type OrganizationAddressRow,
   type OutgoingMessage,
+  type Part,
 } from "../_shared/supabase.ts";
 import {
   fetchMedia,
@@ -26,8 +27,15 @@ const VERIFY_TOKEN = Deno.env.get("INSTAGRAM_VERIFY_TOKEN");
 const APP_ID = Deno.env.get("META_APP_ID");
 const APP_SECRET = Deno.env.get("META_APP_SECRET");
 
-// 30 days. Username is refreshed when older than this; tunable via constant.
-const NAME_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+// 24 hours. Profile is refreshed when older than this; tunable via constant.
+const PROFILE_TTL_MS = 24 * 60 * 60 * 1000;
+
+type IgProfile = {
+  username?: string;
+  name?: string;
+  biography?: string;
+  profile_picture_url?: string;
+};
 
 /**
  * Queries the database for organization addresses and returns a map.
@@ -36,7 +44,7 @@ const NAME_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 async function buildOrgAddressMap(
   client: SupabaseClient<Database>,
   addresses: string[],
-): Promise<Map<string, OrganizationAddressRow>> {
+): Promise<Map<string, InstagramOrganizationAddressRow>> {
   if (addresses.length === 0) return new Map();
 
   const { data } = await client
@@ -48,11 +56,11 @@ async function buildOrgAddressMap(
     .order("created_at", { ascending: false })
     .throwOnError();
 
-  const map = new Map<string, typeof data[number]>();
+  const map = new Map<string, InstagramOrganizationAddressRow>();
 
   for (const row of data) {
     if (!map.has(row.address)) {
-      map.set(row.address, row);
+      map.set(row.address, row as InstagramOrganizationAddressRow);
     }
   }
 
@@ -281,21 +289,22 @@ async function downloadMediaItem({
 }
 
 /**
- * Fetches the IG username via Graph API (Instagram API with Instagram Login).
- * Returns undefined on failure so the caller can decide what to store.
+ * Fetches the IG contact's profile fields via Graph API (Instagram API with
+ * Instagram Login). Returns undefined on failure; the caller still records a
+ * `name_fetched_at` so the TTL guard can suppress retries.
  */
-async function fetchSenderUsername(
+async function fetchProfile(
   igsid: string,
   accessToken: string,
-): Promise<string | undefined> {
+): Promise<IgProfile | undefined> {
   if (!accessToken) {
-    log.warn(`No Instagram access token, cannot fetch username for ${igsid}`);
+    log.warn(`No Instagram access token, cannot fetch profile for ${igsid}`);
     return undefined;
   }
 
   try {
     const response = await fetch(
-      `https://graph.instagram.com/${API_VERSION}/${igsid}?fields=username,name&access_token=${accessToken}`,
+      `https://graph.instagram.com/${API_VERSION}/${igsid}?fields=username,name,biography,profile_picture_url&access_token=${accessToken}`,
     );
 
     if (!response.ok) {
@@ -306,12 +315,7 @@ async function fetchSenderUsername(
       return undefined;
     }
 
-    const profile = (await response.json()) as {
-      username?: string;
-      name?: string;
-    };
-
-    return profile.username || profile.name;
+    return (await response.json()) as IgProfile;
   } catch (error) {
     log.warn(`Error fetching IG profile for ${igsid}`, {
       error: error instanceof Error ? error.message : String(error),
@@ -321,25 +325,17 @@ async function fetchSenderUsername(
 }
 
 /**
- * Maps an Instagram attachment to an IncomingMessage content. Each
- * attachment becomes its own row; quick_reply, text, and unsupported are
- * handled separately by the caller.
- *
- * Multi-attachment note: Instagram sends a single `mid` per `event.message`,
- * so when an event yields N>1 content rows, the caller suffixes external_id
- * as `${mid}#${index}` to keep the unique constraint happy.
+ * Converts an IG attachment into a bare `Part` (no message-level fields).
+ * The caller wraps it either as a stand-alone IncomingMessage or, for
+ * multi-attachment events, as one entry inside a `Parts` bundle.
  */
-function attachmentToContent(
-  attachment: InstagramAttachment,
-  base: Pick<IncomingMessage, "version" | "re_message_id" | "re_story" | "referral">,
-): IncomingMessage | undefined {
+function attachmentToPart(attachment: InstagramAttachment): Part | undefined {
   const url = attachment.payload?.url;
 
   switch (attachment.type) {
     case "audio":
       if (!url) return undefined;
       return {
-        ...base,
         type: "file",
         kind: "audio",
         file: { mime_type: "audio/mpeg", uri: url, size: 0 },
@@ -350,7 +346,6 @@ function attachmentToContent(
       // IG calls this "file" (e.g. pdf). We keep the native flavor as kind: "file"
       // even though WhatsApp's analogous concept is kind: "document".
       return {
-        ...base,
         type: "file",
         kind: "file",
         file: { mime_type: "application/pdf", uri: url, size: 0 },
@@ -359,7 +354,6 @@ function attachmentToContent(
     case "image":
       if (!url) return undefined;
       return {
-        ...base,
         type: "file",
         kind: "image",
         file: { mime_type: "image/jpeg", uri: url, size: 0 },
@@ -368,7 +362,6 @@ function attachmentToContent(
     case "video":
       if (!url) return undefined;
       return {
-        ...base,
         type: "file",
         kind: "video",
         file: { mime_type: "video/mp4", uri: url, size: 0 },
@@ -377,7 +370,6 @@ function attachmentToContent(
     case "media":
       if (!url) return undefined;
       return {
-        ...base,
         type: "file",
         kind: "media",
         file: { mime_type: "application/octet-stream", uri: url, size: 0 },
@@ -390,7 +382,6 @@ function attachmentToContent(
     case "story":
     case "ig_story":
       return {
-        ...base,
         type: "data",
         kind: attachment.type,
         data: attachment.payload,
@@ -399,10 +390,18 @@ function attachmentToContent(
 }
 
 /**
- * Builds the content rows for an Instagram message event. Returns an array
- * because messages with multiple attachments yield one row per attachment.
+ * Builds the content for an Instagram message event.
+ *
+ * - 0 attachments + text       → TextPart
+ * - 1 attachment + optional text → that part with the text as its caption
+ *                                  (mirrors how WhatsApp models media captions)
+ * - N attachments + optional text → `Parts` bundle with one TextPart (if any)
+ *                                   plus N attachment parts
+ *
+ * IG sends a single `mid` per `event.message` regardless of attachment count,
+ * so the bundle approach keeps one row per `mid` (no external_id suffixing).
  */
-function instagramMessageToContent(msg: InstagramMessage): IncomingMessage[] {
+function instagramMessageToContent(msg: InstagramMessage): IncomingMessage | undefined {
   const base = {
     version: "1" as const,
     ...(msg.reply_to?.mid && { re_message_id: msg.reply_to.mid }),
@@ -411,49 +410,70 @@ function instagramMessageToContent(msg: InstagramMessage): IncomingMessage[] {
   };
 
   if (msg.is_unsupported) {
-    return [{
+    return {
       ...base,
       type: "data",
       kind: "unsupported",
       data: { type: "edit" }, // placeholder to satisfy the unsupported shape
-    }];
+    };
   }
 
   // Quick replies always carry text alongside the postback payload.
   if (msg.quick_reply) {
-    return [{
+    return {
       ...base,
       type: "data",
       kind: "button",
       data: { text: msg.text ?? "", payload: msg.quick_reply.payload },
       ...(msg.text && { text: msg.text }),
-    }];
+    };
   }
 
-  if (msg.attachments && msg.attachments.length > 0) {
-    const contents: IncomingMessage[] = [];
-    for (const attachment of msg.attachments) {
-      const content = attachmentToContent(attachment, base);
-      if (content) {
-        contents.push(content);
-      } else {
-        log.warn("Could not convert IG attachment", attachment);
-      }
+  const attachments = msg.attachments ?? [];
+
+  if (attachments.length === 0) {
+    if (msg.text !== undefined) {
+      return { ...base, type: "text", kind: "text", text: msg.text };
     }
-    return contents;
+    log.warn("Could not convert Instagram message to content", msg);
+    return undefined;
   }
 
-  if (msg.text !== undefined) {
-    return [{
+  if (attachments.length === 1) {
+    const part = attachmentToPart(attachments[0]);
+    if (!part) {
+      log.warn("Could not convert IG attachment", attachments[0]);
+      return undefined;
+    }
+    // Single attachment + text → caption on the part (matches WA convention).
+    return {
       ...base,
-      type: "text",
-      kind: "text",
-      text: msg.text,
-    }];
+      ...part,
+      ...(msg.text && { text: msg.text }),
+    } as IncomingMessage;
   }
 
-  log.warn("Could not convert Instagram message to content", msg);
-  return [];
+  // Multiple attachments → wrap in `Parts`. The text (if any) becomes its own
+  // TextPart at the head of the bundle so it is not misattributed to a single
+  // attachment (Instagram delivers one `text` for the whole bundle).
+  const parts: Part[] = [];
+  if (msg.text) {
+    parts.push({ type: "text", kind: "text", text: msg.text });
+  }
+  for (const attachment of attachments) {
+    const part = attachmentToPart(attachment);
+    if (part) parts.push(part);
+    else log.warn("Could not convert IG attachment", attachment);
+  }
+
+  if (parts.length === 0) return undefined;
+
+  return {
+    ...base,
+    type: "parts",
+    kind: "parts",
+    parts,
+  };
 }
 
 async function processMessage(request: Request): Promise<Response> {
@@ -481,103 +501,107 @@ async function processMessage(request: Request): Promise<Response> {
     collectOrgAddresses(payload),
   );
 
-  // Username TTL cache: pre-fetch existing contacts_addresses rows so we only
-  // call the Graph API for IGSIDs that are missing or stale (>30 days).
-  const contactCache = new Map<string, ContactAddressExtra>();
-  const usernamePromises = new Map<string, Promise<string | undefined>>();
+  // Pre-walk events to identify every contact that might need a profile fetch.
+  type ContactKey = string; // `${organization_id}|${igsid}`
+  type ContactNeed = {
+    organization_id: string;
+    igsid: string;
+    orgAddress: InstagramOrganizationAddressRow;
+  };
+  const contactNeeds = new Map<ContactKey, ContactNeed>();
 
-  // Collect IGSIDs that may need a username.
-  const contactIgsids = new Set<string>();
   for (const entry of payload.entry) {
     for (const event of extractEvents(entry)) {
       const isEcho = !!event.message?.is_echo;
       const contactAddress = isEcho ? event.recipient.id : event.sender.id;
-      contactIgsids.add(contactAddress);
-    }
-  }
+      const orgAddress = orgAddressMap.get(isEcho ? event.sender.id : event.recipient.id);
+      if (!orgAddress) continue;
 
-  if (contactIgsids.size > 0) {
-    const orgIds = Array.from(
-      new Set(
-        Array.from(orgAddressMap.values()).map((r) => r.organization_id),
-      ),
-    );
-
-    if (orgIds.length > 0) {
-      const { data } = await client
-        .from("contacts_addresses")
-        .select("address, extra")
-        .in("organization_id", orgIds)
-        .eq("service", "instagram")
-        .in("address", Array.from(contactIgsids))
-        .throwOnError();
-
-      for (const row of data) {
-        contactCache.set(row.address, (row.extra ?? {}) as ContactAddressExtra);
+      const key = `${orgAddress.organization_id}|${contactAddress}`;
+      if (!contactNeeds.has(key)) {
+        contactNeeds.set(key, {
+          organization_id: orgAddress.organization_id,
+          igsid: contactAddress,
+          orgAddress,
+        });
       }
     }
   }
 
-  function resolveUsername(
-    igsid: string,
-    orgAddress: OrganizationAddressRow,
-  ): { promise: Promise<string | undefined>; needsRefresh: boolean } {
-    const existing = contactCache.get(igsid);
-    const fetchedAt = existing?.name_fetched_at
-      ? Date.parse(existing.name_fetched_at)
-      : 0;
-    const now = Date.now();
-    const stale = !existing?.name || (now - fetchedAt) >= NAME_TTL_MS;
+  // Bulk-load existing contacts_addresses rows so the TTL guard can suppress
+  // refetches. One SELECT per webhook regardless of the contact count.
+  const cache = new Map<ContactKey, InstagramContactAddressExtra>();
+  if (contactNeeds.size > 0) {
+    const orgIds = Array.from(
+      new Set(Array.from(contactNeeds.values()).map((c) => c.organization_id)),
+    );
+    const igsids = Array.from(
+      new Set(Array.from(contactNeeds.values()).map((c) => c.igsid)),
+    );
 
-    if (!stale) {
-      return { promise: Promise.resolve(existing!.name), needsRefresh: false };
+    const { data } = await client
+      .from("contacts_addresses")
+      .select("organization_id, address, extra")
+      .in("organization_id", orgIds)
+      .eq("service", "instagram")
+      .in("address", igsids)
+      .throwOnError();
+
+    for (const row of data) {
+      cache.set(
+        `${row.organization_id}|${row.address}`,
+        (row.extra ?? {}) as InstagramContactAddressExtra,
+      );
     }
-
-    let promise = usernamePromises.get(igsid);
-    if (!promise) {
-      const accessToken = orgAddress.extra?.access_token ?? "";
-      promise = fetchSenderUsername(igsid, accessToken);
-      usernamePromises.set(igsid, promise);
-    }
-
-    return { promise, needsRefresh: true };
   }
 
-  const messages: MessageInsert[] = [];
-  const statuses: MessageInsert[] = [];
-  const contacts_addresses: ContactAddressInsert[] = [];
+  // Decide which contacts need a Graph fetch (cache miss or stale).
+  const now = Date.now();
+  const fetchTasks: ContactNeed[] = [];
+  for (const c of contactNeeds.values()) {
+    const cached = cache.get(`${c.organization_id}|${c.igsid}`);
+    const fetchedAt = cached?.name_fetched_at
+      ? Date.parse(cached.name_fetched_at)
+      : 0;
+    const stale = !cached?.name_fetched_at || (now - fetchedAt) >= PROFILE_TTL_MS;
+    if (stale) fetchTasks.push(c);
+  }
 
-  // Track which (org_id, address) pairs we've already pushed to contacts_addresses
-  // so we don't refresh a username more than once per webhook.
-  const contactPushed = new Set<string>();
+  // Fire all Graph fetches in parallel — no awaits inside the event loop.
+  const fetchedProfiles = await Promise.all(
+    fetchTasks.map(async (c) => ({
+      key: `${c.organization_id}|${c.igsid}` as ContactKey,
+      contact: c,
+      profile: await fetchProfile(c.igsid, c.orgAddress.extra?.access_token ?? ""),
+    })),
+  );
 
-  async function pushContactWithName(
-    organization_id: string,
-    igsid: string,
-    orgAddress: OrganizationAddressRow,
-  ) {
-    const dedupKey = `${organization_id}|${igsid}`;
-    if (contactPushed.has(dedupKey)) return;
-    contactPushed.add(dedupKey);
-
-    const { promise, needsRefresh } = resolveUsername(igsid, orgAddress);
-    if (!needsRefresh) return; // cache hit — no upsert needed
-
-    const fetched = await promise;
-    const previousName = contactCache.get(igsid)?.name;
-    // If the fetch failed but we had a prior name, keep it.
-    const name = fetched ?? previousName;
-
+  // Build contacts_addresses upserts. Each fetch task produces one row; the
+  // row is also written when the fetch failed (with only `name_fetched_at`)
+  // so the next webhook within the TTL doesn't retry.
+  const contacts_addresses: InstagramContactAddressInsert[] = [];
+  const fetchedAtIso = new Date().toISOString();
+  for (const { contact, profile } of fetchedProfiles) {
+    const extra: InstagramContactAddressExtra = { name_fetched_at: fetchedAtIso };
+    if (profile?.name) extra.name = profile.name;
+    if (profile?.username) extra.username = profile.username;
+    if (profile?.biography) extra.biography = profile.biography;
+    if (profile?.profile_picture_url) {
+      extra.profile_picture_url = profile.profile_picture_url;
+    }
     contacts_addresses.push({
-      organization_id,
-      address: igsid,
+      organization_id: contact.organization_id,
+      address: contact.igsid,
       service: "instagram",
-      extra: {
-        ...(name !== undefined && { name }),
-        name_fetched_at: new Date().toISOString(),
-      },
+      extra,
     });
   }
+
+  // Now iterate events synchronously to build messages/statuses. Username
+  // resolution is no longer needed inline — it has already been persisted (or
+  // is being persisted upstream of the messages upsert below).
+  const messages: MessageInsert[] = [];
+  const statuses: MessageInsert[] = [];
 
   for (const entry of payload.entry) {
     for (const event of extractEvents(entry)) {
@@ -604,8 +628,6 @@ async function processMessage(request: Request): Promise<Response> {
 
       // ---- Top-level referral (messaging_referral) — no message attached.
       if (event.referral && !event.message) {
-        await pushContactWithName(organization_id, contact_address, orgAddressRow);
-
         const refContent: IncomingMessage = {
           version: "1",
           type: "data",
@@ -628,8 +650,6 @@ async function processMessage(request: Request): Promise<Response> {
 
       // ---- Postback (icebreaker / CTA button)
       if (event.postback) {
-        await pushContactWithName(organization_id, contact_address, orgAddressRow);
-
         messages.push({
           organization_id,
           external_id: event.postback.mid,
@@ -743,45 +763,33 @@ async function processMessage(request: Request): Promise<Response> {
           continue;
         }
 
-        if (!isEcho) {
-          await pushContactWithName(
+        const content = instagramMessageToContent(msg);
+        if (!content) continue;
+
+        if (isEcho) {
+          messages.push({
             organization_id,
+            external_id: msg.mid,
+            service: "instagram",
+            organization_address,
             contact_address,
-            orgAddressRow,
-          );
+            direction: "outgoing",
+            content: content as OutgoingMessage,
+            status: { sent: timestamp },
+            timestamp,
+          });
+        } else {
+          messages.push({
+            organization_id,
+            external_id: msg.mid,
+            service: "instagram",
+            organization_address,
+            contact_address,
+            direction: "incoming",
+            content,
+            timestamp,
+          });
         }
-
-        const contents = instagramMessageToContent(msg);
-        if (contents.length === 0) continue;
-
-        const multi = contents.length > 1;
-        contents.forEach((content, index) => {
-          const external_id = multi ? `${msg.mid}#${index}` : msg.mid;
-          if (isEcho) {
-            messages.push({
-              organization_id,
-              external_id,
-              service: "instagram",
-              organization_address,
-              contact_address,
-              direction: "outgoing",
-              content: content as OutgoingMessage,
-              status: { sent: timestamp },
-              timestamp,
-            });
-          } else {
-            messages.push({
-              organization_id,
-              external_id,
-              service: "instagram",
-              organization_address,
-              contact_address,
-              direction: "incoming",
-              content,
-              timestamp,
-            });
-          }
-        });
         continue;
       }
 
@@ -828,26 +836,15 @@ async function processMessage(request: Request): Promise<Response> {
   );
 
   if (contacts_addresses.length > 0) {
-    // Deduplicate by (organization_id, address, service): a single batch may
-    // produce multiple events for the same contact. Keep the last entry —
-    // most recent fetched_at wins.
-    const dedupedContactsAddresses = Array.from(
-      new Map(
-        contacts_addresses.map((ca) => [
-          `${ca.organization_id}|${ca.address}|${ca.service}`,
-          ca,
-        ]),
-      ).values(),
-    );
-
+    // Already deduped at the Map level (keyed by `${organization_id}|${igsid}`).
     const { error: contactsError } = await client
       .from("contacts_addresses")
-      .upsert(dedupedContactsAddresses);
+      .upsert(contacts_addresses);
 
     if (contactsError) {
       log.error("Failed to upsert contacts_addresses", {
         error: contactsError,
-        contacts_addresses: dedupedContactsAddresses,
+        contacts_addresses,
       });
       throw contactsError;
     }

@@ -929,7 +929,18 @@ type ReferralPart = DataPart<"referral", InstagramReferral>;
 
 // Multi-part messages
 
-export type Part = TextPart | DataPart | FilePart;
+export type Part =
+  | TextPart
+  | DataPart
+  | FilePart
+  // Instagram-native data parts can appear inside a Parts bundle (e.g. when an
+  // event delivers multiple attachments alongside text).
+  | IgPostPart
+  | StoryMentionPart
+  | IgReelPart
+  | ReelPart
+  | StoryPart
+  | IgStoryPart;
 
 // Parts type is not used yet. It is a proof of concept.
 export type Parts = {
@@ -980,6 +991,7 @@ export type IncomingMessage =
     | StoryPart
     | IgStoryPart
     | ReferralPart
+    | Parts
   );
 
 export type InternalMessage =
@@ -1198,18 +1210,25 @@ export type OrganizationExtra = {
   error_messages_direction?: "internal" | "outgoing";
 };
 
-export type OrganizationAddressExtra = {
-  // WhatsApp
+export type WhatsAppOrganizationAddressExtra = {
   waba_id?: string;
   phone_number?: string;
   verified_name?: string;
   flow_type?: "only_waba" | "new_phone_number" | "existing_phone_number";
-  // Instagram
+  access_token?: string; // Meta system-user token
+};
+
+export type InstagramOrganizationAddressExtra = {
   ig_user_id?: string;
   username?: string;
-  // Shared (Meta access token — WA system-user token or IG user OAuth token)
-  access_token?: string;
+  access_token?: string; // Per-IG-account OAuth user token
 };
+
+// Union — the column accepts either shape; consumers narrow via the row's
+// `service` column (or via a cast at WA-/IG-specific read sites).
+export type OrganizationAddressExtra =
+  | WhatsAppOrganizationAddressExtra
+  | InstagramOrganizationAddressExtra;
 
 export type ConversationExtra = {
   memory?: Memory;
@@ -1231,16 +1250,33 @@ export type ConversationExtra = {
 
 export type ContactExtra = Record<PropertyKey, never>;
 
-export type ContactAddressExtra = {
+export type WhatsAppContactAddressExtra = {
   name?: string;
-  name_fetched_at?: string; // ISO timestamp — when `name` was last fetched (Instagram TTL refresh)
   synced?: { // if the contact address was synced from WhatsApp
     name: string;
     action: "add" | "remove";
-  }
+  };
   replaces_address?: string;
   replaced_by_address?: string;
-}
+};
+
+export type InstagramContactAddressExtra = {
+  name?: string;
+  username?: string;
+  biography?: string;
+  profile_picture_url?: string;
+  // ISO timestamp — set on every fetch (success or failure) so the TTL guard
+  // suppresses retries until the refresh window elapses.
+  name_fetched_at?: string;
+  replaces_address?: string;
+  replaced_by_address?: string;
+};
+
+// Union — the column accepts either shape; consumers narrow via the row's
+// `service` column (or via the per-service Row/Insert aliases below).
+export type ContactAddressExtra =
+  | WhatsAppContactAddressExtra
+  | InstagramContactAddressExtra;
 
 // Function tools have a JSON input (data part).
 export type LocalFunctionToolConfig = {
@@ -1458,10 +1494,34 @@ export type ContactAddressRow =
 export type ContactAddressInsert =
   Database["public"]["Tables"]["contacts_addresses"]["Insert"];
 
+// Service-narrowed contact address aliases. Use these at boundaries (the
+// SELECT/UPSERT call sites) so that downstream code reads/writes the
+// service-specific extra shape without per-field casts.
+export type WhatsAppContactAddressRow =
+  & Omit<ContactAddressRow, "extra">
+  & { extra: WhatsAppContactAddressExtra | null };
+export type WhatsAppContactAddressInsert =
+  & Omit<ContactAddressInsert, "extra">
+  & { extra?: WhatsAppContactAddressExtra };
+export type InstagramContactAddressRow =
+  & Omit<ContactAddressRow, "extra">
+  & { extra: InstagramContactAddressExtra | null };
+export type InstagramContactAddressInsert =
+  & Omit<ContactAddressInsert, "extra">
+  & { extra?: InstagramContactAddressExtra };
+
 export type AgentRow = Database["public"]["Tables"]["agents"]["Row"];
 
 export type OrganizationAddressRow =
   Database["public"]["Tables"]["organizations_addresses"]["Row"];
+
+// Same pattern for organization addresses — narrow at the boundary.
+export type WhatsAppOrganizationAddressRow =
+  & Omit<OrganizationAddressRow, "extra">
+  & { extra: WhatsAppOrganizationAddressExtra | null };
+export type InstagramOrganizationAddressRow =
+  & Omit<OrganizationAddressRow, "extra">
+  & { extra: InstagramOrganizationAddressExtra | null };
 
 export type ApiKeyRow = Database["public"]["Tables"]["api_keys"]["Row"];
 
