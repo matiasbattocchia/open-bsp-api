@@ -119,11 +119,11 @@ Available tools:
 | `list_templates` | List available WhatsApp templates |
 | `fetch_template` | Fetch details of a specific template |
 
-## Hosted version
+## Hosted demo
 
-A managed instance is available at **[web.openbsp.dev](https://web.openbsp.dev)** — same codebase as this repo, running on Supabase. Sign up with a Google account.
+A managed instance is available at **[web.openbsp.dev](https://web.openbsp.dev)** — same codebase as this repo, running on Supabase. Sign up with a Google or GitHub account.
 
-### Free plan
+### Quotas
 
 | Resource      | Included           |
 |---------------|--------------------|
@@ -133,10 +133,6 @@ A managed instance is available at **[web.openbsp.dev](https://web.openbsp.dev)*
 | AI Credits    | $1.00 (one-time)   |
 
 AI Credits apply only when agents use the built-in LLM gateway. Configuring an agent with your own provider API key (`AgentExtra.api_key`) bypasses credit consumption.
-
-### Starter plan — $5 / month
-
-Includes 25,000 messages per month and 25 GB of storage. Overage is billed at $0.001 per message and $0.025 per GB, up to the tier caps of 100,000 messages / month and 100 GB lifetime.
 
 ### Data portability
 
