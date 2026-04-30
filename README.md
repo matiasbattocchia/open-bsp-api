@@ -119,7 +119,7 @@ Available tools:
 | `list_templates` | List available WhatsApp templates |
 | `fetch_template` | Fetch details of a specific template |
 
-## Hosted demo
+## Demo
 
 A managed instance is available at **[web.openbsp.dev](https://web.openbsp.dev)** — same codebase as this repo, running on Supabase. Sign up with a Google or GitHub account.
 
