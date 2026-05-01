@@ -52,3 +52,5 @@ Monetization (medium-term)
 - [x] Sanitize tool names Error: 400 Invalid 'tools[0].function.name': string
       does not match pattern. Expected a string that matches the pattern
       '^[a-zA-Z0-9_-]+$'.
+
+- [x] Agent tool can request human handoff and pause the conversation

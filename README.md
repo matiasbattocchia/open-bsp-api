@@ -65,11 +65,32 @@ use built-in tools:
 - SQL client
 - HTTP client
 - Calculator
+- Human handoff
 
 > [!IMPORTANT]
 > This project prioritizes a decoupled architecture between communication and
 > agent logic. Advanced agents built with frameworks like the OpenAI SDK or
 > Google ADK should be deployed as external services.
+
+#### Human handoff
+
+Agents can request human help by enabling the `transfer_to_human_agent` local
+function tool. When called, OpenBSP marks the conversation as handed off, pauses
+automation through the existing conversation pause behavior, and records an
+internal audit message for operators.
+
+Example tool configuration:
+
+```json
+{
+  "provider": "local",
+  "type": "function",
+  "name": "transfer_to_human_agent"
+}
+```
+
+This first slice creates a handoff request. It does not assign a specific human
+agent or manage a support queue.
 
 ### Media processing
 

@@ -1,6 +1,8 @@
 import { evaluate } from "mathjs";
 import { z } from "zod";
 import type { ToolDefinition } from "./base.ts";
+import type { RequestContext } from "../protocols/base.ts";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 const CalculatorInputSchema = z.object({
   expression: z.string().describe("Mathematical expression to evaluate."),
@@ -12,6 +14,8 @@ const CalculatorOutputSchema = z.object({
 
 export async function calculatorToolImplementation(
   input: z.infer<typeof CalculatorInputSchema>,
+  _context: RequestContext,
+  _supabaseClient: SupabaseClient,
 ): Promise<z.infer<typeof CalculatorOutputSchema>> {
   const result = await evaluate(input.expression);
 

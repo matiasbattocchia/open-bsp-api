@@ -20,3 +20,17 @@ package-lock.json
 mise.toml
 
 .mcp.json
+
+# Local agent working notes
+tasks/
+.scratch/
+
+# Local Compound Engineering artifacts
+docs/ideation/
+docs/plans/
+docs/solutions/
+docs/pulse-reports/
+.compound-engineering/
+compound-engineering/
+ce/
+ce-*/
