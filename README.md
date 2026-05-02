@@ -143,14 +143,33 @@ Your data is yours. You can export your organization's data from the hosted inst
 > [!NOTE]
 > **Deploy your own instance in under 15 minutes** — no local environment required.
 
-1. Create a [Supabase](https://supabase.com) project (5 min)
-2. [Fork](https://github.com/matiasbattocchia/open-bsp-api/fork) this repo (1 min)
-3. Configure secrets and variables for GitHub Actions (see below) (7 min)
-4. Run the _Release_ action (1 min)
+1. [Fork](https://github.com/matiasbattocchia/open-bsp-api/fork) this repo (1 min)
+2. Create a [Supabase](https://supabase.com) project (5 min)
+3. Connect the project to your fork via the Supabase GitHub Integration (5 min)
 
-You are live! 🚀
+You are live! 🚀 Pushes to your default branch will automatically deploy database migrations and Edge Functions.
 
-#### Secrets
+#### Connect via Supabase GitHub Integration
+
+In the [Supabase Dashboard](https://supabase.com/dashboard):
+
+1. Go to **Project Settings** > **Integrations**
+2. Under **GitHub Integration**, click **Authorize GitHub**
+3. On the GitHub authorization page, click **Authorize Supabase**
+4. Back on the Integrations page, choose your forked **open-bsp-api** repository
+5. Set the **Working directory** to `.` (the `supabase/` folder lives at the repo root)
+6. Set the **Production branch** to `main`
+7. Configure the remaining options as needed
+8. Click **Enable integration**
+
+<details>
+<summary>
+Alternative: deploy via GitHub Actions (optional)
+</summary>
+
+The repository also ships with a `Release` GitHub Actions workflow that performs the same deployment from inside CI. The workflow is set to `workflow_dispatch:` only — it does **not** run on push. This path is **optional** and useful if you mirror this repo to another host (e.g. GitLab) or prefer keeping deployments self-contained in GitHub Actions instead of relying on Supabase's integration.
+
+##### Secrets
 
 > [!TIP]
 > Create the secrets at GitHub > Repository > Settings ⚙️ > Secrets and variables \*️⃣ > Actions > Secrets <!-- `https://github.com/{github_account}/open-bsp-api/settings/secrets/actions` -->
@@ -160,7 +179,7 @@ You are live! 🚀
 - **SUPABASE_DB_PASSWORD** <!-- Get it at Supabase > Project > Database > Settings > Database password `https://supabase.com/dashboard/project/{project_id}/database/settings` -->
 - **SUPABASE_SERVICE_ROLE_KEY**: you can use a secret key instead of the legacy service role key <!-- Get it at Supabase > Project > Project Settings > API keys > API Keys > Secret keys `https://supabase.com/dashboard/project/{project_id}/settings/api-keys/new` -->
 
-#### Variables
+##### Variables
 
 > [!TIP]
 > Create the variables at GitHub > Repository > Settings ⚙️ > Secrets and variables \*️⃣ > Actions > Variables <!-- `https://github.com/{github_account}/open-bsp-api/settings/variables/actions` -->
@@ -168,12 +187,14 @@ You are live! 🚀
 - **SUPABASE_PROJECT_ID** <!-- the `{project_id}` in `https://supabase.com/dashboard/project/{project_id}` -->
 - **SUPABASE_SESSION_POOLER_HOST**: it is like `aws-0-us-east-1.pooler.supabase.com` <!-- Found at Supabase > Project > Connect 🔌 > Session pooler > View parameters > Host `https://supabase.com/dashboard/project/{project_id}/database/schemas?showConnect=true` -->
 
-#### Release
+##### Release
 
 > [!TIP]
 > Go to GitHub > Repository > Actions ▶️ > Release <!-- `https://github.com/{github_account}/open-bsp-api/actions/workflows/release.yml` -->
 
 1. Click **Run workflow**
+
+</details>
 
 ## WhatsApp integration
 
