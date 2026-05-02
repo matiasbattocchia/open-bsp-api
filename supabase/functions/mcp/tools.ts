@@ -38,7 +38,7 @@ function formatStatus(status: IncomingStatus | OutgoingStatus): keyof (IncomingS
   return (last ? last[0] : "pending") as keyof (IncomingStatus & OutgoingStatus);
 }
 
-// Helper: Count unread messages.
+// Helper: Count unread messages
 // Note: messages are sorted by timestamp descending
 function countUnread(messages: MessageRow[] | undefined | null): number {
   if (!messages) { return 0; }
