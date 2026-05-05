@@ -138,6 +138,8 @@ export async function getPhoneNumberId(
 async function postSubscribeToWebhooks(
   business_access_token: string,
   waba_id: string,
+  url?: string,
+  token?: string
 ): Promise<boolean> {
   const response = await fetch(
     `https://graph.facebook.com/${API_VERSION}/${waba_id}/subscribed_apps`,
@@ -146,6 +148,10 @@ async function postSubscribeToWebhooks(
       headers: {
         Authorization: `Bearer ${business_access_token}`,
       },
+      body: JSON.stringify({
+        override_callback_uri: url || Deno.env.get("SUPABASE_URL") + "/functions/v1/whatsapp-webhook",
+        verify_token: token || Deno.env.get("WHATSAPP_VERIFY_TOKEN"),
+      }),
     },
   );
 
@@ -283,6 +289,8 @@ export type SignupPayload = {
   waba_id?: string;
   business_id?: string;
   flow_type?: "only_waba" | "new_phone_number" | "existing_phone_number";
+  callback_url?: string;
+  verify_token?: string;
 };
 
 export async function performEmbeddedSignup(
@@ -351,7 +359,7 @@ export async function performEmbeddedSignup(
   );
 
   log.info("Step 2: Subscribe to webhooks on the customer's WABA");
-  await postSubscribeToWebhooks(business_access_token, payload.waba_id);
+  await postSubscribeToWebhooks(business_access_token, payload.waba_id, payload.callback_url, payload.verify_token);
 
   if (payload.flow_type === "existing_phone_number") {
     log.info("Coexistence flow: Skipping step 3");
@@ -386,6 +394,8 @@ export async function performEmbeddedSignup(
         access_token: business_access_token,
         phone_number: normalizePhoneNumber(phone_number.display_phone_number),
         verified_name: phone_number.verified_name,
+        callback_url: payload.callback_url || null,
+        verify_token: payload.verify_token || null,
       },
     })
     .select()
