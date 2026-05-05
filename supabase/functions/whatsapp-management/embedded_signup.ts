@@ -147,6 +147,7 @@ async function postSubscribeToWebhooks(
       method: "POST",
       headers: {
         Authorization: `Bearer ${business_access_token}`,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         override_callback_uri: url || Deno.env.get("SUPABASE_URL") + "/functions/v1/whatsapp-webhook",
