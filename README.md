@@ -19,7 +19,7 @@ wakit is designed for both individual businesses and service providers. You can 
 🚀 **Powering production-grade AI agents at [Mirlo.com](https://mirlo.com/agentes-ia/whatsapp)**
 
 > [!NOTE]
-> This project is undergoing a rebranding. The project name is changing from **OpenBSP** to **wakit**.
+> This project is now backed by <a href="https://mirlo.com">Mirlo.com</a>, where I work, and is undergoing a rebranding. The project name is changing from **OpenBSP** to **wakit**.
 
 ## User Interface
 

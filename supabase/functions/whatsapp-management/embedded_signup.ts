@@ -148,9 +148,9 @@ async function postSubscribeToWebhooks(
       headers: {
         Authorization: `Bearer ${business_access_token}`,
       },
-      body: JSON.stringify({
+      body: new URLSearchParams({
         override_callback_uri: url || Deno.env.get("SUPABASE_URL") + "/functions/v1/whatsapp-webhook",
-        verify_token: token || Deno.env.get("WHATSAPP_VERIFY_TOKEN"),
+        verify_token: token || Deno.env.get("WHATSAPP_VERIFY_TOKEN")!,
       }),
     },
   );
