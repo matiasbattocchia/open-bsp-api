@@ -1,9 +1,19 @@
-import type { WebhookError } from "./webhook_error.ts";
 import type { WebhookStatus } from "./status_types.ts";
 import type {
   IncomingContextInfo,
   WebhookMessageBase,
-} from "./whatsapp_incoming_message_types.ts";
+} from "./whatsapp_webhook_message_types.ts";
+
+// System/app/account-level, statuses and history error structure
+export type WebhookError = {
+  code: number;
+  title: string;
+  message: string;
+  error_data: {
+    details: string;
+  };
+  href: string;
+};
 
 // This is what Supabase webhooks send to functions
 export type WebhookPayload<Record> = {
@@ -173,9 +183,9 @@ export type WebhookChange =
   | {
     field: "messages";
     value:
-    | WebhookValueMessages // incoming
-    | WebhookValueStatuses // outgoing
-    | WebhookValueMessagesError; // error
+      | WebhookValueMessages // incoming
+      | WebhookValueStatuses // outgoing
+      | WebhookValueMessagesError; // error
   }
   | {
     field: "smb_message_echoes";

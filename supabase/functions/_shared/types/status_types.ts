@@ -1,4 +1,4 @@
-import type { WebhookError } from "./webhook_error.ts";
+import type { WebhookError } from "./whatsapp_webhook_payload_types.ts";
 
 //===================================
 // Statuses

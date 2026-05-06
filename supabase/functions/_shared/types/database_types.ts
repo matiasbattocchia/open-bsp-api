@@ -1,6 +1,14 @@
-import type { Database as DatabaseGenerated, Json, Tables } from "../db_types.ts";
+import type {
+  Database as DatabaseGenerated,
+  Json,
+  Tables,
+} from "../db_types.ts";
 import { MergeDeep } from "https://esm.sh/type-fest@^4.11.1";
-import type { IncomingMessage, InternalMessage, OutgoingMessage } from "./protocol_message_types.ts";
+import type {
+  IncomingMessage,
+  InternalMessage,
+  OutgoingMessage,
+} from "./message_types.ts";
 import type { IncomingStatus, OutgoingStatus } from "./status_types.ts";
 import type {
   AIAgentExtra,
@@ -10,7 +18,7 @@ import type {
   HumanAgentExtra,
   OrganizationAddressExtra,
   OrganizationExtra,
-} from "./org_and_tool_extras.ts";
+} from "./extra_types.ts";
 
 export type { Json, Tables };
 
@@ -56,40 +64,40 @@ export type Database = MergeDeep<
         };
         messages: {
           Row:
-          | {
-            direction: "incoming";
-            content: IncomingMessage;
-            status: IncomingStatus;
-          }
-          | {
-            direction: "internal";
-            content: InternalMessage;
-            status: IncomingStatus;
-          }
-          | {
-            direction: "outgoing";
-            content: OutgoingMessage;
-            status: OutgoingStatus;
-          };
+            | {
+              direction: "incoming";
+              content: IncomingMessage;
+              status: IncomingStatus;
+            }
+            | {
+              direction: "internal";
+              content: InternalMessage;
+              status: IncomingStatus;
+            }
+            | {
+              direction: "outgoing";
+              content: OutgoingMessage;
+              status: OutgoingStatus;
+            };
           Insert:
-          | {
-            conversation_id?: string;
-            direction: "incoming";
-            content: IncomingMessage;
-            status?: IncomingStatus;
-          }
-          | {
-            conversation_id?: string;
-            direction: "internal";
-            content: InternalMessage;
-            status?: IncomingStatus;
-          }
-          | {
-            conversation_id?: string;
-            direction: "outgoing";
-            content: OutgoingMessage;
-            status?: OutgoingStatus;
-          };
+            | {
+              conversation_id?: string;
+              direction: "incoming";
+              content: IncomingMessage;
+              status?: IncomingStatus;
+            }
+            | {
+              conversation_id?: string;
+              direction: "internal";
+              content: InternalMessage;
+              status?: IncomingStatus;
+            }
+            | {
+              conversation_id?: string;
+              direction: "outgoing";
+              content: OutgoingMessage;
+              status?: OutgoingStatus;
+            };
         };
         contacts: {
           Row: {

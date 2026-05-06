@@ -1,4 +1,4 @@
-import type { WebhookError } from "./webhook_error.ts";
+import type { WebhookError } from "./whatsapp_webhook_payload_types.ts";
 import type { WebhookStatus } from "./status_types.ts";
 
 //===================================
@@ -54,27 +54,29 @@ export type IncomingContextInfo = {
  * - sticker
  */
 export type ReferralInfo = {
-  referral?: {
-    source_url: string;
-    source_type: "ad" | "post";
-    source_id: string;
-    headline: string;
-    body: string;
-    ctwa_clid?: string; // The ctwa_clid property is omitted entirely for messages originating from an ad in WhatsApp Status
-    welcome_message: {
-      text: string;
-    };
-  } & (
-    | {
-      media_type: "image";
-      image_url: string;
+  referral?:
+    & {
+      source_url: string;
+      source_type: "ad" | "post";
+      source_id: string;
+      headline: string;
+      body: string;
+      ctwa_clid?: string; // The ctwa_clid property is omitted entirely for messages originating from an ad in WhatsApp Status
+      welcome_message: {
+        text: string;
+      };
     }
-    | {
-      media_type: "video";
-      video_url: string;
-      thumbnail_url?: string;
-    }
-  );
+    & (
+      | {
+        media_type: "image";
+        image_url: string;
+      }
+      | {
+        media_type: "video";
+        video_url: string;
+        thumbnail_url?: string;
+      }
+    );
 };
 
 // Text based
@@ -101,11 +103,11 @@ export type AudioMessage = {
   audio: {
     id: string;
     mime_type:
-    | "audio/aac"
-    | "audio/amr"
-    | "audio/mpeg"
-    | "audio/mp4"
-    | "audio/ogg; codecs=opus";
+      | "audio/aac"
+      | "audio/amr"
+      | "audio/mpeg"
+      | "audio/mp4"
+      | "audio/ogg; codecs=opus";
     voice: boolean;
   };
 } & ReferralInfo;
@@ -139,14 +141,14 @@ export type DocumentMessage = {
     id: string;
     sha256: string;
     mime_type:
-    | "text/plain"
-    | "application/vnd.ms-excel"
-    | "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    | "application/msword"
-    | "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    | "application/vnd.ms-powerpoint"
-    | "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-    | "application/pdf";
+      | "text/plain"
+      | "application/vnd.ms-excel"
+      | "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      | "application/msword"
+      | "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      | "application/vnd.ms-powerpoint"
+      | "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+      | "application/pdf";
   };
 } & ReferralInfo;
 
@@ -177,11 +179,11 @@ export type ButtonMessage = {
 export type InteractiveMessage = {
   type: "interactive";
   interactive:
-  | { type: "button_reply"; button_reply: { id: string; title: string } }
-  | {
-    type: "list_reply";
-    list_reply: { id: string; title: string; description?: string };
-  };
+    | { type: "button_reply"; button_reply: { id: string; title: string } }
+    | {
+      type: "list_reply";
+      list_reply: { id: string; title: string; description?: string };
+    };
 };
 
 // ORDER

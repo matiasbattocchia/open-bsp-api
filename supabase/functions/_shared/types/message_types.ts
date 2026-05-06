@@ -8,7 +8,7 @@ import type {
   Order,
   ReferralInfo,
   UnsupportedMessage,
-} from "./whatsapp_incoming_message_types.ts";
+} from "./whatsapp_webhook_message_types.ts";
 import type { Template } from "./whatsapp_template_types.ts";
 
 //===================================
@@ -29,8 +29,8 @@ export type TaskInfo = {
 
 export type ToolInfo = {
   tool?:
-  & ToolEventInfo
-  & (LocalToolInfo | GoogleToolInfo | OpenAIToolInfo | AnthropicToolInfo);
+    & ToolEventInfo
+    & (LocalToolInfo | GoogleToolInfo | OpenAIToolInfo | AnthropicToolInfo);
 };
 
 export type ToolEventInfo =
@@ -60,23 +60,23 @@ type GoogleToolInfo = {
 type OpenAIToolInfo = {
   provider: "openai";
   type:
-  | "mcp"
-  | "web_search_preview"
-  | "file_search"
-  | "image_generation"
-  | "code_interpreter"
-  | "computer_use_preview";
+    | "mcp"
+    | "web_search_preview"
+    | "file_search"
+    | "image_generation"
+    | "code_interpreter"
+    | "computer_use_preview";
 };
 
 type AnthropicToolInfo = {
   provider: "anthropic";
   type:
-  | "mcp"
-  | "bash"
-  | "code_execution"
-  | "computer"
-  | "str_replace_based_edit_tool"
-  | "web_search";
+    | "mcp"
+    | "bash"
+    | "code_execution"
+    | "computer"
+    | "str_replace_based_edit_tool"
+    | "web_search";
 };
 
 // Text based

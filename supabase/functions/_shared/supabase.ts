@@ -1,6 +1,10 @@
 // Barrel: re-exports for `_shared` consumers that import from `supabase.ts`
 
-export { createClient, createApiClient, createUnsecureClient } from "./supabase_client.ts";
+export {
+  createApiClient,
+  createClient,
+  createUnsecureClient,
+} from "./supabase_client.ts";
 export type {
   AgentRow,
   ApiKeyRow,
@@ -17,8 +21,7 @@ export type {
   OrganizationAddressRow,
   OrganizationRow,
   Tables,
-} from "./types/supabase_database.ts";
-export type { WebhookError } from "./types/webhook_error.ts";
+} from "./types/database_types.ts";
 export type {
   EndpointStatus,
   EndpointStatusResponse,
@@ -50,8 +53,15 @@ export type {
   UnsupportedMessage,
   VideoMessage,
   WebhookMessageBase,
-} from "./types/whatsapp_incoming_message_types.ts";
+} from "./types/whatsapp_webhook_message_types.ts";
 export type {
+  Template,
+  TemplateData,
+  TemplateMessage,
+} from "./types/whatsapp_template_types.ts";
+export type {
+  EndpointMessage,
+  EndpointMessageResponse,
   OutgoingAudio,
   OutgoingContextInfo,
   OutgoingDocument,
@@ -60,10 +70,8 @@ export type {
   OutgoingSticker,
   OutgoingText,
   OutgoingVideo,
-} from "./types/whatsapp_cloud_outgoing_types.ts";
-export type { Template, TemplateData, TemplateMessage } from "./types/whatsapp_template_types.ts";
-export type { EndpointMessage, EndpointMessageResponse } from "./types/whatsapp_endpoint_types.ts";
-export { MediaTypes } from "./types/protocol_message_types.ts";
+} from "./types/whatsapp_endpoint_types.ts";
+export { MediaTypes } from "./types/message_types.ts";
 export type {
   DataPart,
   FilePart,
@@ -77,7 +85,7 @@ export type {
   TextPart,
   ToolEventInfo,
   ToolInfo,
-} from "./types/protocol_message_types.ts";
+} from "./types/message_types.ts";
 export type {
   AIAgentExtra,
   ContactAddressExtra,
@@ -89,14 +97,14 @@ export type {
   LocalHTTPToolConfig,
   LocalMCPToolConfig,
   LocalSimpleToolConfig,
-  LocalSQLToolConfig,
   LocalSpecialToolConfig,
+  LocalSQLToolConfig,
   Memory,
   OrganizationAddressExtra,
   OrganizationExtra,
   PreprocessingConfig,
   ToolConfig,
-} from "./types/org_and_tool_extras.ts";
+} from "./types/extra_types.ts";
 export type {
   MetaWebhookPayload,
   WebhookAccountUpdate_Account,
@@ -107,6 +115,7 @@ export type {
   WebhookContact,
   WebhookEchoMessage,
   WebhookEntry,
+  WebhookError,
   WebhookHistoryMessage,
   WebhookHistoryMetadata,
   WebhookHistoryThread,
@@ -122,4 +131,4 @@ export type {
   WebhookValueMessagesError,
   WebhookValueStateSync,
   WebhookValueStatuses,
-} from "./types/webhook_types.ts";
+} from "./types/whatsapp_webhook_payload_types.ts";

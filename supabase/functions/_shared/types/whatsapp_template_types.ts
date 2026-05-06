@@ -2,7 +2,7 @@ import type {
   OutgoingDocument,
   OutgoingImage,
   OutgoingVideo,
-} from "./whatsapp_cloud_outgoing_types.ts";
+} from "./whatsapp_endpoint_types.ts";
 
 // TEMPLATE
 
@@ -12,15 +12,15 @@ export type TemplateData = {
   id: string;
   name: string;
   status:
-  | "APPROVED"
-  | "IN_APPEAL"
-  | "PENDING"
-  | "REJECTED"
-  | "PENDING_DELETION"
-  | "DELETED"
-  | "DISABLED"
-  | "PAUSED"
-  | "LIMIT_EXCEEDED";
+    | "APPROVED"
+    | "IN_APPEAL"
+    | "PENDING"
+    | "REJECTED"
+    | "PENDING_DELETION"
+    | "DELETED"
+    | "DISABLED"
+    | "PAUSED"
+    | "LIMIT_EXCEEDED";
   category: "MARKETING"; // TODO: service and auth categories - cabra 2024/09/12
   language: string;
   components: (

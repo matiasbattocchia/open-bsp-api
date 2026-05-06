@@ -59,10 +59,10 @@ export type ContactAddressExtra = {
   synced?: { // if the contact address was synced from WhatsApp
     name: string;
     action: "add" | "remove";
-  }
+  };
   replaces_address?: string;
   replaced_by_address?: string;
-}
+};
 
 // Function tools have a JSON input (data part).
 export type LocalFunctionToolConfig = {
