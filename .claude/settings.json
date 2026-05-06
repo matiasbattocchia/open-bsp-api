@@ -11,6 +11,10 @@
           {
             "type": "command",
             "command": "jq -r '.tool_input.file_path // empty' | grep -E '\\.(ts|tsx|js|jsx)$' | xargs -r deno lint 2>/dev/null || true"
+          },
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // empty' | grep -E '\\.(ts|tsx)$' | xargs -r -n1 deno check 2>/dev/null || true"
           }
         ]
       }
