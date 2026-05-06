@@ -52,10 +52,9 @@ async function oauthLoopback(
     rejectSession = reject;
   });
 
-  let server: Deno.HttpServer;
   let settled = false;
 
-  server = Deno.serve({ port: 0, onListen() {} }, async (request) => {
+  const server = Deno.serve({ port: 0, onListen() {} }, async (request) => {
     const url = new URL(request.url);
 
     if (url.pathname === "/callback") {

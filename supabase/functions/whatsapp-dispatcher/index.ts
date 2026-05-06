@@ -202,13 +202,13 @@ async function uploadMediaItem({
   return message;
 }
 
-async function outgoingMessageToEndpointMessage({
+function outgoingMessageToEndpointMessage({
   content,
   to,
 }: {
   content: OutgoingMessage;
   to: string;
-}): Promise<EndpointMessage> {
+}): EndpointMessage {
   const baseMessage = {
     messaging_product: "whatsapp" as const,
     recipient_type: "individual" as const,
@@ -447,7 +447,8 @@ Deno.serve(async (req) => {
         ? error.message
         : String(error);
       const metaCode = isWhatsAppError
-        ? (error.cause as any)?.error?.code as number | undefined
+        ? (error.cause as { error?: { code?: number } } | undefined)?.error
+          ?.code
         : undefined;
       const isRetryable = metaCode != null &&
         RETRYABLE_META_CODES.has(metaCode);
@@ -535,7 +536,7 @@ Deno.serve(async (req) => {
       }),
     };
 
-    const response = await postPayloadToWhatsAppEndpoint({
+    await postPayloadToWhatsAppEndpoint({
       payload,
       phone_number_id: message.organization_address,
       access_token,

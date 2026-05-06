@@ -345,7 +345,7 @@ export class ChatCompletionsHandler
     };
   }
 
-  async prepareRequest(): Promise<ChatCompletionsRequest> {
+  prepareRequest(): Promise<ChatCompletionsRequest> {
     let { messages, agent } = this.context;
 
     const max = agent.extra.max_messages;
@@ -424,10 +424,10 @@ export class ChatCompletionsHandler
       chatCompletionTools.push(RESPOND_TOOL);
     }
 
-    return {
+    return Promise.resolve({
       messages: chatCompletionMessages,
       tools: chatCompletionTools,
-    };
+    });
   }
 
   private calculateCost(

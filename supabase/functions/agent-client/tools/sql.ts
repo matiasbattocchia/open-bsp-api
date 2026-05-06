@@ -300,7 +300,7 @@ function getPostgresConstraintsQuery(quotedSchemas: string) {
   `;
 }
 
-function getMySQLConstraintsQuery(quotedSchemas: string) {
+function getMySQLConstraintsQuery(_quotedSchemas: string) {
   return `
     SELECT
       tc.table_schema,
@@ -356,7 +356,7 @@ function getPostgresTableCommentsQuery(quotedSchemas: string) {
     `;
 }
 
-function getMySQLTableCommentsQuery(quotedSchemas: string) {
+function getMySQLTableCommentsQuery(_quotedSchemas: string) {
   return `
       SELECT
         t.table_schema AS schema,
@@ -398,7 +398,7 @@ function getPostgresColumnCommentsQuery(quotedSchemas: string) {
     `;
 }
 
-function getMySQLColumnCommentsQuery(quotedSchemas: string) {
+function getMySQLColumnCommentsQuery(_quotedSchemas: string) {
   return `
       SELECT
         c.table_schema,
@@ -462,15 +462,15 @@ class BaseClient {
     this.setSchemas();
   }
 
-  async execute<T = Record<string, unknown>>(
-    query: string,
-    args?: unknown[],
+  execute<T = Record<string, unknown>>(
+    _query: string,
+    _args?: unknown[],
   ): Promise<T[]> {
-    throw new Error("Not implemented");
+    return Promise.reject(new Error("Not implemented"));
   }
 
-  async close(): Promise<void> {
-    throw new Error("Not implemented");
+  close(): Promise<void> {
+    return Promise.reject(new Error("Not implemented"));
   }
 
   async tables() {
@@ -483,20 +483,20 @@ class BaseClient {
     );
   }
 
-  async constraints(): Promise<ConstraintRow[]> {
-    throw new Error("Not implemented");
+  constraints(): Promise<ConstraintRow[]> {
+    return Promise.reject(new Error("Not implemented"));
   }
 
-  async tableComments(): Promise<TableCommentRow[]> {
-    throw new Error("Not implemented");
+  tableComments(): Promise<TableCommentRow[]> {
+    return Promise.reject(new Error("Not implemented"));
   }
 
-  async columnComments(): Promise<ColumnCommentRow[]> {
-    throw new Error("Not implemented");
+  columnComments(): Promise<ColumnCommentRow[]> {
+    return Promise.reject(new Error("Not implemented"));
   }
 
-  async enums(): Promise<EnumRow[]> {
-    throw new Error("Not implemented");
+  enums(): Promise<EnumRow[]> {
+    return Promise.reject(new Error("Not implemented"));
   }
 
   quoteIdentifier(identifier: string): string {
@@ -619,8 +619,8 @@ class MySQLClient extends BaseClient {
     );
   }
 
-  override async enums(): Promise<EnumRow[]> {
-    return [];
+  override enums(): Promise<EnumRow[]> {
+    return Promise.resolve([]);
   }
 
   override quoteIdentifier(identifier: string): string {
@@ -725,16 +725,16 @@ class LibSQLClient extends BaseClient {
     return [...pk_and_unique, ...fk];
   }
 
-  override async tableComments(): Promise<TableCommentRow[]> {
-    return [];
+  override tableComments(): Promise<TableCommentRow[]> {
+    return Promise.resolve([]);
   }
 
-  override async columnComments(): Promise<ColumnCommentRow[]> {
-    return [];
+  override columnComments(): Promise<ColumnCommentRow[]> {
+    return Promise.resolve([]);
   }
 
-  override async enums(): Promise<EnumRow[]> {
-    return [];
+  override enums(): Promise<EnumRow[]> {
+    return Promise.resolve([]);
   }
 }
 
@@ -999,7 +999,7 @@ const BulkInsertOutputSchema = z.object({
 export async function bulkInsertImplementation(
   input: z.infer<typeof BulkInsertInputSchema>,
   config: SQLToolConfig,
-  context: RequestContext,
+  _context: RequestContext,
   supabaseClient: SupabaseClient,
 ): Promise<z.infer<typeof BulkInsertOutputSchema>> {
   const client = createDBClient(config);

@@ -79,7 +79,7 @@ export async function fetchTemplate(
   );
 
   if (!response.ok) {
-    throw new HTTPException(response.status as any, {
+    throw new HTTPException(response.status as ContentfulStatusCode, {
       message: "Could not fetch template",
       cause: await response.json().catch(() => ({})),
     });

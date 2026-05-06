@@ -37,7 +37,8 @@ export function markdownToWhatsApp(text: string): string {
         // 3. Strikethrough: ~~text~~ -> ~text~
         processed = processed.replace(/~~(.+?)~~/g, "~$1~");
 
-        // 4. Restore Bold stars
+        // 4. Restore Bold stars (\u0002 is used as a sentinel during processing)
+        // deno-lint-ignore no-control-regex
         processed = processed.replace(/\u0002/g, "*");
 
         return processed;

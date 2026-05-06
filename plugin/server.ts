@@ -309,7 +309,7 @@ const mcp = new Server(
   },
 );
 
-mcp.setRequestHandler(ListToolsRequestSchema, async () => {
+mcp.setRequestHandler(ListToolsRequestSchema, () => {
   const tools: Array<{
     name: string;
     description: string;
@@ -438,7 +438,7 @@ mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
 
 // ── MCP Resources ───────────────────────────────────────────────────────
 
-mcp.setRequestHandler(ListResourcesRequestSchema, async () => ({
+mcp.setRequestHandler(ListResourcesRequestSchema, () => ({
   resources: [
     {
       uri: "openbsp://api-reference",
@@ -450,7 +450,7 @@ mcp.setRequestHandler(ListResourcesRequestSchema, async () => ({
   ],
 }));
 
-mcp.setRequestHandler(ReadResourceRequestSchema, async (req) => {
+mcp.setRequestHandler(ReadResourceRequestSchema, (req) => {
   if (req.params.uri === "openbsp://api-reference") {
     return {
       contents: [

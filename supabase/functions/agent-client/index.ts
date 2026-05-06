@@ -40,7 +40,9 @@ export type AgentTool = {
   description?: string;
   inputSchema: z.core.JSONSchema.JSONSchema;
   outputSchema?: z.core.JSONSchema.JSONSchema;
-  implementation?: any;
+  // deno-lint-ignore no-explicit-any
+  implementation?: (...args: any[]) => any;
+  // deno-lint-ignore no-explicit-any
   config?: any;
 };
 

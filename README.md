@@ -646,6 +646,12 @@ Fetch the OpenAPI spec from PostgREST (requires the service role key):
 curl "https://<project-id>.supabase.co/rest/v1/" -H "apikey: <service_role_key>" > openapi.json
 ```
 
+## Acknowledgments
+
+- [@diegoparma](https://github.com/diegoparma) — for years of feedback, design
+  input, and being one of the project's earliest power users.
+- [@rolox05](https://github.com/rolox05) — first UI, PoC and kickstart partner.
+
 ## Community
 
 Questions, ideas, or feedback? Join our

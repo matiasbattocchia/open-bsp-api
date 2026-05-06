@@ -30,7 +30,7 @@ import { CalculatorTool } from "./calculator.ts";
 const FunctionTools = [
   CalculatorTool,
 ];
-const CustomTools: any[] = [];
+const CustomTools: unknown[] = [];
 
 export const Toolbox = {
   function: FunctionTools,

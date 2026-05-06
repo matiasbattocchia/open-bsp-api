@@ -11,13 +11,13 @@ const AttachFileOutputSchema = z.object({
   //caption: z.string().optional(),
 });
 
-export async function attachFileImplementation(
+export function attachFileImplementation(
   input: z.infer<typeof AttachFileInputSchema>,
 ): Promise<z.infer<typeof AttachFileOutputSchema>> {
-  return {
+  return Promise.resolve({
     file_uri: input.file_uri,
     //caption: input.caption,
-  };
+  });
 }
 
 export const AttachFileTool: ToolDefinition<

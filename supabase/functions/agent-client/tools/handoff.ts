@@ -5,10 +5,10 @@ const TransferToHumanAgentInputSchema = z.object({});
 
 const TransferToHumanAgentOutputSchema = z.object({});
 
-export async function transferToHumanAgentImplementation(
+export function transferToHumanAgentImplementation(
   _input: z.infer<typeof TransferToHumanAgentInputSchema>,
 ): Promise<z.infer<typeof TransferToHumanAgentOutputSchema>> {
-  return {};
+  return Promise.resolve({});
 }
 
 export const TransferToHumanAgentTool: ToolDefinition<
