@@ -27,8 +27,7 @@ export interface AssistantsResponse {
 }
 
 export class AssistantsHandler
-  implements AgentProtocolHandler<AssistantsRequest, AssistantsResponse>
-{
+  implements AgentProtocolHandler<AssistantsRequest, AssistantsResponse> {
   private context: RequestContext;
   private client: SupabaseClient;
   private openai: OpenAI;
@@ -64,8 +63,7 @@ export class AssistantsHandler
       case "data":
         return {
           role,
-          content:
-            `<${part.kind}>\n` +
+          content: `<${part.kind}>\n` +
             JSON.stringify(part.data, null, 2) +
             `\n</${part.kind}>`,
         };
@@ -154,7 +152,7 @@ export class AssistantsHandler
         this.toAssistants(
           agent_id === agent.id ? "assistant" : "user",
           content as Part & ToolInfo,
-        ),
+        )
       ),
     );
 

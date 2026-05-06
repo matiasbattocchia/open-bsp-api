@@ -49,15 +49,21 @@ app.use("*", async (c, next) => {
     const allowedContactsHeader = c.req.header("Allowed-Contacts");
     const allowedAccountsHeader = c.req.header("Allowed-Accounts");
 
-    const allowedContacts = allowedContactsHeader?.split(",").map((p) => p.replace(/\D/g, "")).filter(Boolean) || [];
-    const allowedAccounts = allowedAccountsHeader?.split(",").map((p) => p.replace(/\D/g, "")).filter(Boolean) || [];
+    const allowedContacts = allowedContactsHeader?.split(",").map((p) =>
+      p.replace(/\D/g, "")
+    ).filter(Boolean) || [];
+    const allowedAccounts = allowedAccountsHeader?.split(",").map((p) =>
+      p.replace(/\D/g, "")
+    ).filter(Boolean) || [];
 
     c.set("allowedContacts", allowedContacts);
     c.set("allowedAccounts", allowedAccounts);
 
     await next();
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Authentication failed";
+    const message = err instanceof Error
+      ? err.message
+      : "Authentication failed";
 
     log.error(message, err);
 
@@ -85,8 +91,12 @@ function createMcpServer(
     {
       description: "Get recent active conversations for a specific account.",
       inputSchema: {
-        limit: z.number().optional().describe("Max conversations (default: 10)"),
-        account_phone: z.string().optional().describe("Account phone (required if >1 account)"),
+        limit: z.number().optional().describe(
+          "Max conversations (default: 10)",
+        ),
+        account_phone: z.string().optional().describe(
+          "Account phone (required if >1 account)",
+        ),
       },
     },
     async ({ limit, account_phone }) => {
@@ -99,17 +109,22 @@ function createMcpServer(
         allowedContacts,
       });
 
-      return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result) }],
+      };
     },
   );
 
   server.registerTool(
     "fetch_conversation",
     {
-      description: "Fetch messages and status for a specific contact conversation.",
+      description:
+        "Fetch messages and status for a specific contact conversation.",
       inputSchema: {
         contact_phone: z.string().describe("Contact's phone number"),
-        account_phone: z.string().optional().describe("Account phone (required if >1 account)"),
+        account_phone: z.string().optional().describe(
+          "Account phone (required if >1 account)",
+        ),
         limit: z.number().optional().describe("Max messages (default: 10)"),
       },
     },
@@ -124,17 +139,24 @@ function createMcpServer(
         allowedContacts,
       });
 
-      return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result) }],
+      };
     },
   );
 
   server.registerTool(
     "search_contacts",
     {
-      description: "Find contacts by name or phone number. Returns all contacts if no filters provided.",
+      description:
+        "Find contacts by name or phone number. Returns all contacts if no filters provided.",
       inputSchema: {
-        name: z.string().optional().describe("Name to search (case-insensitive, partial match)"),
-        number: z.string().optional().describe("Phone number to search (partial match)"),
+        name: z.string().optional().describe(
+          "Name to search (case-insensitive, partial match)",
+        ),
+        number: z.string().optional().describe(
+          "Phone number to search (partial match)",
+        ),
         limit: z.number().optional().describe("Max contacts (default: 10)"),
       },
     },
@@ -148,7 +170,9 @@ function createMcpServer(
         allowedContacts,
       });
 
-      return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result) }],
+      };
     },
   );
 
@@ -165,7 +189,9 @@ function createMcpServer(
         allowedAccounts,
       });
 
-      return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result) }],
+      };
     },
   );
 
@@ -174,7 +200,9 @@ function createMcpServer(
     {
       description: "List available WhatsApp templates.",
       inputSchema: {
-        account_phone: z.string().optional().describe("Account phone (required if >1 account)"),
+        account_phone: z.string().optional().describe(
+          "Account phone (required if >1 account)",
+        ),
       },
     },
     async ({ account_phone }) => {
@@ -185,7 +213,9 @@ function createMcpServer(
         allowedAccounts,
       });
 
-      return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result) }],
+      };
     },
   );
 
@@ -195,7 +225,9 @@ function createMcpServer(
       description: "Fetch details of a specific template.",
       inputSchema: {
         template_id: z.string().describe("Template ID"),
-        account_phone: z.string().optional().describe("Account phone (required if >1 account)"),
+        account_phone: z.string().optional().describe(
+          "Account phone (required if >1 account)",
+        ),
       },
     },
     async ({ template_id, account_phone }) => {
@@ -207,18 +239,23 @@ function createMcpServer(
         allowedAccounts,
       });
 
-      return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result) }],
+      };
     },
   );
 
   server.registerTool(
     "send_message",
     {
-      description: "Send a text or template message. Enforces 24h service window for text messages.",
+      description:
+        "Send a text or template message. Enforces 24h service window for text messages.",
       inputSchema: {
         contact_phone: z.string().describe("Contact's phone number"),
         content: z.any().describe("Message content (text or template object)"),
-        account_phone: z.string().optional().describe("Account phone (required if >1 account)"),
+        account_phone: z.string().optional().describe(
+          "Account phone (required if >1 account)",
+        ),
       },
     },
     async ({ contact_phone, content, account_phone }) => {
@@ -232,7 +269,9 @@ function createMcpServer(
         allowedContacts,
       });
 
-      return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result) }],
+      };
     },
   );
 
@@ -246,7 +285,12 @@ app.all("*", async (c) => {
   const allowedContacts = c.get("allowedContacts");
   const allowedAccounts = c.get("allowedAccounts");
 
-  const server = createMcpServer(supabase, orgId, allowedContacts, allowedAccounts);
+  const server = createMcpServer(
+    supabase,
+    orgId,
+    allowedContacts,
+    allowedAccounts,
+  );
   const transport = new WebStandardStreamableHTTPServerTransport();
 
   await server.connect(transport);

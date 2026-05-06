@@ -1,27 +1,32 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import * as log from "../_shared/logger.ts";
 import {
+  type ContactAddressInsert,
   createUnsecureClient,
+  type Database,
   type IncomingMessage,
   type MessageInsert,
   type MetaWebhookPayload,
+  type OrganizationAddressRow,
   type OutgoingMessage,
   type WebhookEchoMessage,
   type WebhookError,
   type WebhookHistoryMessage,
   type WebhookIncomingMessage,
-  type Database,
-  type OrganizationAddressRow,
-  type ContactAddressInsert
 } from "../_shared/supabase.ts";
-import { fetchMedia, uploadToStorage, MAX_STORAGE_UPLOAD_SIZE } from "../_shared/media.ts";
+import {
+  fetchMedia,
+  MAX_STORAGE_UPLOAD_SIZE,
+  uploadToStorage,
+} from "../_shared/media.ts";
 import { whatsappToMarkdown } from "../_shared/markdown.ts";
 
 const API_VERSION = "v24.0";
 const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN");
 const APP_ID = Deno.env.get("META_APP_ID");
 const APP_SECRET = Deno.env.get("META_APP_SECRET");
-const DEFAULT_ACCESS_TOKEN = Deno.env.get("META_SYSTEM_USER_ACCESS_TOKEN") || "";
+const DEFAULT_ACCESS_TOKEN = Deno.env.get("META_SYSTEM_USER_ACCESS_TOKEN") ||
+  "";
 
 /**
  * Queries the database for organization addresses and returns a map.
@@ -104,7 +109,10 @@ function verifyToken(request: Request): Response {
  * @param body The raw body of the request
  * @returns Promise<boolean> true if signature is valid, false otherwise
  */
-async function validateWebhookSignature(request: Request, body: string): Promise<boolean> {
+async function validateWebhookSignature(
+  request: Request,
+  body: string,
+): Promise<boolean> {
   if (!APP_ID || !APP_SECRET) {
     log.warn("META_APP_ID or META_APP_SECRET environment variable not set");
     return false;
@@ -244,7 +252,9 @@ async function downloadMediaItem({
     });
 
     // Preserve message with original WhatsApp media reference and error status
-    message.status = { error: `File too large: ${sizeMB} MB (limit: ${limitMB} MB)` };
+    message.status = {
+      error: `File too large: ${sizeMB} MB (limit: ${limitMB} MB)`,
+    };
     return message;
   }
 
@@ -287,7 +297,8 @@ async function webhookMessageToIncomingMessage(
     ...(re_message_id && { re_message_id }),
     ...(forwarded && { forwarded }),
     ...("referral" in message && { referral: message.referral }),
-    ...("context" in message && message.context?.referred_product && { referred_product: message.context.referred_product }),
+    ...("context" in message && message.context?.referred_product &&
+      { referred_product: message.context.referred_product }),
   };
 
   switch (message.type) {
@@ -332,7 +343,8 @@ async function webhookMessageToIncomingMessage(
           uri: message.image.id, // Will be replaced with internal URI after download
           size: 0, // Will be updated after download
         },
-        ...(message.image.caption && { text: whatsappToMarkdown(message.image.caption) }),
+        ...(message.image.caption &&
+          { text: whatsappToMarkdown(message.image.caption) }),
       };
     }
 
@@ -347,7 +359,8 @@ async function webhookMessageToIncomingMessage(
           name: message.video.filename,
           size: 0, // Will be updated after download
         },
-        ...(message.video.caption && { text: whatsappToMarkdown(message.video.caption) }),
+        ...(message.video.caption &&
+          { text: whatsappToMarkdown(message.video.caption) }),
       };
     }
 
@@ -362,7 +375,8 @@ async function webhookMessageToIncomingMessage(
           name: message.document.filename,
           size: 0, // Will be updated after download
         },
-        ...(message.document.caption && { text: whatsappToMarkdown(message.document.caption) }),
+        ...(message.document.caption &&
+          { text: whatsappToMarkdown(message.document.caption) }),
       };
     }
 
@@ -514,7 +528,10 @@ async function processMessage(request: Request): Promise<Response> {
           .throwOnError();
 
         if (!address?.organization_id) {
-          log.warn("Could not log account update payload: No organization found for WABA", value);
+          log.warn(
+            "Could not log account update payload: No organization found for WABA",
+            value,
+          );
           continue;
         }
 
@@ -576,12 +593,14 @@ async function processMessage(request: Request): Promise<Response> {
             service: "whatsapp",
             extra: {
               name: contact.profile?.name,
-            }
+            },
           });
         }
       }
 
-      if ((field === "messages" || field === "history") && "messages" in value) {
+      if (
+        (field === "messages" || field === "history") && "messages" in value
+      ) {
         for (const webhookMessage of value.messages) {
           const contact_address = webhookMessage.from;
 
@@ -620,7 +639,8 @@ async function processMessage(request: Request): Promise<Response> {
       if (field === "messages" && "statuses" in value) {
         for (const status of value.statuses) {
           statuses.push({
-            organization_id: orgAddressMap.get(organization_address)!.organization_id,
+            organization_id:
+              orgAddressMap.get(organization_address)!.organization_id,
             external_id: status.id,
             service: "whatsapp",
             organization_address,
@@ -660,7 +680,10 @@ async function processMessage(request: Request): Promise<Response> {
         }
       }
 
-      if ((field === "smb_message_echoes" || field === "history") && "message_echoes" in value) {
+      if (
+        (field === "smb_message_echoes" || field === "history") &&
+        "message_echoes" in value
+      ) {
         for (const webhookMessage of value.message_echoes) {
           const contact_address = webhookMessage.to;
 
@@ -729,7 +752,6 @@ async function processMessage(request: Request): Promise<Response> {
               .throwOnError();
 
             for (const thread of history.threads) {
-
               for (const webhookMessage of thread.messages) {
                 const isEcho = "to" in webhookMessage;
 
@@ -899,7 +921,9 @@ async function processMessage(request: Request): Promise<Response> {
     }
   }
 
-  const orgSummary = Array.from(orgAddressMap.entries()).map(([address, row]) => ({
+  const orgSummary = Array.from(orgAddressMap.entries()).map((
+    [address, row],
+  ) => ({
     organization_id: row.organization_id,
     organization_address: address,
     waba_id: row.extra?.waba_id,
@@ -924,10 +948,13 @@ async function processMessage(request: Request): Promise<Response> {
           client,
         });
       } catch (error) {
-        log.warn("Failed to download media, preserving message with original reference", {
-          error: error instanceof Error ? error.message : String(error),
-          message_id: message.external_id,
-        });
+        log.warn(
+          "Failed to download media, preserving message with original reference",
+          {
+            error: error instanceof Error ? error.message : String(error),
+            message_id: message.external_id,
+          },
+        );
 
         message.status = {
           error: error instanceof Error ? error.message : String(error),
@@ -964,7 +991,9 @@ async function processMessage(request: Request): Promise<Response> {
       throw contactsError;
     }
 
-    log.info("Persisted contacts_addresses", { count: contacts_addresses.length });
+    log.info("Persisted contacts_addresses", {
+      count: contacts_addresses.length,
+    });
   }
 
   // Notes for statuses:

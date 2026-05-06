@@ -1,4 +1,11 @@
 {
+  "fmt": {
+    "lineWidth": 80,
+    "indentWidth": 2,
+    "semiColons": true,
+    "singleQuote": false,
+    "proseWrap": "preserve"
+  },
   "imports": {
     "@google/genai": "npm:@google/genai",
     "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.54",

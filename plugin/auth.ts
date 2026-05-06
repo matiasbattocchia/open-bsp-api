@@ -10,7 +10,7 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { loadConfig, STATE_DIR, SESSION_FILE } from "./config.ts";
+import { loadConfig, SESSION_FILE, STATE_DIR } from "./config.ts";
 
 type SavedSession = {
   access_token: string;
@@ -42,7 +42,7 @@ function saveSession(session: SavedSession): void {
  * and wait for the callback with tokens.
  */
 async function oauthLoopback(
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
 ): Promise<SavedSession> {
   // Use Deno.serve with port 0 to get a free port
   let resolveSession: (s: SavedSession) => void;
@@ -62,21 +62,23 @@ async function oauthLoopback(
       const code = url.searchParams.get("code");
 
       if (code) {
-        const { data: sessionData, error: sessionError } =
-          await supabase.auth.exchangeCodeForSession(code);
+        const { data: sessionData, error: sessionError } = await supabase.auth
+          .exchangeCodeForSession(code);
 
         if (sessionError || !sessionData.session) {
           if (!settled) {
             settled = true;
             rejectSession(
               new Error(
-                `Code exchange failed: ${sessionError?.message ?? "no session"}`
-              )
+                `Code exchange failed: ${
+                  sessionError?.message ?? "no session"
+                }`,
+              ),
             );
           }
           return new Response(
             "<html><body><h2>Authentication failed</h2><p>You can close this tab.</p></body></html>",
-            { headers: { "content-type": "text/html" } }
+            { headers: { "content-type": "text/html" } },
           );
         }
 
@@ -89,7 +91,7 @@ async function oauthLoopback(
         }
         return new Response(
           "<html><body><h2>Signed in!</h2><p>You can close this tab and return to Claude Code.</p></body></html>",
-          { headers: { "content-type": "text/html" } }
+          { headers: { "content-type": "text/html" } },
         );
       }
 
@@ -107,7 +109,7 @@ async function oauthLoopback(
             document.body.innerHTML = '<h2>Authentication failed</h2><p>No tokens received.</p>';
           }
         </script><p>Processing...</p></body></html>`,
-        { headers: { "content-type": "text/html" } }
+        { headers: { "content-type": "text/html" } },
       );
     }
 
@@ -148,12 +150,11 @@ async function oauthLoopback(
   console.error(`  If the browser doesn't open, visit: ${data.url}`);
 
   // Open browser
-  const openCmd =
-    Deno.build.os === "darwin"
-      ? "open"
-      : Deno.build.os === "windows"
-        ? "start"
-        : "xdg-open";
+  const openCmd = Deno.build.os === "darwin"
+    ? "open"
+    : Deno.build.os === "windows"
+    ? "start"
+    : "xdg-open";
   try {
     const cmd = new Deno.Command(openCmd, { args: [data.url] });
     cmd.spawn();
@@ -225,14 +226,14 @@ export async function authenticate(): Promise<SupabaseClient> {
       } = await supabase.auth.getUser();
       if (user) {
         console.error(
-          `openbsp: authenticated as ${user.email ?? user.id}`
+          `openbsp: authenticated as ${user.email ?? user.id}`,
         );
         return supabase;
       }
     }
 
     console.error(
-      `openbsp: saved session expired or invalid, re-authenticating...`
+      `openbsp: saved session expired or invalid, re-authenticating...`,
     );
   }
 
@@ -250,7 +251,7 @@ export async function authenticate(): Promise<SupabaseClient> {
     data: { user },
   } = await supabase.auth.getUser();
   console.error(
-    `openbsp: authenticated as ${user?.email ?? user?.id ?? "unknown"}`
+    `openbsp: authenticated as ${user?.email ?? user?.id ?? "unknown"}`,
   );
 
   return supabase;

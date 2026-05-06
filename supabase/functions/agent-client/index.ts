@@ -2,8 +2,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import * as log from "../_shared/logger.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import {
-  createUnsecureClient,
   type ContactRow,
+  createUnsecureClient,
   type DataPart,
   type InternalMessage,
   type LocalMCPToolConfig,
@@ -67,7 +67,10 @@ const MEDIA_PREPROCESSING_POLLING_INTERVAL = 5 * 1000; // 5 seconds
  *  agent will get the conversation history in the correct order.
  */
 
-function getNewestIncomingMessage(incoming: MessageRow, messages: MessageRow[]) {
+function getNewestIncomingMessage(
+  incoming: MessageRow,
+  messages: MessageRow[],
+) {
   const incomingCreatedAt = new Date(incoming.created_at);
 
   const sortedMessages = messages
@@ -121,7 +124,11 @@ Deno.serve(async (req) => {
     conv.extra = {};
   }
 
-  const { organizations: org, contacts_addresses: contact_address, ...conversation } = conv;
+  const {
+    organizations: org,
+    contacts_addresses: contact_address,
+    ...conversation
+  } = conv;
 
   log.info("Agent client context", {
     conversation_id: conv.id,
@@ -286,7 +293,7 @@ Deno.serve(async (req) => {
         version: "1",
         type: "text",
         kind: "text",
-        text: org.extra.welcome_message
+        text: org.extra.welcome_message,
       },
     };
 
@@ -303,8 +310,8 @@ Deno.serve(async (req) => {
   // CHECK IF THERE ARE AI AGENTS
 
   const aiAgents = agents.filter(
-    (agent) => agent.ai
-  ) as AgentRowWithExtra[]
+    (agent) => agent.ai,
+  ) as AgentRowWithExtra[];
 
   if (!aiAgents.length) {
     log.info(
@@ -340,12 +347,17 @@ Deno.serve(async (req) => {
   // 4. Use the agent defined in the conversation
   // For internal conversations, the agent does need to be active.
 
-  agent = aiAgents.find((a) => (conv.service === "local" || a.extra?.mode !== "inactive") && a.id === conversation.extra?.default_agent_id);
+  agent = aiAgents.find((a) =>
+    (conv.service === "local" || a.extra?.mode !== "inactive") &&
+    a.id === conversation.extra?.default_agent_id
+  );
 
   // 3. Fallback to the oldest active agent
 
   if (!agent) {
-    agent = aiAgents.filter((a) => a.extra?.mode !== "inactive").sort((a, b) => +a.created_at - +b.created_at).at(0);
+    agent = aiAgents.filter((a) => a.extra?.mode !== "inactive").sort((a, b) =>
+      +a.created_at - +b.created_at
+    ).at(0);
   }
 
   if (!agent) {
@@ -447,7 +459,8 @@ Deno.serve(async (req) => {
             m.content.type === "file" &&
             m.status.pending && // Note: not using status.preprocessing to avoid race conditions with the media preprocessor Edge Function.
             !m.status.preprocessed &&
-            +new Date(m.status.pending) > +new Date() - MEDIA_PREPROCESSING_TIMEOUT,
+            +new Date(m.status.pending) >
+              +new Date() - MEDIA_PREPROCESSING_TIMEOUT,
         );
 
         if (!pendingPreprocessing.length) {
@@ -519,7 +532,9 @@ Deno.serve(async (req) => {
       ) || [];
 
       const mcpServersAux = await Promise.all(
-        mcpServersToInit.map((tool) => initMCP(tool as LocalMCPToolConfig, context)),
+        mcpServersToInit.map((tool) =>
+          initMCP(tool as LocalMCPToolConfig, context)
+        ),
       );
 
       mcpServersAux.forEach((mcp) => {
@@ -838,7 +853,7 @@ Deno.serve(async (req) => {
             version: "1" as const,
             type: "text",
             kind: "text",
-            text: error instanceof Error ? error.message : String(error)
+            text: error instanceof Error ? error.message : String(error),
           },
         },
       ];

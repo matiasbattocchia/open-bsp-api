@@ -59,7 +59,18 @@ class WhatsAppError extends Error {
  *   368, 130497, 131031 — policy/integrity
  */
 const RETRYABLE_META_CODES = new Set([
-  1, 2, 4, 80007, 130429, 131000, 131016, 131048, 131056, 131057, 131064, 133004,
+  1,
+  2,
+  4,
+  80007,
+  130429,
+  131000,
+  131016,
+  131048,
+  131056,
+  131057,
+  131064,
+  133004,
 ]);
 
 /** Uploads media to WA servers
@@ -98,11 +109,11 @@ const RETRYABLE_META_CODES = new Set([
 
 // WhatsApp Cloud API file size limits per media type
 const WHATSAPP_MAX_FILE_SIZE: Record<string, number> = {
-  audio: 16 * 1000 * 1000,      // 16 MB
-  document: 100 * 1000 * 1000,  // 100 MB
-  image: 5 * 1000 * 1000,       // 5 MB
-  sticker: 500 * 1000,          // 500 KB (animated), 100 KB static
-  video: 16 * 1000 * 1000,      // 16 MB
+  audio: 16 * 1000 * 1000, // 16 MB
+  document: 100 * 1000 * 1000, // 100 MB
+  image: 5 * 1000 * 1000, // 5 MB
+  sticker: 500 * 1000, // 500 KB (animated), 100 KB static
+  video: 16 * 1000 * 1000, // 16 MB
 };
 
 function formatSize(bytes: number): string {
@@ -148,7 +159,9 @@ async function uploadMediaItem({
       limit: maxSize,
     });
     throw new WhatsAppError(
-      `File too large for WhatsApp: ${formatSize(file.size)} (limit: ${formatSize(maxSize)} for ${kind})`,
+      `File too large for WhatsApp: ${formatSize(file.size)} (limit: ${
+        formatSize(maxSize)
+      } for ${kind})`,
     );
   }
 
@@ -201,8 +214,8 @@ async function outgoingMessageToEndpointMessage({
     recipient_type: "individual" as const,
     to,
     ...(content.kind !== "reaction" && // From the docs: You cannot send a reaction message as a contextual reply.
-      content.re_message_id &&
-      !content.forwarded
+        content.re_message_id &&
+        !content.forwarded
       ? { context: { message_id: content.re_message_id } }
       : {}),
   };
@@ -239,8 +252,14 @@ async function outgoingMessageToEndpointMessage({
     }
     case "image": {
       const mediaRef = isExternalUri(content.file.uri)
-        ? { link: content.file.uri, caption: content.text ? markdownToWhatsApp(content.text) : undefined }
-        : { id: content.file.uri, caption: content.text ? markdownToWhatsApp(content.text) : undefined };
+        ? {
+          link: content.file.uri,
+          caption: content.text ? markdownToWhatsApp(content.text) : undefined,
+        }
+        : {
+          id: content.file.uri,
+          caption: content.text ? markdownToWhatsApp(content.text) : undefined,
+        };
       return {
         ...baseMessage,
         type: "image",
@@ -249,8 +268,14 @@ async function outgoingMessageToEndpointMessage({
     }
     case "video": {
       const mediaRef = isExternalUri(content.file.uri)
-        ? { link: content.file.uri, caption: content.text ? markdownToWhatsApp(content.text) : undefined }
-        : { id: content.file.uri, caption: content.text ? markdownToWhatsApp(content.text) : undefined };
+        ? {
+          link: content.file.uri,
+          caption: content.text ? markdownToWhatsApp(content.text) : undefined,
+        }
+        : {
+          id: content.file.uri,
+          caption: content.text ? markdownToWhatsApp(content.text) : undefined,
+        };
       return {
         ...baseMessage,
         type: "video",
@@ -269,8 +294,16 @@ async function outgoingMessageToEndpointMessage({
     }
     case "document": {
       const mediaRef = isExternalUri(content.file.uri)
-        ? { link: content.file.uri, caption: content.text ? markdownToWhatsApp(content.text) : undefined, filename: content.file.name }
-        : { id: content.file.uri, caption: content.text ? markdownToWhatsApp(content.text) : undefined, filename: content.file.name };
+        ? {
+          link: content.file.uri,
+          caption: content.text ? markdownToWhatsApp(content.text) : undefined,
+          filename: content.file.name,
+        }
+        : {
+          id: content.file.uri,
+          caption: content.text ? markdownToWhatsApp(content.text) : undefined,
+          filename: content.file.name,
+        };
       return {
         ...baseMessage,
         type: "document",
@@ -410,15 +443,26 @@ Deno.serve(async (req) => {
         .throwOnError();
     } catch (error) {
       const isWhatsAppError = error instanceof WhatsAppError;
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const metaCode = isWhatsAppError ? (error.cause as any)?.error?.code as number | undefined : undefined;
-      const isRetryable = metaCode != null && RETRYABLE_META_CODES.has(metaCode);
-      const errorDetail: Json = isWhatsAppError ? error.cause as Json : errorMessage;
+      const errorMessage = error instanceof Error
+        ? error.message
+        : String(error);
+      const metaCode = isWhatsAppError
+        ? (error.cause as any)?.error?.code as number | undefined
+        : undefined;
+      const isRetryable = metaCode != null &&
+        RETRYABLE_META_CODES.has(metaCode);
+      const errorDetail: Json = isWhatsAppError
+        ? error.cause as Json
+        : errorMessage;
 
       if (isRetryable) {
         // Transient: record the error for user visibility but keep retryable (no "failed" key).
         // The merge_update trigger overwrites the errors array on each retry.
-        log.warn("Dispatch failed (transient, will retry)", { message_id: message.id, code: metaCode, error: errorMessage });
+        log.warn("Dispatch failed (transient, will retry)", {
+          message_id: message.id,
+          code: metaCode,
+          error: errorMessage,
+        });
 
         await client
           .from("messages")
@@ -431,7 +475,11 @@ Deno.serve(async (req) => {
       }
 
       // Permanent: mark as failed to stop retries.
-      log.error("Dispatch failed (permanent)", { message_id: message.id, code: metaCode, error: errorMessage });
+      log.error("Dispatch failed (permanent)", {
+        message_id: message.id,
+        code: metaCode,
+        error: errorMessage,
+      });
 
       await client
         .from("messages")

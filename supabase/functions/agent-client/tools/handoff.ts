@@ -6,7 +6,7 @@ const TransferToHumanAgentInputSchema = z.object({});
 const TransferToHumanAgentOutputSchema = z.object({});
 
 export async function transferToHumanAgentImplementation(
-  _input: z.infer<typeof TransferToHumanAgentInputSchema>
+  _input: z.infer<typeof TransferToHumanAgentInputSchema>,
 ): Promise<z.infer<typeof TransferToHumanAgentOutputSchema>> {
   return {};
 }

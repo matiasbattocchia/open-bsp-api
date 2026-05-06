@@ -6,7 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export type ToolDefinition<
   InputSchema extends z.ZodType,
   OutputSchema extends z.ZodType,
-  Config = void
+  Config = void,
 > = {
   provider: "local";
   type: "function" | "custom" | "sql" | "http" | "mcp";
@@ -14,12 +14,11 @@ export type ToolDefinition<
   description?: string;
   inputSchema: z.core.JSONSchema.BaseSchema; // TODO: "custom" does not need input schema
   outputSchema: z.core.JSONSchema.BaseSchema;
-  implementation: Config extends Json
-    ? (
-        input: z.infer<InputSchema>,
-        config: Config,
-        context: RequestContext,
-        supabaseClient: SupabaseClient
-      ) => Promise<z.infer<OutputSchema>>
+  implementation: Config extends Json ? (
+      input: z.infer<InputSchema>,
+      config: Config,
+      context: RequestContext,
+      supabaseClient: SupabaseClient,
+    ) => Promise<z.infer<OutputSchema>>
     : (input: z.infer<InputSchema>) => Promise<z.infer<OutputSchema>>;
 };

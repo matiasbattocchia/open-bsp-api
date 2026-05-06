@@ -10,7 +10,7 @@ const CodeExecutionInputSchema = z.object({});
 const CodeExecutionOutputSchema = z.object({});
 
 export async function codeExecutionImplementation(
-  _input: z.infer<typeof CodeExecutionInputSchema>
+  _input: z.infer<typeof CodeExecutionInputSchema>,
 ): Promise<z.infer<typeof CodeExecutionOutputSchema>> {
   return {};
 }

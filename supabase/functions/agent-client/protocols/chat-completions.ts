@@ -17,8 +17,8 @@ import type {
   ToolInfo,
 } from "../../_shared/supabase.ts";
 import {
-  contextHeaders,
   type AgentProtocolHandler,
+  contextHeaders,
   type RequestContext,
   type ResponseContext,
 } from "./base.ts";
@@ -28,7 +28,7 @@ import * as log from "../../_shared/logger.ts";
 import { getFileMetadata } from "../../_shared/media.ts";
 import { serializePartAsXML } from "./serializer.ts";
 import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc"
+import utc from "dayjs/plugin/utc";
 import { inspect } from "node:util";
 dayjs.extend(utc);
 
@@ -39,7 +39,8 @@ const RESPOND_TOOL: ChatCompletionTool = {
   type: "function",
   function: {
     name: RESPOND_FUNCTION_NAME,
-    description: "Default tool. Always call this to send messages to the user, unless you need to call another tool first. Call with an empty messages array to skip responding.",
+    description:
+      "Default tool. Always call this to send messages to the user, unless you need to call another tool first. Call with an empty messages array to skip responding.",
     parameters: {
       type: "object",
       properties: {
@@ -88,7 +89,7 @@ export interface ChatCompletionsResponse {
 
 export class ChatCompletionsHandler
   implements
-  AgentProtocolHandler<ChatCompletionsRequest, ChatCompletionsResponse> {
+    AgentProtocolHandler<ChatCompletionsRequest, ChatCompletionsResponse> {
   private tools: AgentTool[];
   private context: RequestContext;
   private client: SupabaseClient;
@@ -323,11 +324,17 @@ export class ChatCompletionsHandler
     let serialized = serializePartAsXML(part);
 
     if (row.content.re_message_id) {
-      const refMessage = this.messagesByExternalId.get(row.content.re_message_id);
+      const refMessage = this.messagesByExternalId.get(
+        row.content.re_message_id,
+      );
 
       if (refMessage) {
-        const tag = part.type === "text" && part.kind === "reaction" ? "in-reaction-to" : "in-reply-to";
-        const snippet = serializePartAsXML(refMessage.content as Part & ToolInfo);
+        const tag = part.type === "text" && part.kind === "reaction"
+          ? "in-reaction-to"
+          : "in-reply-to";
+        const snippet = serializePartAsXML(
+          refMessage.content as Part & ToolInfo,
+        );
         serialized = `<${tag}>${snippet}</${tag}>\n${serialized}`;
       }
     }
@@ -356,7 +363,9 @@ export class ChatCompletionsHandler
     // Build external_id index for reply/reaction context resolution
     this.messagesByExternalId = new Map(
       messages
-        .filter((m): m is MessageRow & { external_id: string } => !!m.external_id)
+        .filter((m): m is MessageRow & { external_id: string } =>
+          !!m.external_id
+        )
         .map((m) => [m.external_id, m]),
     );
 
@@ -369,11 +378,17 @@ export class ChatCompletionsHandler
       now: dayjs.utc().format("dddd, YYYY-MM-DD HH:mm [UTC]"),
       user: {
         name: this.context.contact?.name,
-        phone: this.context.conversation.contact_address ? "+" + this.context.conversation.contact_address : undefined
-      }
-    }
+        phone: this.context.conversation.contact_address
+          ? "+" + this.context.conversation.contact_address
+          : undefined,
+      },
+    };
 
-    let content = inspect(context, { compact: false, depth: Infinity, colors: false });
+    let content = inspect(context, {
+      compact: false,
+      depth: Infinity,
+      colors: false,
+    });
 
     if (agent.extra.instructions) {
       content = agent.extra.instructions + "\n\n" + content;
@@ -384,7 +399,9 @@ export class ChatCompletionsHandler
       content,
     });
 
-    const chatCompletionTools: ChatCompletionTool[] = this.tools.map((tool) => ({
+    const chatCompletionTools: ChatCompletionTool[] = this.tools.map((
+      tool,
+    ) => ({
       type: "function" as const,
       function: {
         name: ["label" in tool && tool.label, tool.name]
@@ -427,13 +444,12 @@ export class ChatCompletionsHandler
     const audio_out = usage.completion_tokens_details?.audio_tokens ?? 0;
     const reasoning = usage.completion_tokens_details?.reasoning_tokens ?? 0;
 
-    const cost =
-      (prompt - cached - audio_in) * (pricing.input ?? 0)
-      + cached * (pricing.cache_read ?? pricing.input ?? 0)
-      + audio_in * (pricing.audio_input ?? pricing.input ?? 0)
-      + (completion - reasoning - audio_out) * (pricing.output ?? 0)
-      + reasoning * (pricing.reasoning ?? pricing.output ?? 0)
-      + audio_out * (pricing.audio_output ?? pricing.output ?? 0);
+    const cost = (prompt - cached - audio_in) * (pricing.input ?? 0) +
+      cached * (pricing.cache_read ?? pricing.input ?? 0) +
+      audio_in * (pricing.audio_input ?? pricing.input ?? 0) +
+      (completion - reasoning - audio_out) * (pricing.output ?? 0) +
+      reasoning * (pricing.reasoning ?? pricing.output ?? 0) +
+      audio_out * (pricing.audio_output ?? pricing.output ?? 0);
 
     return cost / quantity;
   }
@@ -686,7 +702,8 @@ export class ChatCompletionsHandler
     if (finish_reason === "tool_calls" && message.tool_calls?.length) {
       // Check for the virtual respond tool call
       const respondCall = message.tool_calls.find(
-        (tc) => tc.type === "function" && tc.function.name === RESPOND_FUNCTION_NAME,
+        (tc) =>
+          tc.type === "function" && tc.function.name === RESPOND_FUNCTION_NAME,
       );
 
       if (respondCall) {
@@ -771,7 +788,9 @@ export class ChatCompletionsHandler
 
     if (finish_reason === "stop" && message.content) {
       if (MULTI_MESSAGE_RESPONSE) {
-        log.warn("Unexpected stop finish_reason with tool_choice: required. Falling back to text response.");
+        log.warn(
+          "Unexpected stop finish_reason with tool_choice: required. Falling back to text response.",
+        );
       }
 
       return {

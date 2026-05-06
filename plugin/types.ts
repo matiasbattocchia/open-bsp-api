@@ -48,23 +48,27 @@ type TaskInfo = {
   };
 };
 
-export type IncomingMessage = {
-  version: "1";
-  re_message_id?: string;
-  forwarded?: boolean;
-  referred_product?: {
-    catalog_id: string;
-    product_retailer_id: string;
-  };
-} & TaskInfo &
-  (TextPart | FilePart | DataPart);
+export type IncomingMessage =
+  & {
+    version: "1";
+    re_message_id?: string;
+    forwarded?: boolean;
+    referred_product?: {
+      catalog_id: string;
+      product_retailer_id: string;
+    };
+  }
+  & TaskInfo
+  & (TextPart | FilePart | DataPart);
 
-export type OutgoingMessage = {
-  version: "1";
-  re_message_id?: string;
-  forwarded?: boolean;
-} & TaskInfo &
-  (TextPart | FilePart | DataPart);
+export type OutgoingMessage =
+  & {
+    version: "1";
+    re_message_id?: string;
+    forwarded?: boolean;
+  }
+  & TaskInfo
+  & (TextPart | FilePart | DataPart);
 
 // ── Status types ────────────────────────────────────────────────────────
 
@@ -102,23 +106,24 @@ type MessageRowBase = {
   updated_at: string;
 };
 
-export type MessageRow = MessageRowBase &
-  (
+export type MessageRow =
+  & MessageRowBase
+  & (
     | {
-        direction: "incoming";
-        content: IncomingMessage;
-        status: IncomingStatus;
-      }
+      direction: "incoming";
+      content: IncomingMessage;
+      status: IncomingStatus;
+    }
     | {
-        direction: "internal";
-        content: IncomingMessage; // simplified — internal uses similar shape
-        status: IncomingStatus;
-      }
+      direction: "internal";
+      content: IncomingMessage; // simplified — internal uses similar shape
+      status: IncomingStatus;
+    }
     | {
-        direction: "outgoing";
-        content: OutgoingMessage;
-        status: OutgoingStatus;
-      }
+      direction: "outgoing";
+      content: OutgoingMessage;
+      status: OutgoingStatus;
+    }
   );
 
 export type ConversationRow = {

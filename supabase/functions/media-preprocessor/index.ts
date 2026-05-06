@@ -29,21 +29,32 @@ function calculateCost(
   const completion = usage.candidatesTokenCount ?? 0;
 
   let inputCost = 0;
-  const promptDetails = usage.promptTokensDetails as ModalityTokenCount[] | undefined;
-  const cacheDetails = usage.cacheTokensDetails as ModalityTokenCount[] | undefined;
+  const promptDetails = usage.promptTokensDetails as
+    | ModalityTokenCount[]
+    | undefined;
+  const cacheDetails = usage.cacheTokensDetails as
+    | ModalityTokenCount[]
+    | undefined;
 
   if (promptDetails?.length) {
     for (const { modality, tokenCount } of promptDetails) {
-      const key = modality === "TEXT" ? "input" : `${modality.toLowerCase()}_input`;
+      const key = modality === "TEXT"
+        ? "input"
+        : `${modality.toLowerCase()}_input`;
       inputCost += tokenCount * (pricing[key] ?? pricing.input ?? 0);
     }
     // Subtract cached tokens at full rate, add back at per-modality cache rate
     if (cacheDetails?.length) {
       for (const { modality, tokenCount } of cacheDetails) {
-        const inputKey = modality === "TEXT" ? "input" : `${modality.toLowerCase()}_input`;
-        const cacheKey = modality === "TEXT" ? "cache_read" : `${modality.toLowerCase()}_cache_read`;
+        const inputKey = modality === "TEXT"
+          ? "input"
+          : `${modality.toLowerCase()}_input`;
+        const cacheKey = modality === "TEXT"
+          ? "cache_read"
+          : `${modality.toLowerCase()}_cache_read`;
         inputCost -= tokenCount * (pricing[inputKey] ?? pricing.input ?? 0);
-        inputCost += tokenCount * (pricing[cacheKey] ?? pricing.cache_read ?? pricing.input ?? 0);
+        inputCost += tokenCount *
+          (pricing[cacheKey] ?? pricing.cache_read ?? pricing.input ?? 0);
       }
     } else if (cached > 0) {
       inputCost -= cached * (pricing.input ?? 0);
@@ -52,8 +63,8 @@ function calculateCost(
   } else {
     // Fallback: no modality breakdown
     const prompt = usage.promptTokenCount ?? 0;
-    inputCost = (prompt - cached) * (pricing.input ?? 0)
-      + cached * (pricing.cache_read ?? pricing.input ?? 0);
+    inputCost = (prompt - cached) * (pricing.input ?? 0) +
+      cached * (pricing.cache_read ?? pricing.input ?? 0);
   }
 
   return (inputCost + completion * (pricing.output ?? 0)) / quantity;
@@ -271,7 +282,10 @@ Deno.serve(async (req) => {
 
   if (billable) {
     if (!costs) {
-      return log_update_and_respond("warn", `No pricing found for google/${model}`);
+      return log_update_and_respond(
+        "warn",
+        `No pricing found for google/${model}`,
+      );
     }
 
     const { error } = await client
@@ -283,7 +297,10 @@ Deno.serve(async (req) => {
       });
 
     if (error) {
-      return log_update_and_respond("warn", `AI credits check failed: ${error.message}`);
+      return log_update_and_respond(
+        "warn",
+        `AI credits check failed: ${error.message}`,
+      );
     }
   }
 
@@ -361,13 +378,13 @@ Deno.serve(async (req) => {
       inlineData: { mimeType: string; data: string };
     }
   > = [
-      {
-        inlineData: {
-          mimeType: mimeType,
-          data: base64File,
-        },
+    {
+      inlineData: {
+        mimeType: mimeType,
+        data: base64File,
       },
-    ];
+    },
+  ];
 
   if (mediaType === "image") {
     // Documentation recommends to put the prompt at the end for images
@@ -394,7 +411,8 @@ Deno.serve(async (req) => {
     // 429 can be rate limiting (retryable) or quota exhaustion (not retryable)
     if (status === 429) {
       const message = String(error);
-      const isQuotaExhausted = message.includes("quota") || message.includes("RESOURCE_EXHAUSTED");
+      const isQuotaExhausted = message.includes("quota") ||
+        message.includes("RESOURCE_EXHAUSTED");
 
       if (isQuotaExhausted) {
         return log_update_and_respond(

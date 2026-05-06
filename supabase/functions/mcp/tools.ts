@@ -1,7 +1,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, IncomingStatus, OutgoingStatus, OutgoingMessage, MessageRow, TemplateData } from "../_shared/supabase.ts";
+import type {
+  Database,
+  IncomingStatus,
+  MessageRow,
+  OutgoingMessage,
+  OutgoingStatus,
+  TemplateData,
+} from "../_shared/supabase.ts";
 import dayjs from "dayjs";
-import { listTemplates as listTemplatesMethod, fetchTemplate as fetchTemplateMethod } from "../whatsapp-management/templates.ts";
+import {
+  fetchTemplate as fetchTemplateMethod,
+  listTemplates as listTemplatesMethod,
+} from "../whatsapp-management/templates.ts";
 
 // Helper: Normalize phone number to digits only
 function normalizePhone(phone: string): string {
@@ -14,7 +24,7 @@ function formatTime(timestamp: string): string {
   const now = dayjs();
 
   // Difference in calendar days
-  const diffDays = now.startOf('day').diff(dayjsTs.startOf('day'), 'day');
+  const diffDays = now.startOf("day").diff(dayjsTs.startOf("day"), "day");
 
   if (diffDays === 0) return dayjsTs.format("HH:mm");
   if (diffDays === 1) return "yesterday";
@@ -24,28 +34,35 @@ function formatTime(timestamp: string): string {
 }
 
 // Helper: Format status to the most recent status name
-function formatStatus(status: IncomingStatus | OutgoingStatus): keyof (IncomingStatus & OutgoingStatus) {
+function formatStatus(
+  status: IncomingStatus | OutgoingStatus,
+): keyof (IncomingStatus & OutgoingStatus) {
   const entries = Object.entries(status);
   const validEntries = entries.filter((entry): entry is [string, string] => {
     const [k, v] = entry;
     return k !== "errors" && typeof v === "string";
   });
 
-  const sorted = validEntries.sort(([_ak, av], [_bk, bv]) => new Date(av).getTime() - new Date(bv).getTime());
+  const sorted = validEntries.sort(([_ak, av], [_bk, bv]) =>
+    new Date(av).getTime() - new Date(bv).getTime()
+  );
   const last = sorted[sorted.length - 1];
 
   // Default to 'pending' if no status found, though technically should allow undefined if status is empty
-  return (last ? last[0] : "pending") as keyof (IncomingStatus & OutgoingStatus);
+  return (last ? last[0] : "pending") as keyof (
+    & IncomingStatus
+    & OutgoingStatus
+  );
 }
 
 // Helper: Count unread messages
 // Note: messages are sorted by timestamp descending
 function countUnread(messages: MessageRow[] | undefined | null): number {
-  if (!messages) { return 0; }
+  if (!messages) return 0;
 
-  const index = messages.findIndex((m) => m.direction === "outgoing")
+  const index = messages.findIndex((m) => m.direction === "outgoing");
 
-  if (index === -1) { return 0; }
+  if (index === -1) return 0;
 
   return index;
 }
@@ -78,19 +95,29 @@ async function resolveAccount(params: ResolveAccountParams) {
   const { data: accounts } = await query.throwOnError();
 
   if (!accounts.length) {
-    throw new Error("No connected WhatsApp accounts found for this organization.");
+    throw new Error(
+      "No connected WhatsApp accounts found for this organization.",
+    );
   }
 
-  const availablePhones = accounts.map((a) => `${a.name} (${a.phone})`).join(", ");
+  const availablePhones = accounts.map((a) => `${a.name} (${a.phone})`).join(
+    ", ",
+  );
 
   if (accountPhone) {
     const found = accounts.find((a) => a.phone === accountPhone);
 
     if (!found) {
       if (allowedAccounts.length) {
-        throw new Error(`Account phone ${accountPhone} not found in allowed accounts. Allowed accounts: ${allowedAccounts.join(", ")}`);
+        throw new Error(
+          `Account phone ${accountPhone} not found in allowed accounts. Allowed accounts: ${
+            allowedAccounts.join(", ")
+          }`,
+        );
       } else {
-        throw new Error(`Account phone ${accountPhone} not found in available accounts. Available accounts: ${availablePhones}`);
+        throw new Error(
+          `Account phone ${accountPhone} not found in available accounts. Available accounts: ${availablePhones}`,
+        );
       }
     }
 
@@ -100,7 +127,7 @@ async function resolveAccount(params: ResolveAccountParams) {
   // No account provided
   if (accounts.length > 1) {
     throw new Error(
-      `Multiple accounts found. Please specify account_phone. Available accounts: ${availablePhones}`
+      `Multiple accounts found. Please specify account_phone. Available accounts: ${availablePhones}`,
     );
   }
 
@@ -117,7 +144,9 @@ interface ListConversationsParams {
 }
 
 export async function listConversations(params: ListConversationsParams) {
-  const accountPhone = params.accountPhone ? normalizePhone(params.accountPhone) : undefined;
+  const accountPhone = params.accountPhone
+    ? normalizePhone(params.accountPhone)
+    : undefined;
   const allowedAccounts = params.allowedAccounts;
   const allowedContacts = params.allowedContacts;
   const limit = params.limit || 10;
@@ -126,7 +155,7 @@ export async function listConversations(params: ListConversationsParams) {
     supabase: params.supabase,
     orgId: params.orgId,
     accountPhone,
-    allowedAccounts
+    allowedAccounts,
   });
 
   // Query 1: Get recent messages to find active conversation IDs
@@ -148,12 +177,14 @@ export async function listConversations(params: ListConversationsParams) {
   const { data: recentMessages } = await recentQuery.throwOnError();
 
   // Dedupe conversation IDs preserving order (most recent first)
-  const conversationIds = [...new Set((recentMessages || []).map((m) => m.conversation_id))].slice(0, limit);
+  const conversationIds = [
+    ...new Set((recentMessages || []).map((m) => m.conversation_id)),
+  ].slice(0, limit);
 
   if (conversationIds.length === 0) {
     return {
       account: { name: account.name, phone: account.phone },
-      conversations: []
+      conversations: [],
     };
   }
 
@@ -175,7 +206,7 @@ export async function listConversations(params: ListConversationsParams) {
   // Sort by the original order from query 1
   const idOrder = new Map(conversationIds.map((id, i) => [id, i]));
   const sortedConversations = conversations.sort(
-    (a, b) => (idOrder.get(a.id) ?? 999) - (idOrder.get(b.id) ?? 999)
+    (a, b) => (idOrder.get(a.id) ?? 999) - (idOrder.get(b.id) ?? 999),
   );
 
   return {
@@ -185,17 +216,20 @@ export async function listConversations(params: ListConversationsParams) {
     },
     conversations: sortedConversations.map((c) => ({
       contact: {
-        name: c.contact_address?.contact?.name || c.contact_address?.extra?.name || "Unknown",
-        phone: c.contact_address?.address
+        name: c.contact_address?.contact?.name ||
+          c.contact_address?.extra?.name || "Unknown",
+        phone: c.contact_address?.address,
       },
       unread: countUnread(c.messages),
-      last_message: c.messages?.length ? {
-        direction: c.messages[0].direction,
-        content: c.messages[0].content,
-        timestamp: formatTime(c.messages[0].timestamp),
-        status: formatStatus(c.messages[0].status)
-      } : null
-    }))
+      last_message: c.messages?.length
+        ? {
+          direction: c.messages[0].direction,
+          content: c.messages[0].content,
+          timestamp: formatTime(c.messages[0].timestamp),
+          status: formatStatus(c.messages[0].status),
+        }
+        : null,
+    })),
   };
 }
 
@@ -211,19 +245,25 @@ interface FetchConversationParams {
 
 export async function fetchConversation(params: FetchConversationParams) {
   const contactPhone = normalizePhone(params.contactPhone);
-  const accountPhone = params.accountPhone ? normalizePhone(params.accountPhone) : undefined;
+  const accountPhone = params.accountPhone
+    ? normalizePhone(params.accountPhone)
+    : undefined;
   const allowedAccounts = params.allowedAccounts;
   const allowedContacts = params.allowedContacts;
 
   if (allowedContacts.length && !allowedContacts.includes(contactPhone)) {
-    throw new Error(`Contact ${contactPhone} is not allowed. Allowed contacts: ${allowedContacts.join(", ")}`);
+    throw new Error(
+      `Contact ${contactPhone} is not allowed. Allowed contacts: ${
+        allowedContacts.join(", ")
+      }`,
+    );
   }
 
   const account = await resolveAccount({
     supabase: params.supabase,
     orgId: params.orgId,
     accountPhone,
-    allowedAccounts
+    allowedAccounts,
   });
 
   const { data: conversation } = await params.supabase
@@ -253,17 +293,19 @@ export async function fetchConversation(params: FetchConversationParams) {
   // Service Window Logic
   // Note: uses only the fetched messages (limited by `limit` param),
   // so it may report "closed" if the last incoming is outside the window.
-  const lastIncoming = conversation.messages?.findLast(m => m.direction === 'incoming')
+  const lastIncoming = conversation.messages?.findLast((m) =>
+    m.direction === "incoming"
+  );
 
   let serviceWindow = "closed";
 
   if (lastIncoming) {
-    const diffHours = dayjs().diff(dayjs(lastIncoming.timestamp), 'hour');
+    const diffHours = dayjs().diff(dayjs(lastIncoming.timestamp), "hour");
 
-    if (diffHours < 24) { serviceWindow = "open" };
+    if (diffHours < 24) serviceWindow = "open";
   }
 
-  const lightweightMessages = conversation.messages?.toReversed().map(m => {
+  const lightweightMessages = conversation.messages?.toReversed().map((m) => {
     if ("task" in m.content) {
       delete m.content.task;
     }
@@ -277,15 +319,19 @@ export async function fetchConversation(params: FetchConversationParams) {
       content: m.content,
       time: formatTime(m.timestamp),
       status: formatStatus(m.status),
-      ...("errors" in m.status && { errors: m.status.errors })
+      ...("errors" in m.status && { errors: m.status.errors }),
     };
   });
 
   return {
     account: { name: account.name, phone: account.phone },
-    contact: { name: conversation.contacts_addresses?.contacts?.name || conversation.contacts_addresses?.extra?.name, phone: contactPhone },
+    contact: {
+      name: conversation.contacts_addresses?.contacts?.name ||
+        conversation.contacts_addresses?.extra?.name,
+      phone: contactPhone,
+    },
     service_window: serviceWindow,
-    messages: lightweightMessages
+    messages: lightweightMessages,
   };
 }
 
@@ -325,9 +371,12 @@ export async function searchContacts(params: SearchContactsParams) {
     query = query.ilike("contacts.name", `%${params.name}%`);
   }
 
-  const { data: contacts } = await query.limit(params.limit || 10).throwOnError();
+  const { data: contacts } = await query.limit(params.limit || 10)
+    .throwOnError();
 
-  return { contacts: contacts.map(c => ({ name: c.contact?.name, phone: c.phone })) };
+  return {
+    contacts: contacts.map((c) => ({ name: c.contact?.name, phone: c.phone })),
+  };
 }
 
 interface ListAccountsParams {
@@ -367,23 +416,29 @@ interface SendMessageParams {
 
 export async function sendMessage(params: SendMessageParams) {
   const contactPhone = normalizePhone(params.contactPhone);
-  const accountPhone = params.accountPhone ? normalizePhone(params.accountPhone) : undefined;
+  const accountPhone = params.accountPhone
+    ? normalizePhone(params.accountPhone)
+    : undefined;
   const allowedAccounts = params.allowedAccounts;
   const allowedContacts = params.allowedContacts;
 
   if (allowedContacts.length && !allowedContacts.includes(contactPhone)) {
-    throw new Error(`Contact ${contactPhone} not allowed. Allowed contacts: ${allowedContacts.join(", ")}`);
+    throw new Error(
+      `Contact ${contactPhone} not allowed. Allowed contacts: ${
+        allowedContacts.join(", ")
+      }`,
+    );
   }
 
   const account = await resolveAccount({
     supabase: params.supabase,
     orgId: params.orgId,
     accountPhone,
-    allowedAccounts
+    allowedAccounts,
   });
 
   // Check service window if type is text
-  if (params.content.kind !== 'template') {
+  if (params.content.kind !== "template") {
     const { data: lastMsg } = await params.supabase
       .from("messages")
       .select("timestamp")
@@ -396,23 +451,28 @@ export async function sendMessage(params: SendMessageParams) {
       .maybeSingle();
 
     if (!lastMsg) {
-      throw new Error("Service window is closed (no prior incoming message). You must send a template content to open the service window.");
+      throw new Error(
+        "Service window is closed (no prior incoming message). You must send a template content to open the service window.",
+      );
     }
 
-    const diff = dayjs().diff(dayjs(lastMsg.timestamp), 'hour');
+    const diff = dayjs().diff(dayjs(lastMsg.timestamp), "hour");
 
     if (diff >= 24) {
-      throw new Error("Service window is closed (24h+ since last user message). You must send a template content to re-open it.");
+      throw new Error(
+        "Service window is closed (24h+ since last user message). You must send a template content to re-open it.",
+      );
     }
   }
 
   // Validate content type is actively supported for sending via this tool
-  const isSupported =
-    (params.content.type === 'text') ||
-    (params.content.type === 'data' && params.content.kind === 'template');
+  const isSupported = (params.content.type === "text") ||
+    (params.content.type === "data" && params.content.kind === "template");
 
   if (!isSupported) {
-    throw new Error("Unsupported content type. Only 'text' and 'template' (data/kind=template) are supported.");
+    throw new Error(
+      "Unsupported content type. Only 'text' and 'template' (data/kind=template) are supported.",
+    );
   }
 
   await params.supabase
@@ -438,17 +498,23 @@ interface ListTemplatesParams {
 }
 
 export async function listTemplates(params: ListTemplatesParams) {
-  const accountPhone = params.accountPhone ? normalizePhone(params.accountPhone) : undefined;
+  const accountPhone = params.accountPhone
+    ? normalizePhone(params.accountPhone)
+    : undefined;
   const allowedAccounts = params.allowedAccounts;
 
   const account = await resolveAccount({
     supabase: params.supabase,
     orgId: params.orgId,
     accountPhone,
-    allowedAccounts
+    allowedAccounts,
   });
 
-  const templates = await listTemplatesMethod(params.supabase, params.orgId, account.address);
+  const templates = await listTemplatesMethod(
+    params.supabase,
+    params.orgId,
+    account.address,
+  );
 
   return {
     templates: templates.map((t: TemplateData) => ({
@@ -456,8 +522,8 @@ export async function listTemplates(params: ListTemplatesParams) {
       name: t.name,
       status: t.status,
       category: t.category,
-      language: t.language
-    }))
+      language: t.language,
+    })),
   };
 }
 
@@ -470,17 +536,24 @@ interface FetchTemplateDetailsParams {
 }
 
 export async function fetchTemplate(params: FetchTemplateDetailsParams) {
-  const accountPhone = params.accountPhone ? normalizePhone(params.accountPhone) : undefined;
+  const accountPhone = params.accountPhone
+    ? normalizePhone(params.accountPhone)
+    : undefined;
   const allowedAccounts = params.allowedAccounts;
 
   const account = await resolveAccount({
     supabase: params.supabase,
     orgId: params.orgId,
     accountPhone,
-    allowedAccounts
+    allowedAccounts,
   });
 
-  const t = await fetchTemplateMethod(params.supabase, params.orgId, account.address, { id: params.templateId } as TemplateData);
+  const t = await fetchTemplateMethod(
+    params.supabase,
+    params.orgId,
+    account.address,
+    { id: params.templateId } as TemplateData,
+  );
 
   return {
     id: t.id,
@@ -488,6 +561,6 @@ export async function fetchTemplate(params: FetchTemplateDetailsParams) {
     status: t.status,
     category: t.category,
     language: t.language,
-    components: t.components
+    components: t.components,
   };
 }

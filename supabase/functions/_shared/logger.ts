@@ -13,7 +13,7 @@ function log(level: LogLevel, message: string, details?: unknown): void {
     console[level](
       `%c${message}\n%c${details}`,
       `color: ${color}`,
-      `color: ${color}; font-weight: bold`
+      `color: ${color}; font-weight: bold`,
     );
   } else if (details != null) {
     console[level](`%c${message}\n`, `color: ${color}`, details);

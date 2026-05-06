@@ -103,14 +103,20 @@ export async function requestToolImplementation(
       return {
         status: 403,
         isError: true,
-        message: `Method ${input.method} not allowed. Allowed: ${config.methods.join(", ")}`,
+        message: `Method ${input.method} not allowed. Allowed: ${
+          config.methods.join(", ")
+        }`,
       };
     }
   }
 
   const response = await ky(input.url, {
     method: input.method,
-    headers: { ...contextHeaders(context), ...input.headers, ...config.headers },
+    headers: {
+      ...contextHeaders(context),
+      ...input.headers,
+      ...config.headers,
+    },
     json: input.body,
   });
 

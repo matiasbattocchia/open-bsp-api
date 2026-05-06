@@ -20,7 +20,9 @@ export function serializePartAsXML(part: Part & Partial<ReferralInfo>): string {
       lines.push(`<body>${part.referral.body}</body>`);
     }
     if (part.referral.welcome_message?.text) {
-      lines.push(`<welcome_message>${part.referral.welcome_message.text}</welcome_message>`);
+      lines.push(
+        `<welcome_message>${part.referral.welcome_message.text}</welcome_message>`,
+      );
     }
     lines.push(`</referral>`);
   }
@@ -46,7 +48,11 @@ export function serializePartAsXML(part: Part & Partial<ReferralInfo>): string {
       } else {
         lines.push(
           `<${part.kind}>`,
-          inspect(part.data, { compact: false, depth: Infinity, colors: false }),
+          inspect(part.data, {
+            compact: false,
+            depth: Infinity,
+            colors: false,
+          }),
           `</${part.kind}>`,
         );
       }
@@ -73,7 +79,7 @@ export function serializePartAsXML(part: Part & Partial<ReferralInfo>): string {
 
       lines.push(`</${part.kind}>`);
 
-      break
+      break;
     }
   }
 

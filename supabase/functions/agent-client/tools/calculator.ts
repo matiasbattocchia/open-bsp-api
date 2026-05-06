@@ -11,7 +11,7 @@ const CalculatorOutputSchema = z.object({
 });
 
 export async function calculatorToolImplementation(
-  input: z.infer<typeof CalculatorInputSchema>
+  input: z.infer<typeof CalculatorInputSchema>,
 ): Promise<z.infer<typeof CalculatorOutputSchema>> {
   const result = await evaluate(input.expression);
 

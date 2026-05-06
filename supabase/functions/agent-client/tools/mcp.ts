@@ -5,18 +5,18 @@ import type {
   ToolInfo,
 } from "../../_shared/supabase.ts";
 import {
+  base64ToBlob,
   fetchMedia,
   uploadToStorage,
-  base64ToBlob,
 } from "../../_shared/media.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 // Import map is bad at resolving entry points, so we need to use the full path.
 import { Client } from "npm:@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "npm:@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type {
-  ContentBlock,
   CallToolRequest,
   CallToolResult,
+  ContentBlock,
   ListToolsResult,
   Tool,
 } from "npm:@modelcontextprotocol/sdk/types.js";
@@ -29,7 +29,10 @@ export type MCPServer = {
   tools: Tool[];
 };
 
-export async function initMCP(tool: LocalMCPToolConfig, context?: RequestContext): Promise<MCPServer> {
+export async function initMCP(
+  tool: LocalMCPToolConfig,
+  context?: RequestContext,
+): Promise<MCPServer> {
   const client = new Client({
     name: tool.label,
     version: "1.0",
@@ -43,7 +46,10 @@ export async function initMCP(tool: LocalMCPToolConfig, context?: RequestContext
   // When running locally, the Edge Runtime executes in a containerized environment isolated from the host.
   // 'localhost' refers to the container itself, not the host machine where the Supabase stack is running.
   // We replace it with the internal API gateway URL to access sibling services (like Kong).
-  tool.config.url = tool.config.url.replace("http://localhost:54321", "http://api.supabase.internal:8000");
+  tool.config.url = tool.config.url.replace(
+    "http://localhost:54321",
+    "http://api.supabase.internal:8000",
+  );
 
   const transport = new StreamableHTTPClientTransport(
     new URL(tool.config.url),
@@ -51,7 +57,7 @@ export async function initMCP(tool: LocalMCPToolConfig, context?: RequestContext
       ...(Object.keys(headers).length > 0 && {
         requestInit: { headers },
       }),
-    }
+    },
   );
 
   try {
@@ -65,9 +71,7 @@ export async function initMCP(tool: LocalMCPToolConfig, context?: RequestContext
       tool.config.allowed_tools &&
       tool.config.allowed_tools.length > 0
     ) {
-      tools = tools.filter((t) =>
-        tool.config.allowed_tools!.includes(t.name)
-      );
+      tools = tools.filter((t) => tool.config.allowed_tools!.includes(t.name));
     }
 
     return {
@@ -76,14 +80,18 @@ export async function initMCP(tool: LocalMCPToolConfig, context?: RequestContext
       tools,
     };
   } catch (error) {
-    throw new Error(`MCP client ${tool.label} - ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(
+      `MCP client ${tool.label} - ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
   }
 }
 
 export async function fromMCP(
   part: ContentBlock,
   context: RequestContext,
-  client: SupabaseClient
+  client: SupabaseClient,
 ): Promise<Part> {
   const org = context.organization;
 
@@ -158,7 +166,7 @@ export async function fromMCP(
       if ("blob" in part.resource) {
         const file = base64ToBlob(
           part.resource.blob as string,
-          part.resource.mimeType
+          part.resource.mimeType,
         );
         const uri = await uploadToStorage(client, org.id, file);
 
@@ -195,7 +203,7 @@ export async function callTool(
   mcp: MCPServer,
   part: Part & ToolInfo,
   context: RequestContext,
-  client: SupabaseClient
+  client: SupabaseClient,
 ): Promise<(Part & ToolInfo)[]> {
   if (
     !part.tool ||
@@ -217,10 +225,12 @@ export async function callTool(
     throw new Error(`Tool ${tool.name} is not available or not allowed.`);
   }
 
-  const result = (await mcp.client.callTool({
-    name: tool.name,
-    arguments: part.data,
-  } as CallToolRequest["params"])) as CallToolResult;
+  const result = (await mcp.client.callTool(
+    {
+      name: tool.name,
+      arguments: part.data,
+    } as CallToolRequest["params"],
+  )) as CallToolResult;
 
   const parts = result.structuredContent
     ? [
@@ -231,7 +241,7 @@ export async function callTool(
       },
     ]
     : await Promise.all(
-      result.content.map((part) => fromMCP(part, context, client))
+      result.content.map((part) => fromMCP(part, context, client)),
     );
 
   return parts.map((outPart) => ({

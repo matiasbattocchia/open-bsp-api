@@ -241,28 +241,28 @@ function getColumnsQuery(quotedSchemas: string, driver: Driver) {
 
 type ConstraintRow =
   | {
-      table_schema: string;
-      table_name: string;
-      schema: string;
-      name: string;
-      type: "PRIMARY KEY" | "UNIQUE";
-      column_name: string;
-      column_ordinal_position: number;
-    }
+    table_schema: string;
+    table_name: string;
+    schema: string;
+    name: string;
+    type: "PRIMARY KEY" | "UNIQUE";
+    column_name: string;
+    column_ordinal_position: number;
+  }
   | {
-      table_schema: string;
-      table_name: string;
-      schema: string;
-      name: string;
-      type: "FOREIGN KEY";
-      column_name: string;
-      column_ordinal_position: number;
-      referenced_constraint_schema: string;
-      referenced_constraint_name: string;
-      referenced_table_schema: string;
-      referenced_table_name: string;
-      referenced_column_name: string;
-    };
+    table_schema: string;
+    table_name: string;
+    schema: string;
+    name: string;
+    type: "FOREIGN KEY";
+    column_name: string;
+    column_ordinal_position: number;
+    referenced_constraint_schema: string;
+    referenced_constraint_name: string;
+    referenced_table_schema: string;
+    referenced_table_name: string;
+    referenced_column_name: string;
+  };
 
 function getPostgresConstraintsQuery(quotedSchemas: string) {
   return `
@@ -881,7 +881,8 @@ async function getDbSchema(client: BaseClient): Promise<DBSchema> {
 
       constraintMap.set(key, constraint);
 
-      const tableKey = `${constraintColumn.table_schema}.${constraintColumn.table_name}`;
+      const tableKey =
+        `${constraintColumn.table_schema}.${constraintColumn.table_name}`;
       const table = tableMap.get(tableKey);
       if (!table) continue; // should not happen but just in case
 
@@ -1051,8 +1052,7 @@ export async function bulkInsertImplementation(
   for (const col of source) {
     // If the target column name comes from input.renames, use the renamed name as-is.
     // If it is taken from the CSV, sanitize the name.
-    const targetCol =
-      input.renames?.find((r) => r.from === col)?.to ||
+    const targetCol = input.renames?.find((r) => r.from === col)?.to ||
       client.sanitizeIdentifier(col);
 
     // Deno's parse CSV implementation uses "" for empty column names.
@@ -1067,12 +1067,14 @@ export async function bulkInsertImplementation(
 
   const createQuery = `
     CREATE TABLE IF NOT EXISTS ${table} (
-      ${target
-        .map(
-          (col, i) =>
-            `${client.quoteIdentifier(col)} ${input.types?.[i] || "TEXT"}`,
-        )
-        .join(",\n      ")}
+      ${
+    target
+      .map(
+        (col, i) =>
+          `${client.quoteIdentifier(col)} ${input.types?.[i] || "TEXT"}`,
+      )
+      .join(",\n      ")
+  }
     );
   `;
 
@@ -1081,9 +1083,11 @@ export async function bulkInsertImplementation(
   const insertQuery = `
     INSERT INTO ${table} (${target.map(client.quoteIdentifier).join(", ")})
     VALUES
-      ${csv
-        .map((_row) => "(" + source.map((_col) => "?").join(", ") + ")")
-        .join(",\n      ")}
+      ${
+    csv
+      .map((_row) => "(" + source.map((_col) => "?").join(", ") + ")")
+      .join(",\n      ")
+  }
     ;
   `;
 

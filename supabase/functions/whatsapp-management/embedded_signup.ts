@@ -37,7 +37,7 @@ async function postSubscribeToWebhooks(
   business_access_token: string,
   waba_id: string,
   url?: string,
-  token?: string
+  token?: string,
 ): Promise<boolean> {
   let response = await fetch(
     `https://graph.facebook.com/${API_VERSION}/${waba_id}/subscribed_apps`,
@@ -70,7 +70,7 @@ async function postSubscribeToWebhooks(
         },
         body: JSON.stringify({
           override_callback_uri: url,
-          verify_token: token
+          verify_token: token,
         }),
       },
     );
@@ -262,7 +262,12 @@ export async function performEmbeddedSignup(
   );
 
   log.info("Step 2: Subscribe to webhooks on the customer's WABA");
-  await postSubscribeToWebhooks(business_access_token, payload.waba_id, payload.callback_url, payload.verify_token);
+  await postSubscribeToWebhooks(
+    business_access_token,
+    payload.waba_id,
+    payload.callback_url,
+    payload.verify_token,
+  );
 
   if (payload.flow_type === "existing_phone_number") {
     log.info("Coexistence flow: Skipping step 3");

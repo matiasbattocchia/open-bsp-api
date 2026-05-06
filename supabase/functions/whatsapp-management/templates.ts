@@ -34,7 +34,11 @@ export async function listTemplates(
   organization_id: string,
   organization_address: string,
 ): Promise<TemplateData[]> {
-  const { waba_id, access_token } = await getBusinessCredentials(client, organization_id, organization_address);
+  const { waba_id, access_token } = await getBusinessCredentials(
+    client,
+    organization_id,
+    organization_address,
+  );
 
   const response = await fetch(
     `https://graph.facebook.com/${API_VERSION}/${waba_id}/message_templates`,
@@ -60,7 +64,11 @@ export async function fetchTemplate(
   organization_address: string,
   template: TemplateData,
 ): Promise<TemplateData> {
-  const { access_token } = await getBusinessCredentials(client, organization_id, organization_address);
+  const { access_token } = await getBusinessCredentials(
+    client,
+    organization_id,
+    organization_address,
+  );
 
   const response = await fetch(
     `https://graph.facebook.com/${API_VERSION}/${template.id}`,
@@ -90,7 +98,11 @@ export async function createTemplate(
   status: string;
   category: string;
 }> {
-  const { waba_id, access_token } = await getBusinessCredentials(client, organization_id, organization_address);
+  const { waba_id, access_token } = await getBusinessCredentials(
+    client,
+    organization_id,
+    organization_address,
+  );
 
   const { name, category, language, components } = template;
 
@@ -132,7 +144,11 @@ export async function editTemplate(
 ): Promise<{
   success: boolean;
 }> {
-  const { access_token } = await getBusinessCredentials(client, organization_id, organization_address);
+  const { access_token } = await getBusinessCredentials(
+    client,
+    organization_id,
+    organization_address,
+  );
 
   const { category, components } = template;
   const filteredTemplate = { category, components };
@@ -167,7 +183,11 @@ export async function deleteTemplate(
 ): Promise<{
   success: boolean;
 }> {
-  const { waba_id, access_token } = await getBusinessCredentials(client, organization_id, organization_address);
+  const { waba_id, access_token } = await getBusinessCredentials(
+    client,
+    organization_id,
+    organization_address,
+  );
 
   const response = await fetch(
     `https://graph.facebook.com/${API_VERSION}/${waba_id}/message_templates?name=${template.name}`,

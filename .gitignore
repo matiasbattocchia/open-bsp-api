@@ -5,6 +5,9 @@
 .vscode
 .zed
 
+# Claude Code per-user overrides (project-shared config lives in .claude/settings.json)
+.claude/settings.local.json
+
 # Supabase
 supabase/.branches
 supabase/.temp

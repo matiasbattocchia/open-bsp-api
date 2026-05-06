@@ -6,14 +6,13 @@
  * public values already embedded in the UI bundle. Zero-config for hosted users.
  */
 
-import { mkdirSync, readFileSync, writeFileSync, chmodSync } from "node:fs";
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
 // ── Constants ────────────────────────────────────────────────────────────
 
-export const STATE_DIR =
-  Deno.env.get("OPENBSP_STATE_DIR") ??
+export const STATE_DIR = Deno.env.get("OPENBSP_STATE_DIR") ??
   join(homedir(), ".claude", "channels", "openbsp");
 
 export const CONFIG_FILE = join(STATE_DIR, "config.json");
@@ -22,7 +21,8 @@ export const SESSION_FILE = join(STATE_DIR, "session.json");
 // Production defaults — same as VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY
 // in open-bsp-ui. These are public (embedded in the SPA bundle).
 const DEFAULT_SUPABASE_URL = "https://nheelwshzbgenpavwhcy.supabase.co";
-const DEFAULT_SUPABASE_ANON_KEY = "sb_publishable_jS_LQSbttNz2nRyAcjOVUw_J1KpXhUd";
+const DEFAULT_SUPABASE_ANON_KEY =
+  "sb_publishable_jS_LQSbttNz2nRyAcjOVUw_J1KpXhUd";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -61,18 +61,15 @@ export function loadConfig(): Config {
   const file = readConfigFile();
 
   return {
-    supabaseUrl:
-      Deno.env.get("SUPABASE_URL") ??
+    supabaseUrl: Deno.env.get("SUPABASE_URL") ??
       file.supabaseUrl ??
       DEFAULT_SUPABASE_URL,
-    supabaseAnonKey:
-      Deno.env.get("SUPABASE_ANON_KEY") ??
+    supabaseAnonKey: Deno.env.get("SUPABASE_ANON_KEY") ??
       file.supabaseAnonKey ??
       DEFAULT_SUPABASE_ANON_KEY,
-    orgId:
-      Deno.env.get("ORG_ID") ?? file.orgId ?? undefined,
-    accountPhone:
-      Deno.env.get("ACCOUNT_PHONE") ?? file.accountPhone ?? undefined,
+    orgId: Deno.env.get("ORG_ID") ?? file.orgId ?? undefined,
+    accountPhone: Deno.env.get("ACCOUNT_PHONE") ?? file.accountPhone ??
+      undefined,
     allowedContacts: file.allowedContacts ?? [],
   };
 }

@@ -14,9 +14,9 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
-  ListToolsRequestSchema,
   CallToolRequestSchema,
   ListResourcesRequestSchema,
+  ListToolsRequestSchema,
   ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { authenticate } from "./auth.ts";
@@ -24,14 +24,14 @@ import { loadConfig } from "./config.ts";
 import { API_REFERENCE } from "./api-reference.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
-  MessageRow,
   ConversationRow,
-  OutgoingMessageInsert,
-  IncomingMessage,
-  OutgoingMessage,
-  TextPart,
-  FilePart,
   DataPart,
+  FilePart,
+  IncomingMessage,
+  MessageRow,
+  OutgoingMessage,
+  OutgoingMessageInsert,
+  TextPart,
 } from "./types.ts";
 
 // Safety net — keep serving on unhandled errors
@@ -48,7 +48,7 @@ function isAllowed(contactAddress: string): boolean {
   if (allowedContacts.length === 0) return false;
   const normalized = contactAddress.replace(/\D/g, "");
   return allowedContacts.some(
-    (a) => a.replace(/\D/g, "") === normalized
+    (a) => a.replace(/\D/g, "") === normalized,
   );
 }
 
@@ -60,7 +60,7 @@ const contactNameCache = new Map<string, string>();
 async function resolveContactName(
   supabase: SupabaseClient,
   orgId: string,
-  contactAddress: string
+  contactAddress: string,
 ): Promise<string> {
   const cached = contactNameCache.get(contactAddress);
   if (cached) return cached;
@@ -80,7 +80,7 @@ async function resolveContactName(
 // ── Message content formatting ──────────────────────────────────────────
 
 function formatMessageContent(
-  content: IncomingMessage | OutgoingMessage
+  content: IncomingMessage | OutgoingMessage,
 ): string {
   if (!content) return "(empty)";
 
@@ -146,20 +146,20 @@ async function resolveOrg(supabase: SupabaseClient): Promise<Org> {
   if (!agent) {
     const ids = agents.map((a) => a.organization_id).join(", ");
     throw new Error(
-      `Organization ${configuredOrgId} not found. Available: ${ids}`
+      `Organization ${configuredOrgId} not found. Available: ${ids}`,
     );
   }
 
   const orgId = agent.organization_id;
-  const orgName =
-    (agent.organizations as unknown as Record<string, unknown>)?.name as string ?? orgId;
+  const orgName = (agent.organizations as unknown as Record<string, unknown>)
+    ?.name as string ?? orgId;
 
   return { orgId, orgName };
 }
 
 async function resolveWhatsAppAccount(
   supabase: SupabaseClient,
-  orgId: string
+  orgId: string,
 ): Promise<WhatsAppAccount> {
   const config = loadConfig();
 
@@ -183,7 +183,7 @@ async function resolveWhatsAppAccount(
   if (!account) {
     const phones = accounts.map((a) => `${a.name} (${a.phone})`).join(", ");
     throw new Error(
-      `Account ${configuredPhone} not found. Available: ${phones}`
+      `Account ${configuredPhone} not found. Available: ${phones}`,
     );
   }
 
@@ -199,7 +199,7 @@ const ALLOWED_PATH_PREFIXES = ["/rest/v1/", "/functions/v1/"];
 
 async function handleQuery(
   supabase: SupabaseClient,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
 ): Promise<{ content: { type: "text"; text: string }[]; isError?: boolean }> {
   const path = args.path as string;
   const method = ((args.method as string) ?? "GET").toUpperCase();
@@ -218,7 +218,9 @@ async function handleQuery(
       content: [
         {
           type: "text",
-          text: `path must start with one of: ${ALLOWED_PATH_PREFIXES.join(", ")}`,
+          text: `path must start with one of: ${
+            ALLOWED_PATH_PREFIXES.join(", ")
+          }`,
         },
       ],
       isError: true,
@@ -263,7 +265,7 @@ async function handleQuery(
           text: JSON.stringify(
             { status: response.status, error: parsed },
             null,
-            2
+            2,
           ),
         },
       ],
@@ -289,7 +291,6 @@ let org: Org;
 let whatsAppAccount: WhatsAppAccount | null = null;
 let realtimeActive = false;
 
-
 const mcp = new Server(
   { name: "openbsp", version: "0.1.0" },
   {
@@ -305,7 +306,7 @@ const mcp = new Server(
       "Only text messages are supported for replies.",
       "The 24h service window applies — if the contact hasn't messaged in 24h, you must send a template instead of free-form text.",
     ].join("\n"),
-  }
+  },
 );
 
 mcp.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -324,7 +325,7 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => {
           path: {
             type: "string",
             description:
-              'API path starting with /rest/v1/ or /functions/v1/. Example: /rest/v1/contacts?select=name,address&limit=5',
+              "API path starting with /rest/v1/ or /functions/v1/. Example: /rest/v1/contacts?select=name,address&limit=5",
           },
           method: {
             type: "string",
@@ -384,7 +385,7 @@ mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
       case "reply": {
         if (!whatsAppAccount) {
           throw new Error(
-            "WhatsApp channel is not active — no connected account"
+            "WhatsApp channel is not active — no connected account",
           );
         }
 
@@ -500,7 +501,7 @@ function subscribeToRealtime() {
         const contactName = await resolveContactName(
           supabase,
           org.orgId,
-          contactAddress
+          contactAddress,
         );
 
         mcp
@@ -519,10 +520,10 @@ function subscribeToRealtime() {
           })
           .catch((err) => {
             console.error(
-              `openbsp: failed to deliver inbound to Claude: ${err}`
+              `openbsp: failed to deliver inbound to Claude: ${err}`,
             );
           });
-      }
+      },
     )
     .on(
       "postgres_changes",
@@ -542,7 +543,7 @@ function subscribeToRealtime() {
         const contactName = await resolveContactName(
           supabase,
           org.orgId,
-          contactAddress
+          contactAddress,
         );
 
         mcp
@@ -560,10 +561,10 @@ function subscribeToRealtime() {
           })
           .catch((err) => {
             console.error(
-              `openbsp: failed to deliver conversation event to Claude: ${err}`
+              `openbsp: failed to deliver conversation event to Claude: ${err}`,
             );
           });
-      }
+      },
     )
     .subscribe((status) => {
       console.error(`openbsp: realtime ${status}`);
@@ -618,19 +619,23 @@ async function main() {
   try {
     whatsAppAccount = await resolveWhatsAppAccount(supabase, org.orgId);
     console.error(
-      `openbsp: WhatsApp account "${whatsAppAccount.accountName}" (${whatsAppAccount.accountAddress})`
+      `openbsp: WhatsApp account "${whatsAppAccount.accountName}" (${whatsAppAccount.accountAddress})`,
     );
     subscribeToRealtime();
     realtimeActive = true;
     console.error("openbsp: listening for WhatsApp messages");
   } catch (err) {
     console.error(
-      `openbsp: WhatsApp channel not available: ${err instanceof Error ? err.message : err}`
+      `openbsp: WhatsApp channel not available: ${
+        err instanceof Error ? err.message : err
+      }`,
     );
     console.error("openbsp: running in API-only mode (query tool available)");
   }
 
-  console.error(`openbsp: ready (channel=${realtimeActive ? "active" : "inactive"})`);
+  console.error(
+    `openbsp: ready (channel=${realtimeActive ? "active" : "inactive"})`,
+  );
 }
 
 main().catch((err) => {

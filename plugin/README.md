@@ -1,6 +1,9 @@
 # OpenBSP Plugin for Claude Code
 
-An [MCP plugin](https://code.claude.com/docs/en/plugins) that gives Claude Code full access to the OpenBSP platform — query any API endpoint, manage contacts, conversations, templates, and more. Optionally bridges WhatsApp messages into your session in real-time via Supabase Realtime.
+An [MCP plugin](https://code.claude.com/docs/en/plugins) that gives Claude Code
+full access to the OpenBSP platform — query any API endpoint, manage contacts,
+conversations, templates, and more. Optionally bridges WhatsApp messages into
+your session in real-time via Supabase Realtime.
 
 ## How it works
 
@@ -13,10 +16,16 @@ An [MCP plugin](https://code.claude.com/docs/en/plugins) that gives Claude Code 
 └─────────────────────────────────────────────────────────┘
 ```
 
-1. **API access (always available):** The `query` tool makes authenticated HTTP requests to PostgREST and Edge Functions. Claude reads the `openbsp://api-reference` resource for schema and syntax, then queries freely.
-2. **WhatsApp channel (optional):** If a connected WhatsApp account is found, the plugin subscribes to Supabase Realtime. Incoming messages appear as `<channel>` notifications. Claude replies using the `reply` tool.
+1. **API access (always available):** The `query` tool makes authenticated HTTP
+   requests to PostgREST and Edge Functions. Claude reads the
+   `openbsp://api-reference` resource for schema and syntax, then queries
+   freely.
+2. **WhatsApp channel (optional):** If a connected WhatsApp account is found,
+   the plugin subscribes to Supabase Realtime. Incoming messages appear as
+   `<channel>` notifications. Claude replies using the `reply` tool.
 
-If no WhatsApp account is available (or resolution fails), the plugin runs in **API-only mode** — `query` works, `reply` is not listed.
+If no WhatsApp account is available (or resolution fails), the plugin runs in
+**API-only mode** — `query` works, `reply` is not listed.
 
 ## Prerequisites
 
@@ -26,13 +35,15 @@ If no WhatsApp account is available (or resolution fails), the plugin runs in **
 
 ## Quick start
 
-**Hosted users (zero config):** Production Supabase credentials are built in. Just authenticate with Google and go.
+**Hosted users (zero config):** Production Supabase credentials are built in.
+Just authenticate with Google and go.
 
 ```bash
 claude --plugin-dir ./plugin
 ```
 
-The plugin opens your browser for Google sign-in on first run. After that, sessions are refreshed automatically.
+The plugin opens your browser for Google sign-in on first run. After that,
+sessions are refreshed automatically.
 
 **Self-hosted users:** Point to your own Supabase instance:
 
@@ -42,7 +53,9 @@ The plugin opens your browser for Google sign-in on first run. After that, sessi
 
 ## API access
 
-The `query` tool lets Claude make any authenticated API call. Before the first query, Claude reads the `openbsp://api-reference` resource which contains table schemas, PostgREST syntax, and example queries.
+The `query` tool lets Claude make any authenticated API call. Before the first
+query, Claude reads the `openbsp://api-reference` resource which contains table
+schemas, PostgREST syntax, and example queries.
 
 ### Example queries
 
@@ -63,15 +76,19 @@ query: GET /rest/v1/messages?conversation_id=eq.<uuid>&select=id,direction,conte
 query: GET /functions/v1/whatsapp-management/templates
 ```
 
-Security: paths must start with `/rest/v1/` or `/functions/v1/`. Auth headers are injected automatically.
+Security: paths must start with `/rest/v1/` or `/functions/v1/`. Auth headers
+are injected automatically.
 
 ## WhatsApp channel
 
-When a WhatsApp account is resolved, the plugin subscribes to Realtime and forwards incoming messages to Claude.
+When a WhatsApp account is resolved, the plugin subscribes to Realtime and
+forwards incoming messages to Claude.
 
 ### Add contacts (required for channel)
 
-The channel is **secure by default** — no contacts are allowed until explicitly added. All messages from unknown contacts are silently dropped. This does not affect API access (RLS governs that).
+The channel is **secure by default** — no contacts are allowed until explicitly
+added. All messages from unknown contacts are silently dropped. This does not
+affect API access (RLS governs that).
 
 ```
 /openbsp:config contacts add 5491155551234
@@ -98,7 +115,8 @@ Arguments:
   text: "Your order is on the way!"
 ```
 
-The 24-hour service window applies — if the contact hasn't messaged in 24h, a template must be sent instead.
+The 24-hour service window applies — if the contact hasn't messaged in 24h, a
+template must be sent instead.
 
 ## Configuration
 
@@ -110,7 +128,8 @@ All configuration is managed through skills — no need to hand-edit files.
 /openbsp:config
 ```
 
-Shows: Supabase URL, auth state, org, WhatsApp account, channel status (active or API-only), and allowed contacts.
+Shows: Supabase URL, auth state, org, WhatsApp account, channel status (active
+or API-only), and allowed contacts.
 
 ### Multi-org / multi-account
 
@@ -129,12 +148,12 @@ Shows: Supabase URL, auth state, org, WhatsApp account, channel status (active o
 
 Env vars override everything (for CI or scripting):
 
-| Variable | Description |
-|---|---|
-| `SUPABASE_URL` | Supabase project URL |
-| `SUPABASE_ANON_KEY` | Supabase anonymous key |
-| `ORG_ID` | Organization ID (multi-org) |
-| `ACCOUNT_PHONE` | WhatsApp account phone, digits only (multi-account) |
+| Variable            | Description                                                      |
+| ------------------- | ---------------------------------------------------------------- |
+| `SUPABASE_URL`      | Supabase project URL                                             |
+| `SUPABASE_ANON_KEY` | Supabase anonymous key                                           |
+| `ORG_ID`            | Organization ID (multi-org)                                      |
+| `ACCOUNT_PHONE`     | WhatsApp account phone, digits only (multi-account)              |
 | `OPENBSP_STATE_DIR` | Override state directory (default: `~/.claude/channels/openbsp`) |
 
 ### Config file
@@ -151,15 +170,20 @@ All settings are stored in `~/.claude/channels/openbsp/config.json`:
 }
 ```
 
-All fields are optional — missing keys fall back to hardcoded production defaults or auto-detection. An empty or missing `allowedContacts` blocks all channel messages (secure by default).
+All fields are optional — missing keys fall back to hardcoded production
+defaults or auto-detection. An empty or missing `allowedContacts` blocks all
+channel messages (secure by default).
 
 ## Authentication
 
-The plugin uses Google SSO (same as the OpenBSP UI). No API keys or service role keys needed.
+The plugin uses Google SSO (same as the OpenBSP UI). No API keys or service role
+keys needed.
 
-**First run:** opens your browser for Google sign-in. The session is saved to `~/.claude/channels/openbsp/session.json` (0600 permissions).
+**First run:** opens your browser for Google sign-in. The session is saved to
+`~/.claude/channels/openbsp/session.json` (0600 permissions).
 
-**Subsequent runs:** the saved session is loaded and refreshed automatically. If the refresh token is expired, the browser opens again.
+**Subsequent runs:** the saved session is loaded and refreshed automatically. If
+the refresh token is expired, the browser opens again.
 
 ## File structure
 
@@ -180,20 +204,22 @@ plugin/
 
 ## Troubleshooting
 
-**Browser doesn't open for sign-in**
-The URL is printed to stderr. Copy and paste it manually. This can happen in headless/SSH environments.
+**Browser doesn't open for sign-in** The URL is printed to stderr. Copy and
+paste it manually. This can happen in headless/SSH environments.
 
-**"No organization found for this user"**
-Your Google account isn't associated with any OpenBSP organization. Sign in to the UI app first to verify your account.
+**"No organization found for this user"** Your Google account isn't associated
+with any OpenBSP organization. Sign in to the UI app first to verify your
+account.
 
-**"Multiple accounts found"**
-Set the account phone: `/openbsp:config account <phone>`
+**"Multiple accounts found"** Set the account phone:
+`/openbsp:config account <phone>`
 
-**Realtime not receiving messages**
-Check that the `supabase_realtime` publication includes the `messages` and `conversations` tables. Check the Claude Code debug log at `~/.claude/debug/<session-id>.txt` for stderr output.
+**Realtime not receiving messages** Check that the `supabase_realtime`
+publication includes the `messages` and `conversations` tables. Check the Claude
+Code debug log at `~/.claude/debug/<session-id>.txt` for stderr output.
 
-**"blocked by org policy"**
-Your Team or Enterprise admin needs to [enable channels](https://code.claude.com/docs/en/channels#enterprise-controls).
+**"blocked by org policy"** Your Team or Enterprise admin needs to
+[enable channels](https://code.claude.com/docs/en/channels#enterprise-controls).
 
-**API-only mode (no WhatsApp account)**
-The `query` tool still works. `reply` is not available. Check `/openbsp:config` for details.
+**API-only mode (no WhatsApp account)** The `query` tool still works. `reply` is
+not available. Check `/openbsp:config` for details.

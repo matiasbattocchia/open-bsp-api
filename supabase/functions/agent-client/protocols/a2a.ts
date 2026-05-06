@@ -6,18 +6,18 @@ import type {
   ResponseContext,
 } from "./base.ts";
 import type {
+  FileContent,
+  Part as A2aPart,
   SendTaskRequest,
   SendTaskResponse,
-  Part as A2aPart,
-  FileContent,
 } from "../../_shared/a2a_types.ts";
 import { encodeBase64 } from "jsr:@std/encoding/base64";
 import {
-  fetchMedia,
-  uploadToStorage,
+  base64ToBlob,
   createSignedUrl,
   downloadFromStorage,
-  base64ToBlob,
+  fetchMedia,
+  uploadToStorage,
 } from "../../_shared/media.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Json } from "../../_shared/db_types.ts";
@@ -200,13 +200,12 @@ export class A2AHandler
 
     const lastAgentTask = messages.findLast((m) => m.agent_id === agent.id);
 
-    const taskId =
-      (lastAgentTask?.content.task?.status === "input-required" &&
-        lastAgentTask.content.task.id) ||
+    const taskId = (lastAgentTask?.content.task?.status === "input-required" &&
+      lastAgentTask.content.task.id) ||
       crypto.randomUUID();
 
-    const sessionId =
-      lastAgentTask?.content.task?.session_id || crypto.randomUUID();
+    const sessionId = lastAgentTask?.content.task?.session_id ||
+      crypto.randomUUID();
 
     return {
       jsonrpc: "2.0",
@@ -300,7 +299,7 @@ export class A2AHandler
     return {
       // @ts-ignore TODO: data parts are not included in the type definitions
       // of outgoing messages (they are allowed in internal messages)
-      messages
+      messages,
     };
   }
 }

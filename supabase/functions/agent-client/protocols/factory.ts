@@ -8,7 +8,7 @@ export class ProtocolFactory {
   static getHandler(
     tools: AgentTool[],
     context: RequestContext,
-    client: SupabaseClient
+    client: SupabaseClient,
   ): AgentProtocolHandler {
     const protocol = context.agent.extra.protocol || "chat_completions";
 
