@@ -152,6 +152,39 @@ Your data is yours. You can export your organization's data from the hosted inst
 
 You are live! 🚀 Pushes to your default branch will automatically deploy database migrations and Edge Functions.
 
+#### Post-deploy setup (required)
+
+After the initial deploy, you must configure two vault secrets that the database triggers need to call Edge Functions. Run these SQL commands in the Supabase SQL Editor or via CLI:
+
+```sql
+-- Replace with your actual project URL and service role key
+select vault.create_secret(
+  'https://{SUPABASE_PROJECT_ID}.supabase.co/functions/v1',
+  'edge_functions_url'
+);
+select vault.create_secret(
+  '{SERVICE_ROLE_KEY}',
+  'edge_functions_token'
+);
+```
+
+> [!IMPORTANT]
+> Without these secrets, incoming WhatsApp messages will be received by the webhook but **will not be processed** — the database triggers that forward messages to the agent and dispatcher functions will silently fail.
+
+You can find your service role key at Supabase > Project Settings > API Keys.
+
+#### Edge Functions that receive external webhooks
+
+The `whatsapp-webhook` and `stripe-webhook` functions must be deployed **without JWT verification** since they receive requests from external services (Meta, Stripe) that don't send Supabase auth tokens:
+
+```bash
+npx supabase functions deploy whatsapp-webhook --no-verify-jwt
+npx supabase functions deploy stripe-webhook --no-verify-jwt
+```
+
+> [!NOTE]
+> The `config.toml` sets `verify_jwt = false` for these functions, but the Supabase GitHub Integration may not respect this setting. Deploying via CLI ensures the flag is applied.
+
 #### Connect via Supabase GitHub Integration
 
 In the [Supabase Dashboard](https://supabase.com/dashboard):
@@ -510,6 +543,45 @@ Fetch the OpenAPI spec from PostgREST (requires the service role key):
 ```
 curl "https://<project-id>.supabase.co/rest/v1/" -H "apikey: <service_role_key>" > openapi.json
 ```
+
+## Stripe integration (optional)
+
+wakit includes optional Stripe Billing integration for subscription management. Three Edge Functions handle the payment flow:
+
+| Function | Purpose |
+|----------|---------|
+| `stripe-checkout` | Creates Stripe Checkout sessions for plan upgrades |
+| `stripe-webhook` | Receives Stripe events and updates billing in the database |
+| `stripe-portal` | Redirects to Stripe Customer Portal for self-service management |
+
+### Setup
+
+1. Create a [Stripe](https://stripe.com) account
+2. Create products and recurring prices for your plans
+3. Set up a webhook endpoint pointing to `https://{SUPABASE_PROJECT_ID}.supabase.co/functions/v1/stripe-webhook`
+4. Subscribe to events: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_succeeded`, `invoice.payment_failed`
+
+### Secrets
+
+- **STRIPE_SECRET_KEY** — your Stripe secret key (`sk_live_...`)
+- **STRIPE_PUBLISHABLE_KEY** — your Stripe publishable key (`pk_live_...`)
+- **STRIPE_WEBHOOK_SECRET** — webhook signing secret (`whsec_...`)
+- **STRIPE_STARTER_PRICE_ID** — Stripe price ID for Starter plan
+- **STRIPE_PRO_PRICE_ID** — Stripe price ID for Pro plan
+
+### Billing tiers
+
+The billing tiers (names, prices, limits) are fully configurable via the `billing` schema. The seed file includes example tiers — customize them for your deployment. See `supabase/seed.sql` for the structure.
+
+## Known issues
+
+### `override_callback_uri` does not work reliably
+
+Meta's `override_callback_uri` parameter in the `subscribed_apps` API is documented for overriding the webhook URL per-WABA, but in practice **Meta sends all webhook events to the app-level callback URL** regardless of the override.
+
+**Impact**: each wakit deployment requires its **own dedicated Meta App**. You cannot share a Meta App between multiple wakit instances or between wakit and another WhatsApp platform.
+
+**Workaround**: create a separate Meta App for each deployment with its own webhook callback URL.
 
 ## Community
 

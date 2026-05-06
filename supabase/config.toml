@@ -35,3 +35,18 @@ entrypoint = "./functions/whatsapp-dispatcher/index.ts"
 verify_jwt = false
 import_map = "./functions/deno.json"
 entrypoint = "./functions/mcp/index.ts"
+
+[functions.stripe-checkout]
+verify_jwt = false
+import_map = "./functions/deno.json"
+entrypoint = "./functions/stripe-checkout/index.ts"
+
+[functions.stripe-webhook]
+verify_jwt = false
+import_map = "./functions/deno.json"
+entrypoint = "./functions/stripe-webhook/index.ts"
+
+[functions.stripe-portal]
+verify_jwt = false
+import_map = "./functions/deno.json"
+entrypoint = "./functions/stripe-portal/index.ts"
