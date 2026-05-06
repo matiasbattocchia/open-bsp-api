@@ -31,13 +31,14 @@ begin
       end
     ) >= req_level;
 
-    if found then
-      return;
-    end if;
-
-    raise exception using
-      errcode = '42501',
-      message = format('insufficient permissions, %s role required', role::text);
+    -- Authenticated but lacking the requested role: return the empty set so RLS
+    -- subqueries can fall through to other OR-combined policies (e.g. a member
+    -- accepting their own invitation while an owner-only policy is also evaluated).
+    -- Raising here would short-circuit the whole RLS evaluation.
+    -- raise exception using
+    --   errcode = '42501',
+    --   message = format('insufficient permissions, %s role required', role::text);
+    return;
   end if;
 
   -- Fallback to API key authentication
@@ -57,12 +58,14 @@ begin
 
     if org_id is not null then
       return next org_id;
-      return;
     end if;
-
-    raise exception using
-      errcode = '42501',
-      message = format('invalid api key or insufficient permissions, %s role required', role::text);
+    -- Same reasoning as the JWT branch: invalid key or insufficient role returns
+    -- the empty set, not a raise. Validate api-key existence at the request edge
+    -- (e.g. a pre-request hook) if you want loud failure for missing/invalid keys.
+    -- raise exception using
+    --   errcode = '42501',
+    --   message = format('invalid api key or insufficient permissions, %s role required', role::text);
+    return;
   end if;
 
   raise exception using
