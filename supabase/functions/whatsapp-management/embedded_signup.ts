@@ -1,6 +1,9 @@
 import * as log from "../_shared/logger.ts";
 import { HTTPException } from "jsr:@hono/hono/http-exception";
-import type { createClient } from "../_shared/supabase.ts";
+import type {
+  createClient,
+  WhatsAppOrganizationAddressExtra,
+} from "../_shared/supabase.ts";
 import { ContentfulStatusCode } from "jsr:@hono/hono/utils/http-status";
 
 const API_VERSION = "v24.0";
@@ -377,7 +380,9 @@ export async function deleteSignup(
     .single()
     .throwOnError();
 
-  const extra = organization_address.extra || {};
+  const extra =
+    (organization_address.extra as WhatsAppOrganizationAddressExtra | null) ||
+    {};
 
   if (extra.flow_type !== "new_phone_number") {
     throw new HTTPException(403, {

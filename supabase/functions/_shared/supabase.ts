@@ -53,6 +53,7 @@ export type {
   UnsupportedMessage,
   VideoMessage,
   WebhookMessageBase,
+  WhatsAppReferral,
 } from "./types/whatsapp_webhook_message_types.ts";
 export type {
   Template,
@@ -92,6 +93,8 @@ export type {
   ContactExtra,
   ConversationExtra,
   HumanAgentExtra,
+  InstagramContactAddressExtra,
+  InstagramOrganizationAddressExtra,
   LocalCustomToolConfig,
   LocalFunctionToolConfig,
   LocalHTTPToolConfig,
@@ -104,7 +107,26 @@ export type {
   OrganizationExtra,
   PreprocessingConfig,
   ToolConfig,
+  WhatsAppContactAddressExtra,
+  WhatsAppOrganizationAddressExtra,
 } from "./types/extra_types.ts";
+export type {
+  InstagramAttachment,
+  InstagramAttachmentPayload,
+  InstagramAttachmentType,
+  InstagramChange,
+  InstagramEntry,
+  InstagramEvent,
+  InstagramMessage,
+  InstagramMessageEdit,
+  InstagramPostback,
+  InstagramQuickReply,
+  InstagramReaction,
+  InstagramRead,
+  InstagramReferral,
+  InstagramReplyTo,
+  InstagramWebhookPayload,
+} from "./types/instagram_webhook_payload_types.ts";
 export type {
   MetaWebhookPayload,
   WebhookAccountUpdate_Account,

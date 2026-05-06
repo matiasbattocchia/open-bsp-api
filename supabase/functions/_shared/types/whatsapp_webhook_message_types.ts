@@ -43,6 +43,31 @@ export type IncomingContextInfo = {
   };
 };
 
+// Click-to-WhatsApp ad referral payload, attached to incoming WA messages.
+export type WhatsAppReferral =
+  & {
+    source_url: string;
+    source_type: "ad" | "post";
+    source_id: string;
+    headline: string;
+    body: string;
+    ctwa_clid?: string; // The ctwa_clid property is omitted entirely for messages originating from an ad in WhatsApp Status
+    welcome_message: {
+      text: string;
+    };
+  }
+  & (
+    | {
+      media_type: "image";
+      image_url: string;
+    }
+    | {
+      media_type: "video";
+      video_url: string;
+      thumbnail_url?: string;
+    }
+  );
+
 /** Present in types:
  * - text
  * - location
@@ -54,29 +79,7 @@ export type IncomingContextInfo = {
  * - sticker
  */
 export type ReferralInfo = {
-  referral?:
-    & {
-      source_url: string;
-      source_type: "ad" | "post";
-      source_id: string;
-      headline: string;
-      body: string;
-      ctwa_clid?: string; // The ctwa_clid property is omitted entirely for messages originating from an ad in WhatsApp Status
-      welcome_message: {
-        text: string;
-      };
-    }
-    & (
-      | {
-        media_type: "image";
-        image_url: string;
-      }
-      | {
-        media_type: "video";
-        video_url: string;
-        thumbnail_url?: string;
-      }
-    );
+  referral?: WhatsAppReferral;
 };
 
 // Text based
