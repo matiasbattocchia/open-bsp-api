@@ -19,7 +19,7 @@ wakit is designed for both individual businesses and service providers. You can 
 🚀 **Powering production-grade AI agents at [Mirlo.com](https://mirlo.com/agentes-ia/whatsapp)**
 
 > [!NOTE]
-> This project is now backed by <a href="https://mirlo.com">Mirlo.com</a>, where I work, and is undergoing a rebranding. The project name is changing from **OpenBSP** to **wakit**.
+> This project is undergoing a rebranding. The project name is changing from **OpenBSP** to **wakit**.
 
 ## User Interface
 
@@ -151,39 +151,6 @@ Your data is yours. You can export your organization's data from the hosted inst
 3. Connect the project to your fork via the Supabase GitHub Integration (5 min)
 
 You are live! 🚀 Pushes to your default branch will automatically deploy database migrations and Edge Functions.
-
-#### Post-deploy setup (required)
-
-After the initial deploy, you must configure two vault secrets that the database triggers need to call Edge Functions. Run these SQL commands in the Supabase SQL Editor or via CLI:
-
-```sql
--- Replace with your actual project URL and service role key
-select vault.create_secret(
-  'https://{SUPABASE_PROJECT_ID}.supabase.co/functions/v1',
-  'edge_functions_url'
-);
-select vault.create_secret(
-  '{SERVICE_ROLE_KEY}',
-  'edge_functions_token'
-);
-```
-
-> [!IMPORTANT]
-> Without these secrets, incoming WhatsApp messages will be received by the webhook but **will not be processed** — the database triggers that forward messages to the agent and dispatcher functions will silently fail.
-
-You can find your service role key at Supabase > Project Settings > API Keys.
-
-#### Edge Functions that receive external webhooks
-
-The `whatsapp-webhook` and `stripe-webhook` functions must be deployed **without JWT verification** since they receive requests from external services (Meta, Stripe) that don't send Supabase auth tokens:
-
-```bash
-npx supabase functions deploy whatsapp-webhook --no-verify-jwt
-npx supabase functions deploy stripe-webhook --no-verify-jwt
-```
-
-> [!NOTE]
-> The `config.toml` sets `verify_jwt = false` for these functions, but the Supabase GitHub Integration may not respect this setting. Deploying via CLI ensures the flag is applied.
 
 #### Connect via Supabase GitHub Integration
 
@@ -543,150 +510,6 @@ Fetch the OpenAPI spec from PostgREST (requires the service role key):
 ```
 curl "https://<project-id>.supabase.co/rest/v1/" -H "apikey: <service_role_key>" > openapi.json
 ```
-
-## Webhooks
-
-wakit can notify your server in real-time when events occur. Configure webhooks per organization through the UI (Settings > Webhooks) or via the REST API.
-
-### Configuration
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `url` | string | The URL to send the webhook to |
-| `token` | string (optional) | If set, sent as `Authorization: Bearer {token}` header |
-| `table_name` | enum | `messages` or `conversations` |
-| `operations` | array | `["insert"]`, `["update"]`, or `["insert", "update"]` |
-
-### Events
-
-| Entity | Operation | When |
-|--------|-----------|------|
-| `messages` | `insert` | A new message is created (incoming or outgoing) |
-| `messages` | `update` | A message status changes (sent, delivered, read) |
-| `conversations` | `insert` | A new conversation is created |
-| `conversations` | `update` | A conversation is updated (e.g., closed, reopened) |
-
-### Payload format
-
-All webhooks send a `POST` request with the following JSON body:
-
-```json
-{
-  "data": { ... },
-  "entity": "messages",
-  "action": "insert"
-}
-```
-
-**Headers:**
-```
-Content-Type: application/json
-Authorization: Bearer {token}  (only if token is configured)
-```
-
-### Payload examples
-
-#### New incoming message (`messages` / `insert`)
-
-```json
-{
-  "data": {
-    "id": "a4a8f56f-4570-47e2-bc2a-2f0d7db288b1",
-    "conversation_id": "c9e2f1a3-...",
-    "organization_id": "00438702-...",
-    "direction": "incoming",
-    "content": {
-      "type": "text",
-      "text": { "body": "Hello!" }
-    },
-    "status": { "pending": "2026-05-06T03:39:23+00:00" },
-    "wa_id": "wamid.HBgN...",
-    "created_at": "2026-05-06T03:39:23+00:00",
-    "updated_at": "2026-05-06T03:39:23+00:00"
-  },
-  "entity": "messages",
-  "action": "insert"
-}
-```
-
-#### Message status update (`messages` / `update`)
-
-```json
-{
-  "data": {
-    "id": "a4a8f56f-4570-47e2-bc2a-2f0d7db288b1",
-    "status": {
-      "sent": "2026-05-06T03:39:24+00:00",
-      "delivered": "2026-05-06T03:39:25+00:00",
-      "read": "2026-05-06T03:39:30+00:00"
-    }
-  },
-  "entity": "messages",
-  "action": "update"
-}
-```
-
-#### New conversation (`conversations` / `insert`)
-
-```json
-{
-  "data": {
-    "id": "c9e2f1a3-...",
-    "organization_id": "00438702-...",
-    "organization_address": "375446602312881",
-    "contact_address": "5215588392274",
-    "service": "whatsapp",
-    "created_at": "2026-05-06T03:39:23+00:00"
-  },
-  "entity": "conversations",
-  "action": "insert"
-}
-```
-
-### Limits
-
-- Maximum **3 webhooks** per organization per event (table + operation)
-- Webhooks are sent asynchronously via `pg_net` — delivery is best-effort with no automatic retries
-- Failed deliveries are not retried; monitor your webhook endpoint for errors
-
-## Stripe integration (optional)
-
-wakit includes optional Stripe Billing integration for subscription management. Three Edge Functions handle the payment flow:
-
-| Function | Purpose |
-|----------|---------|
-| `stripe-checkout` | Creates Stripe Checkout sessions for plan upgrades |
-| `stripe-webhook` | Receives Stripe events and updates billing in the database |
-| `stripe-portal` | Redirects to Stripe Customer Portal for self-service management |
-
-### Setup
-
-1. Create a [Stripe](https://stripe.com) account
-2. Create products and recurring prices for your plans
-3. Set up a webhook endpoint pointing to `https://{SUPABASE_PROJECT_ID}.supabase.co/functions/v1/stripe-webhook`
-4. Subscribe to events: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_succeeded`, `invoice.payment_failed`
-
-### Secrets
-
-- **STRIPE_SECRET_KEY** — your Stripe secret key (`sk_live_...`)
-- **STRIPE_PUBLISHABLE_KEY** — your Stripe publishable key (`pk_live_...`)
-- **STRIPE_WEBHOOK_SECRET** — webhook signing secret (`whsec_...`)
-- **STRIPE_STARTER_PRICE_ID** — Stripe price ID for Starter plan
-- **STRIPE_PRO_PRICE_ID** — Stripe price ID for Pro plan
-
-### Billing tiers
-
-The billing tiers (names, prices, limits) are fully configurable via the `billing` schema. The seed file includes example tiers — customize them for your deployment. See `supabase/seed.sql` for the structure.
-
-## Known issues
-
-### `override_callback_uri` does not work reliably
-
-Meta's `override_callback_uri` parameter in the `subscribed_apps` API is documented for overriding the webhook URL per-WABA, but in practice **Meta sends all webhook events to the app-level callback URL** regardless of the override.
-
-**Impact**: each wakit deployment requires its **own dedicated Meta App**. You cannot share a Meta App between multiple wakit instances or between wakit and another WhatsApp platform.
-
-**Workaround**: create a separate Meta App for each deployment with its own webhook callback URL.
 
 ## Community
 
