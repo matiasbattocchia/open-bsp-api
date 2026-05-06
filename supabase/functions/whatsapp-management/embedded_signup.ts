@@ -32,108 +32,6 @@ async function getBusinessAccessToken(
   return (await response.json()).access_token;
 }
 
-/** Sample response
-{
-  "data" : {
-    "app_id" : "670843887433847",
-    "application" : "JaspersMarket",
-    "data_access_expires_at" : 1672092840,
-    "expires_at" : 1665090000,
-    "granular_scopes" : [
-      {
-        "scope" : "whatsapp_business_management",
-        "target_ids" : [
-          "102289599326934", // ID of newest WABA to grant app whatsapp_business_management
-          "101569239400667"
-        ]
-      },
-      {
-        "scope" : "whatsapp_business_messaging",
-        "target_ids" : [
-          "102289599326934",
-          "101569239400667"
-        ]
-      }
-    ],
-    "is_valid" : true,
-    "scopes" : [
-       "whatsapp_business_management",
-       "whatsapp_business_messaging",
-       "public_profile"
-    ],
-    "type" : "USER",
-    "user_id" : "10222270944537964"
-  }
-}
-
-export async function getWabaId(
-  business_access_token: string,
-): Promise<string> {
-  const response = await fetch(
-    `https://graph.facebook.com/${API_VERSION}/debug_token?input_token=${business_access_token}`,
-    {
-      method: "GET",
-      headers: { Authorization: `Bearer ${access_token}` },
-    },
-  );
-
-  if (!response.ok) {
-    log.error(response.headers.get("www-authenticate")!);
-    throw response;
-  }
-
-  return (await response.json()).data.granular_scopes.find(
-    (scope: { scope: string; target_ids: string[] }) =>
-      scope.scope === "whatsapp_business_management",
-  ).target_ids[0];
-}
-*/
-
-/** Sample response
-{
-  "data": [
-    {
-      "verified_name": "Jasper's Market",
-      "display_phone_number": "+1 631-555-5555",
-      "id": "1906385232743451",
-      "quality_rating": "GREEN"
-
-    },
-    {
-      "verified_name": "Jasper's Ice Cream",
-      "display_phone_number": "+1 631-555-5556",
-      "id": "1913623884432103",
-      "quality_rating": "NA"
-    }
-  ]
-}
-
-export async function getPhoneNumberId(
-  business_access_token: string,
-  waba_id: string,
-): Promise<{
-  verified_name: string;
-  display_phone_number: string;
-  id: string;
-  quality_rating: string;
-}> {
-  const response = await fetch(
-    `https://graph.facebook.com/${API_VERSION}/${waba_id}/phone_numbers?access_token=${business_access_token}`,
-    {
-      method: "GET",
-      headers: { Authorization: `Bearer ${access_token}` },
-    },
-  );
-
-  if (!response.ok) {
-    log.error(response.headers.get("www-authenticate")!);
-    throw response;
-  }
-
-  return (await response.json()).data[0];
-}
-*/
-
 // Step 2
 async function postSubscribeToWebhooks(
   business_access_token: string,
@@ -141,18 +39,13 @@ async function postSubscribeToWebhooks(
   url?: string,
   token?: string
 ): Promise<boolean> {
-  const response = await fetch(
+  let response = await fetch(
     `https://graph.facebook.com/${API_VERSION}/${waba_id}/subscribed_apps`,
     {
       method: "POST",
       headers: {
         Authorization: `Bearer ${business_access_token}`,
-        "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        override_callback_uri: url || Deno.env.get("SUPABASE_URL") + "/functions/v1/whatsapp-webhook",
-        verify_token: token || Deno.env.get("WHATSAPP_VERIFY_TOKEN"),
-      }),
     },
   );
 
@@ -161,6 +54,33 @@ async function postSubscribeToWebhooks(
       message: "Could not subscribe to webhooks",
       cause: await response.json().catch(() => ({})),
     });
+  }
+
+  if (url && token) {
+    // Callback URL override is a two-step process that requires subscribing
+    // first to the default callback URL and then overriding it.
+    // https://developers.facebook.com/documentation/business-messaging/whatsapp/webhooks/override
+    response = await fetch(
+      `https://graph.facebook.com/${API_VERSION}/${waba_id}/subscribed_apps`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${business_access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          override_callback_uri: url,
+          verify_token: token
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      throw new HTTPException(response.status as ContentfulStatusCode, {
+        message: "Could not override callback URL",
+        cause: await response.json().catch(() => ({})),
+      });
+    }
   }
 
   return (await response.json()).success;
@@ -196,24 +116,6 @@ async function postRegisterPhoneNumber(
 
   return (await response.json()).success;
 }
-
-/*
-export async function postAddSystemUserToWaba(waba_id: string) {
-  const response = await fetch(
-    `https://graph.facebook.com/${API_VERSION}/${waba_id}/assigned_users?user=${system_user_id}&tasks=['MANAGE']&access_token=${access_token}`,
-    {
-      method: "POST",
-    },
-  );
-
-  if (!response.ok) {
-    log.error(response.headers.get("www-authenticate")!);
-    throw response;
-  }
-
-  return (await response.json()).success;
-}
-*/
 
 async function getPhoneNumber(
   business_access_token: string,
