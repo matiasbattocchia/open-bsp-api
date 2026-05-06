@@ -26,13 +26,25 @@ export type OrganizationExtra = {
   error_messages_direction?: "internal" | "outgoing";
 };
 
-export type OrganizationAddressExtra = {
+export type WhatsAppOrganizationAddressExtra = {
   waba_id?: string;
   phone_number?: string;
   verified_name?: string;
-  access_token?: string;
   flow_type?: "only_waba" | "new_phone_number" | "existing_phone_number";
+  access_token?: string; // Meta system-user token
 };
+
+export type InstagramOrganizationAddressExtra = {
+  ig_user_id?: string;
+  username?: string;
+  access_token?: string; // Per-IG-account OAuth user token
+};
+
+// Union — the column accepts either shape; consumers narrow via the row's
+// `service` column (or via a cast at WA-/IG-specific read sites).
+export type OrganizationAddressExtra =
+  | WhatsAppOrganizationAddressExtra
+  | InstagramOrganizationAddressExtra;
 
 export type ConversationExtra = {
   memory?: Memory;
@@ -54,7 +66,7 @@ export type ConversationExtra = {
 
 export type ContactExtra = Record<PropertyKey, never>;
 
-export type ContactAddressExtra = {
+export type WhatsAppContactAddressExtra = {
   name?: string;
   synced?: { // if the contact address was synced from WhatsApp
     name: string;
@@ -63,6 +75,24 @@ export type ContactAddressExtra = {
   replaces_address?: string;
   replaced_by_address?: string;
 };
+
+export type InstagramContactAddressExtra = {
+  name?: string;
+  username?: string;
+  biography?: string;
+  profile_picture_url?: string;
+  // ISO timestamp — set on every fetch (success or failure) so the TTL guard
+  // suppresses retries until the refresh window elapses.
+  name_fetched_at?: string;
+  replaces_address?: string;
+  replaced_by_address?: string;
+};
+
+// Union — the column accepts either shape; consumers narrow via the row's
+// `service` column (or via the per-service Row/Insert aliases below).
+export type ContactAddressExtra =
+  | WhatsAppContactAddressExtra
+  | InstagramContactAddressExtra;
 
 // Function tools have a JSON input (data part).
 export type LocalFunctionToolConfig = {
