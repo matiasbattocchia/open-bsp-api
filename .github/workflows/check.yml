@@ -15,3 +15,5 @@ jobs:
           deno-version: v2.x
       - run: deno fmt --check
       - run: deno lint
+      - run: cd supabase/functions && deno check .
+      - run: cd plugin && deno check .
