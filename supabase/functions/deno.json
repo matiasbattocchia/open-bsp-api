@@ -6,6 +6,11 @@
     "singleQuote": false,
     "proseWrap": "preserve"
   },
+  "lint": {
+    "rules": {
+      "exclude": ["no-unversioned-import"]
+    }
+  },
   "imports": {
     "@google/genai": "npm:@google/genai",
     "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.54",
