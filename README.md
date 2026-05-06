@@ -544,6 +544,111 @@ Fetch the OpenAPI spec from PostgREST (requires the service role key):
 curl "https://<project-id>.supabase.co/rest/v1/" -H "apikey: <service_role_key>" > openapi.json
 ```
 
+## Webhooks
+
+wakit can notify your server in real-time when events occur. Configure webhooks per organization through the UI (Settings > Webhooks) or via the REST API.
+
+### Configuration
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `url` | string | The URL to send the webhook to |
+| `token` | string (optional) | If set, sent as `Authorization: Bearer {token}` header |
+| `table_name` | enum | `messages` or `conversations` |
+| `operations` | array | `["insert"]`, `["update"]`, or `["insert", "update"]` |
+
+### Events
+
+| Entity | Operation | When |
+|--------|-----------|------|
+| `messages` | `insert` | A new message is created (incoming or outgoing) |
+| `messages` | `update` | A message status changes (sent, delivered, read) |
+| `conversations` | `insert` | A new conversation is created |
+| `conversations` | `update` | A conversation is updated (e.g., closed, reopened) |
+
+### Payload format
+
+All webhooks send a `POST` request with the following JSON body:
+
+```json
+{
+  "data": { ... },
+  "entity": "messages",
+  "action": "insert"
+}
+```
+
+**Headers:**
+```
+Content-Type: application/json
+Authorization: Bearer {token}  (only if token is configured)
+```
+
+### Payload examples
+
+#### New incoming message (`messages` / `insert`)
+
+```json
+{
+  "data": {
+    "id": "a4a8f56f-4570-47e2-bc2a-2f0d7db288b1",
+    "conversation_id": "c9e2f1a3-...",
+    "organization_id": "00438702-...",
+    "direction": "incoming",
+    "content": {
+      "type": "text",
+      "text": { "body": "Hello!" }
+    },
+    "status": { "pending": "2026-05-06T03:39:23+00:00" },
+    "wa_id": "wamid.HBgN...",
+    "created_at": "2026-05-06T03:39:23+00:00",
+    "updated_at": "2026-05-06T03:39:23+00:00"
+  },
+  "entity": "messages",
+  "action": "insert"
+}
+```
+
+#### Message status update (`messages` / `update`)
+
+```json
+{
+  "data": {
+    "id": "a4a8f56f-4570-47e2-bc2a-2f0d7db288b1",
+    "status": {
+      "sent": "2026-05-06T03:39:24+00:00",
+      "delivered": "2026-05-06T03:39:25+00:00",
+      "read": "2026-05-06T03:39:30+00:00"
+    }
+  },
+  "entity": "messages",
+  "action": "update"
+}
+```
+
+#### New conversation (`conversations` / `insert`)
+
+```json
+{
+  "data": {
+    "id": "c9e2f1a3-...",
+    "organization_id": "00438702-...",
+    "organization_address": "375446602312881",
+    "contact_address": "5215588392274",
+    "service": "whatsapp",
+    "created_at": "2026-05-06T03:39:23+00:00"
+  },
+  "entity": "conversations",
+  "action": "insert"
+}
+```
+
+### Limits
+
+- Maximum **3 webhooks** per organization per event (table + operation)
+- Webhooks are sent asynchronously via `pg_net` — delivery is best-effort with no automatic retries
+- Failed deliveries are not retried; monitor your webhook endpoint for errors
+
 ## Stripe integration (optional)
 
 wakit includes optional Stripe Billing integration for subscription management. Three Edge Functions handle the payment flow:
