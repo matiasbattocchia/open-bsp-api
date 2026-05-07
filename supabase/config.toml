@@ -36,6 +36,11 @@ verify_jwt = false
 import_map = "./functions/deno.json"
 entrypoint = "./functions/mcp/index.ts"
 
+[functions.migrate-twilio]
+verify_jwt = false
+import_map = "./functions/deno.json"
+entrypoint = "./functions/migrate-twilio/index.ts"
+
 [functions.stripe-checkout]
 verify_jwt = false
 import_map = "./functions/deno.json"

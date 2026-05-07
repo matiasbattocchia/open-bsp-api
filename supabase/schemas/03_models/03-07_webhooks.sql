@@ -1,6 +1,7 @@
 create table public.webhooks (
   id uuid default gen_random_uuid() not null,
   organization_id uuid not null,
+  organization_address text,
   table_name public.webhook_table not null,
   operations public.webhook_operation[] not null,
   url character varying not null,
