@@ -1,4 +1,4 @@
-import { createApiClient, type Database } from "../_shared/supabase.ts";
+import { createUnsecureClient, type Database } from "../_shared/supabase.ts";
 import * as tools from "../mcp/tools.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -20,10 +20,12 @@ function error(message: string, status = 400) {
 
 /** Authenticate via api-key header → look up in api_keys table */
 async function authenticate(req: Request): Promise<{ supabase: SupabaseClient<Database>; orgId: string }> {
-  const supabase = createApiClient(req);
-  const token = req.headers.get("Authorization")?.replace("Bearer ", "");
+  const token = req.headers.get("Authorization")?.replace("Bearer ", "")
+    || req.headers.get("api-key");
 
   if (!token) throw new Error("Missing Authorization header");
+
+  const supabase = createUnsecureClient();
 
   const { data: apiKey, error: err } = await supabase
     .from("api_keys")
