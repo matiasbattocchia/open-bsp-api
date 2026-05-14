@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
     // Check if org already has a Stripe customer
     const adminClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      (Deno.env.get("SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!)
     );
     const { data: sub } = await adminClient
       .schema("billing")
@@ -46,6 +46,13 @@ Deno.serve(async (req) => {
       .select("stripe_customer_id")
       .eq("organization_id", organization_id)
       .single();
+
+    // Align billing cycle with calendar month:
+    // - Anchor the subscription to the 1st of next month
+    // - Prorate the remaining days of the current month
+    const now = new Date();
+    const firstOfNextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+    const billingCycleAnchor = Math.floor(firstOfNextMonth.getTime() / 1000);
 
     // Create Stripe Checkout Session
     const params = new URLSearchParams({
@@ -59,6 +66,8 @@ Deno.serve(async (req) => {
       "metadata[user_id]": user.id,
       client_reference_id: organization_id,
       customer_email: user.email!,
+      "subscription_data[billing_cycle_anchor]": String(billingCycleAnchor),
+      "subscription_data[proration_behavior]": "create_prorations",
     });
 
     if (sub?.stripe_customer_id) {

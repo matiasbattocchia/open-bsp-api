@@ -1373,18 +1373,20 @@ export function createApiClient(req: Request) {
   );
 }
 
+export function getServiceRoleKey(): string {
+  const key = Deno.env.get("SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!key) throw new Error("Undefined SERVICE_ROLE_KEY env var.");
+  return key;
+}
+
 export function createUnsecureClient() {
   if (!Deno.env.get("SUPABASE_URL")) {
     throw new Error("Undefined SUPABASE_URL env var.");
   }
 
-  if (!Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")) {
-    throw new Error("Undefined SUPABASE_SERVICE_ROLE_KEY env var.");
-  }
-
   return createClientBase<Database>(
     Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    getServiceRoleKey(),
     {
       auth: { persistSession: false },
     },

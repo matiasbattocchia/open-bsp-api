@@ -3,6 +3,7 @@ import * as log from "../_shared/logger.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import {
   createUnsecureClient,
+  getServiceRoleKey,
   type ContactRow,
   type DataPart,
   type InternalMessage,
@@ -90,7 +91,7 @@ function getNewestIncomingMessage(incoming: MessageRow, messages: MessageRow[]) 
   return sortedMessages[0];
 }
 
-const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SERVICE_ROLE_KEY = getServiceRoleKey();
 
 Deno.serve(async (req) => {
   const authHeader = req.headers.get("Authorization");

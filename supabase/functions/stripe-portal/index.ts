@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
     // Get Stripe customer ID from subscription
     const adminClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      (Deno.env.get("SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!)
     );
     const { data: sub } = await adminClient
       .schema("billing")

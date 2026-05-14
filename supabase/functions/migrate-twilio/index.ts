@@ -112,7 +112,7 @@ async function analyzeNumbers(
     // Get wakit plans from DB to compare
     const adminClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      (Deno.env.get("SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!)
     );
     const { data: plans } = await adminClient
       .schema("billing")
@@ -398,7 +398,7 @@ Deno.serve(async (req) => {
         }
         const adminClient = createClient(
           Deno.env.get("SUPABASE_URL")!,
-          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+          (Deno.env.get("SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!)
         );
         result = await importTemplates(account_sid, auth_token, organization_id, adminClient);
         break;
@@ -410,7 +410,7 @@ Deno.serve(async (req) => {
         }
         const adminClient = createClient(
           Deno.env.get("SUPABASE_URL")!,
-          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+          (Deno.env.get("SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!)
         );
         result = await createWebhook(
           organization_id,

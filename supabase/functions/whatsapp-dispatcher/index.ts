@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import * as log from "../_shared/logger.ts";
 import {
   createUnsecureClient,
+  getServiceRoleKey,
   type EndpointMessage,
   type EndpointMessageResponse,
   type EndpointStatus,
@@ -17,7 +18,7 @@ import { markdownToWhatsApp } from "../_shared/markdown.ts";
 const API_VERSION = "v24.0";
 const DEFAULT_ACCESS_TOKEN = Deno.env.get("META_SYSTEM_USER_ACCESS_TOKEN") ||
   "";
-const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SERVICE_ROLE_KEY = getServiceRoleKey();
 
 class WhatsAppError extends Error {
   constructor(
