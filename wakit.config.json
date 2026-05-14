@@ -1,0 +1,16 @@
+{
+  "plugins": {
+    "stripe": {
+      "enabled": false,
+      "description": "Stripe billing integration (checkout, webhooks, customer portal)",
+      "functions": ["stripe-checkout", "stripe-webhook", "stripe-portal"],
+      "env": ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "STRIPE_STARTER_PRICE_ID", "STRIPE_PRO_PRICE_ID"]
+    },
+    "migrate-twilio": {
+      "enabled": false,
+      "description": "Twilio migration wizard for importing numbers, templates, and webhooks",
+      "functions": ["migrate-twilio"],
+      "env": []
+    }
+  }
+}

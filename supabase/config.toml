@@ -6,6 +6,8 @@ project_id = "open-bsp-api"
 [api]
 schemas = ["public", "storage", "billing"]
 
+# ── Core functions ──
+
 [functions.whatsapp-webhook]
 verify_jwt = false
 import_map = "./functions/deno.json"
@@ -16,30 +18,32 @@ verify_jwt = false
 import_map = "./functions/deno.json"
 entrypoint = "./functions/whatsapp-management/index.ts"
 
-[functions.media-preprocessor]
+[functions.whatsapp-dispatcher]
 verify_jwt = false
 import_map = "./functions/deno.json"
-entrypoint = "./functions/media-preprocessor/index.ts"
+entrypoint = "./functions/whatsapp-dispatcher/index.ts"
 
 [functions.agent-client]
 verify_jwt = false
 import_map = "./functions/deno.json"
 entrypoint = "./functions/agent-client/index.ts"
 
-[functions.whatsapp-dispatcher]
+[functions.media-preprocessor]
 verify_jwt = false
 import_map = "./functions/deno.json"
-entrypoint = "./functions/whatsapp-dispatcher/index.ts"
+entrypoint = "./functions/media-preprocessor/index.ts"
 
 [functions.mcp]
 verify_jwt = false
 import_map = "./functions/deno.json"
 entrypoint = "./functions/mcp/index.ts"
 
-[functions.migrate-twilio]
+[functions.api]
 verify_jwt = false
 import_map = "./functions/deno.json"
-entrypoint = "./functions/migrate-twilio/index.ts"
+entrypoint = "./functions/api/index.ts"
+
+# ── Plugin: Stripe billing ──
 
 [functions.stripe-checkout]
 verify_jwt = false
@@ -55,3 +59,10 @@ entrypoint = "./functions/stripe-webhook/index.ts"
 verify_jwt = false
 import_map = "./functions/deno.json"
 entrypoint = "./functions/stripe-portal/index.ts"
+
+# ── Plugin: Twilio migration ──
+
+[functions.migrate-twilio]
+verify_jwt = false
+import_map = "./functions/deno.json"
+entrypoint = "./functions/migrate-twilio/index.ts"

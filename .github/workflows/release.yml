@@ -33,7 +33,7 @@ jobs:
 
       - run: supabase link --project-ref $SUPABASE_PROJECT_ID
       - run: supabase db push
-      - run: supabase functions deploy
+      - run: bash scripts/deploy.sh
 
       - run: sudo apt-get update && sudo apt-get install -y postgresql-client
       - run: sh .github/workflows/deploy-vault-secrets.sh
