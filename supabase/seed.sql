@@ -86,6 +86,10 @@ insert into billing.costs (provider, product, quantity, unit, pricing) values
   ('whatsapp',  'authentication/ar',     1, 'templates',       '{"price": 0.026}');
 
 -- ============================================================================
+-- END PLUGIN: Billing
+-- ============================================================================
+
+-- ============================================================================
 -- SEED DATA - Minecraft Creature-Themed Organizations & Users
 -- ============================================================================
 --

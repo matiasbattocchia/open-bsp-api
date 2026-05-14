@@ -62,6 +62,52 @@ Interpret and extract information from media and document files, including:
 - PDF
 - Other text-based documents (CSV, HTML, TXT, etc.)
 
+### REST API
+
+The `/api` edge function exposes a simple REST API authenticated with wakit API keys (`sk_*`). No Supabase client library required.
+
+```bash
+# List accounts
+curl https://api.wakit.ai/functions/v1/api/accounts \
+  -H "Authorization: Bearer sk_your_api_key"
+
+# List conversations
+curl https://api.wakit.ai/functions/v1/api/conversations?account_phone=5215588392274 \
+  -H "Authorization: Bearer sk_your_api_key"
+
+# Send a message
+curl -X POST https://api.wakit.ai/functions/v1/api/messages \
+  -H "Authorization: Bearer sk_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{"contact_phone": "5215551234567", "text": "Hello!", "account_phone": "5215588392274"}'
+```
+
+Available endpoints: `/accounts`, `/conversations`, `/conversation`, `/contacts`, `/messages`, `/templates`.
+
+### CLI
+
+Install the CLI globally and manage WhatsApp from your terminal:
+
+```bash
+npm install -g wakit-cli
+wakit init                                          # configure API key
+wakit conversations                                 # list recent conversations
+wakit chat 5215551234567                             # view conversation history
+wakit send 5215551234567 "Hello"                     # send text message
+wakit send 5215551234567 --template welcome --vars "Juan"  # send template
+wakit contacts "Maria"                              # search contacts
+wakit templates                                     # list WhatsApp templates
+wakit switch 2                                      # change default account
+```
+
+All commands support `--json` for machine-readable output and `--from <phone>` to override the default account.
+
+npm: [wakit-cli](https://www.npmjs.com/package/wakit-cli)
+
+### n8n integration
+
+The [n8n community node](https://www.npmjs.com/package/n8n-nodes-wakit) lets you automate WhatsApp workflows visually. Install `n8n-nodes-wakit` in your n8n instance and connect with your API key.
+
 ### Claude Code plugin
 
 The wakit plugin gives Claude Code full API access and optionally bridges WhatsApp messages in real-time. Claude can query contacts, conversations, templates, and more via the `query` tool, and reply to WhatsApp messages via the `reply` tool.
@@ -389,15 +435,28 @@ This event-driven flow ensures that each component is decoupled and scalable.
 
 ### Edge Functions
 
-#### WhatsApp
+#### Core
 
-- `whatsapp-webhook`: Handles incoming webhook events from the [WhatsApp Cloud API](https://developers.facebook.com/docs/whatsapp/cloud-api).
-- `whatsapp-dispatcher`: Sends outbound messages to the WhatsApp Cloud API.
-- `whatsapp-manager`: Integrates with the [WhatsApp Business Management API](https://developers.facebook.com/docs/whatsapp/business-management-api) for business and phone number management.
+| Function | Description |
+|----------|-------------|
+| `whatsapp-webhook` | Handles incoming webhook events from the [WhatsApp Cloud API](https://developers.facebook.com/docs/whatsapp/cloud-api) |
+| `whatsapp-dispatcher` | Sends outbound messages to the WhatsApp Cloud API |
+| `whatsapp-management` | Integrates with the [WhatsApp Business Management API](https://developers.facebook.com/docs/whatsapp/business-management-api) |
+| `agent-client` | Orchestrates agent interactions over [Chat Completions](https://platform.openai.com/docs/api-reference/chat) or [A2A](https://github.com/google/A2A) protocols |
+| `media-preprocessor` | Extracts text from media and documents (audio, images, PDF) using Gemini |
+| `mcp` | [Model Context Protocol](https://modelcontextprotocol.io) server for AI agent integrations |
+| `api` | REST API for external integrations (CLI, n8n, custom apps) |
 
-#### Agent
+#### Plugins (optional)
 
-- `agent-client`: Orchestrates agent interactions, builds conversation context, and communicates with external agent APIs over [Chat Completions](https://platform.openai.com/docs/api-reference/chat) or [A2A](https://github.com/google/A2A) protocols.
+| Function | Plugin | Description |
+|----------|--------|-------------|
+| `stripe-checkout` | Stripe | Creates Stripe Checkout sessions |
+| `stripe-webhook` | Stripe | Handles Stripe payment events |
+| `stripe-portal` | Stripe | Redirects to Stripe Customer Portal |
+| `migrate-twilio` | Twilio Migration | Analyzes Twilio usage and imports templates |
+
+See [PLUGINS.md](PLUGINS.md) for details on enabling and configuring plugins.
 
 ### Database models
 
@@ -503,6 +562,18 @@ npx supabase gen types typescript --local > supabase/functions/_shared/db_types.
 npx supabase functions serve
 ```
 
+### Deployment
+
+Use the deploy script to deploy core functions and enabled plugins:
+
+```bash
+bash scripts/deploy.sh              # core + enabled plugins
+bash scripts/deploy.sh --core-only  # core only
+bash scripts/deploy.sh --all        # everything
+```
+
+Plugins are configured in [`wakit.config.json`](wakit.config.json). See [PLUGINS.md](PLUGINS.md).
+
 ### REST API docs
 
 Fetch the OpenAPI spec from PostgREST (requires the service role key):
@@ -513,4 +584,9 @@ curl "https://<project-id>.supabase.co/rest/v1/" -H "apikey: <service_role_key>"
 
 ## Community
 
-Questions, ideas, or feedback? Join our [WhatsApp Community](https://chat.whatsapp.com/Ch6AwZizSDt5quzHodcYh5) or open an [issue](https://github.com/matiasbattocchia/wakit-api/issues). We'd love to hear from you.
+Questions, ideas, or feedback? Join us:
+
+- [WhatsApp Community](https://chat.whatsapp.com/Ch6AwZizSDt5quzHodcYh5)
+- [Slack Community](https://wakit-community.slack.com)
+- [GitHub Issues](https://github.com/matiasbattocchia/wakit-api/issues)
+- [Documentation](https://docs.wakit.ai)

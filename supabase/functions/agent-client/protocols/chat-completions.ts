@@ -481,7 +481,7 @@ export class ChatCompletionsHandler
 
     const billable = !agent.extra.api_key;
 
-    // Fetch cost pricing before the LLM call
+    // Fetch cost pricing before the LLM call (optional — billing plugin)
     const { data: costs } = await this.client
       .schema("billing")
       .from("costs")
@@ -492,23 +492,23 @@ export class ChatCompletionsHandler
       .order("effective_at", { ascending: false })
       .limit(1)
       .maybeSingle()
-      .throwOnError();
+      .then((r: { data: unknown }) => r)
+      .catch(() => ({ data: null }));
 
-    if (billable) {
-      // Block if we don't have pricing for this model
-      if (!costs) {
-        throw new Error(`No pricing found for ${provider}/${model}`);
+    if (billable && costs) {
+      // Check AI credits balance (skip if billing not configured)
+      try {
+        await this.client
+          .schema("billing")
+          .rpc("check_limit", {
+            _organization_id: organization.id,
+            _product_id: "ai_credits",
+            _amount: 0,
+          })
+          .throwOnError();
+      } catch {
+        // Billing not configured — proceed without limits
       }
-
-      // Check AI credits balance
-      await this.client
-        .schema("billing")
-        .rpc("check_limit", {
-          _organization_id: organization.id,
-          _product_id: "ai_credits",
-          _amount: 0,
-        })
-        .throwOnError();
     }
 
     const openai = new OpenAI({
@@ -570,7 +570,7 @@ export class ChatCompletionsHandler
       }
     }
 
-    // Record AI usage in the ledger
+    // Record AI usage in the ledger (optional — billing plugin)
     if (response.usage) {
       const cost = costs
         ? this.calculateCost(
@@ -580,21 +580,25 @@ export class ChatCompletionsHandler
         )
         : 0;
 
-      await this.client
-        .schema("billing")
-        .from("ledger")
-        .insert({
-          organization_id: organization.id,
-          product_id: "ai_credits",
-          type: "consumption",
-          quantity: -cost,
-          agent_id: agent.id,
-          provider,
-          model,
-          billable,
-          metadata: response.usage,
-        })
-        .throwOnError();
+      try {
+        await this.client
+          .schema("billing")
+          .from("ledger")
+          .insert({
+            organization_id: organization.id,
+            product_id: "ai_credits",
+            type: "consumption",
+            quantity: -cost,
+            agent_id: agent.id,
+            provider,
+            model,
+            billable,
+            metadata: response.usage,
+          })
+          .throwOnError();
+      } catch {
+        // Billing not configured — skip ledger entry
+      }
     }
 
     return {

@@ -17,3 +17,6 @@ package-lock.json
 mise.toml
 
 .mcp.json
+
+# Brand assets (not part of the open-source project)
+brand_manual_Wakit/

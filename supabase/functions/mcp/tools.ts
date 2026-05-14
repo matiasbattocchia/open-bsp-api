@@ -448,7 +448,8 @@ export async function listTemplates(params: ListTemplatesParams) {
     allowedAccounts
   });
 
-  const templates = await listTemplatesMethod(params.supabase, params.orgId, account.address);
+  const templatesResult = await listTemplatesMethod(params.supabase, params.orgId, account.address);
+  const templates = Array.isArray(templatesResult) ? templatesResult : (templatesResult as { data?: TemplateData[] }).data || [];
 
   return {
     templates: templates.map((t: TemplateData) => ({

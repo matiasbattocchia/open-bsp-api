@@ -55,6 +55,57 @@ Deno.serve(async (req) => {
     const common = { supabase, orgId, allowedAccounts: [] as string[], allowedContacts: [] as string[] };
 
     switch (path) {
+      // GET /api/health — validate Meta tokens for all connected accounts
+      case "health": {
+        if (method === "GET") {
+          const { data: addresses } = await supabase
+            .from("organizations_addresses")
+            .select("address, extra, status")
+            .eq("organization_id", orgId)
+            .eq("service", "whatsapp")
+            .eq("status", "connected");
+
+          const results = await Promise.all(
+            (addresses || []).map(async (addr) => {
+              const extra = addr.extra as Record<string, unknown> | null;
+              const phone = (extra?.phone_number as string) || addr.address;
+              const name = (extra?.verified_name as string) || "Unknown";
+              const accessToken = extra?.access_token as string;
+              const systemToken = Deno.env.get("META_SYSTEM_USER_ACCESS_TOKEN");
+              const token = accessToken || systemToken;
+
+              if (!token) {
+                return { phone, name, address: addr.address, status: "error", error: "No access token" };
+              }
+
+              try {
+                const res = await fetch(
+                  `https://graph.facebook.com/v24.0/${addr.address}?fields=verified_name,quality_rating,messaging_limit_tier`,
+                  { headers: { Authorization: `Bearer ${token}` } },
+                );
+                const data = await res.json();
+                if (data.error) {
+                  return { phone, name, address: addr.address, status: "error", error: data.error.message };
+                }
+                return {
+                  phone,
+                  name: data.verified_name || name,
+                  address: addr.address,
+                  status: "active",
+                  quality: data.quality_rating || "unknown",
+                  messaging_limit: data.messaging_limit_tier || "unknown",
+                };
+              } catch (err) {
+                return { phone, name, address: addr.address, status: "error", error: (err as Error).message };
+              }
+            }),
+          );
+
+          return json({ accounts: results });
+        }
+        return error("Method not allowed", 405);
+      }
+
       // GET /api/conversations?limit=10&account_phone=...
       case "conversations": {
         if (method === "GET") {
@@ -114,7 +165,7 @@ Deno.serve(async (req) => {
 
           let content;
           if (template) {
-            content = { kind: "template", type: "data", version: "1", template };
+            content = { kind: "template", type: "data", version: "1", data: template };
           } else if (text) {
             content = { kind: "text", type: "text", version: "1", text };
           } else {
