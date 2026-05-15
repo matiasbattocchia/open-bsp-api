@@ -28,10 +28,13 @@ export type OrganizationExtra = {
 
 export type WhatsAppOrganizationAddressExtra = {
   waba_id?: string;
+  business_id?: string;
   phone_number?: string;
   verified_name?: string;
   flow_type?: "only_waba" | "new_phone_number" | "existing_phone_number";
   access_token?: string; // Meta system-user token
+  callback_url?: string | null;
+  verify_token?: string | null;
 };
 
 export type InstagramOrganizationAddressExtra = {
