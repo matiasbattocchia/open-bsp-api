@@ -18,6 +18,44 @@ function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, "");
 }
 
+type HandoffState = {
+  status: "requested";
+  requested_at: string;
+  requested_by_agent_id: string;
+  reason?: string;
+  note?: string;
+};
+
+function getHandoff(extra: unknown): HandoffState | undefined {
+  if (!extra || typeof extra !== "object") {
+    return undefined;
+  }
+
+  const handoff = (extra as Record<string, unknown>).handoff;
+
+  if (!handoff || typeof handoff !== "object") {
+    return undefined;
+  }
+
+  const record = handoff as Record<string, unknown>;
+
+  if (
+    record.status !== "requested" ||
+    typeof record.requested_at !== "string" ||
+    typeof record.requested_by_agent_id !== "string"
+  ) {
+    return undefined;
+  }
+
+  return {
+    status: record.status,
+    requested_at: record.requested_at,
+    requested_by_agent_id: record.requested_by_agent_id,
+    ...(typeof record.reason === "string" && { reason: record.reason }),
+    ...(typeof record.note === "string" && { note: record.note }),
+  };
+}
+
 // Helper: Format time to WhatsApp style
 function formatTime(timestamp: string): string {
   const dayjsTs = dayjs(timestamp);
@@ -221,6 +259,7 @@ export async function listConversations(params: ListConversationsParams) {
         phone: c.contact_address?.address,
       },
       unread: countUnread(c.messages),
+      handoff: getHandoff(c.extra) ?? null,
       last_message: c.messages?.length
         ? {
           direction: c.messages[0].direction,
@@ -331,6 +370,7 @@ export async function fetchConversation(params: FetchConversationParams) {
       phone: contactPhone,
     },
     service_window: serviceWindow,
+    handoff: getHandoff(conversation.extra) ?? null,
     messages: lightweightMessages,
   };
 }

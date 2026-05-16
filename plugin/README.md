@@ -84,6 +84,10 @@ are injected automatically.
 When a WhatsApp account is resolved, the plugin subscribes to Realtime and
 forwards incoming messages to Claude.
 
+When a conversation is handed off to a human, allowed contacts receive a
+`human_handoff_requested` channel notification with the handoff reason and note
+when present.
+
 ### Add contacts (required for channel)
 
 The channel is **secure by default** — no contacts are allowed until explicitly

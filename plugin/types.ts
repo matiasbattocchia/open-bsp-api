@@ -134,7 +134,21 @@ export type ConversationRow = {
   contact_address: string;
   created_at: string;
   updated_at: string;
-  extra: Record<string, unknown> | null;
+  extra: {
+    memory?: Record<string, unknown>;
+    paused?: string;
+    handoff?: {
+      status: "requested";
+      requested_at: string;
+      requested_by_agent_id: string;
+      reason?: string;
+      note?: string;
+    };
+    archived?: string;
+    pinned?: string;
+    default_agent_id?: string;
+    [key: string]: unknown;
+  } | null;
 };
 
 // ── Insert types (for creating outgoing messages) ───────────────────────

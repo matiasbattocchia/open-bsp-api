@@ -52,6 +52,13 @@ export type OrganizationAddressExtra =
 export type ConversationExtra = {
   memory?: Memory;
   paused?: string;
+  handoff?: {
+    status: "requested";
+    requested_at: string;
+    requested_by_agent_id: string;
+    reason?: string;
+    note?: string;
+  };
   archived?: string;
   pinned?: string;
   default_agent_id?: string;
