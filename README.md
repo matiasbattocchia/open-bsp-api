@@ -9,9 +9,8 @@
 <p align="center">
   <a href="https://app.wakit.ai"><img src="https://img.shields.io/badge/%F0%9F%9A%80_try_it-app.wakit.ai-C26A3D" alt="Try it"></a>&nbsp;
   <a href="https://unlicense.org/"><img src="https://img.shields.io/badge/license-Unlicense-blue.svg" alt="License: Unlicense"></a>&nbsp;
-  <a href="https://github.com/matiasbattocchia/wakit-api/stargazers"><img src="https://img.shields.io/github/stars/matiasbattocchia/wakit-api" alt="GitHub Stars"></a>&nbsp;
-  <a href="https://github.com/matiasbattocchia/wakit-api/commits/main"><img src="https://img.shields.io/github/last-commit/matiasbattocchia/wakit-api" alt="Last Commit"></a>&nbsp;
-  <a href="https://chat.whatsapp.com/Ch6AwZizSDt5quzHodcYh5"><img src="https://img.shields.io/badge/Community-25D366?logo=whatsapp&logoColor=white" alt="Community"></a>
+  <a href="https://github.com/MirloLLC/wakit-api/stargazers"><img src="https://img.shields.io/github/stars/MirloLLC/wakit-api" alt="GitHub Stars"></a>&nbsp;
+  <a href="https://github.com/MirloLLC/wakit-api/commits/main"><img src="https://img.shields.io/github/last-commit/MirloLLC/wakit-api" alt="Last Commit"></a>&nbsp;
 </p>
 
 wakit is designed for both individual businesses and service providers. You can use it to manage your own WhatsApp messaging, or leverage its features to become a [Meta Business Partner](https://developers.facebook.com/docs/whatsapp/solution-providers) and offer WhatsApp messaging services to other organizations.
@@ -19,13 +18,13 @@ wakit is designed for both individual businesses and service providers. You can 
 🚀 **Powering production-grade AI agents at [Mirlo.com](https://mirlo.com/agentes-ia/whatsapp)**
 
 > [!NOTE]
-> This project is undergoing a rebranding. The project name is changing from **OpenBSP** to **wakit**.
+> This project is undergoing a rebranding. The project name is changing from **wakit** to **wakit**.
 
 ## User Interface
 
 For a complete web-based interface to manage conversations check out the companion project:
 
-**🖥️ [wakit UI](https://github.com/matiasbattocchia/wakit-ui)** — A modern, responsive web interface built with React and Tailwind.
+**🖥️ [wakit UI](https://github.com/MirloLLC/wakit-ui)** — A modern, responsive web interface built with React and Tailwind.
 
 https://github.com/user-attachments/assets/1ef30dde-9de1-4f5a-856a-db34ca2e3063
 
@@ -115,8 +114,8 @@ The wakit plugin gives Claude Code full API access and optionally bridges WhatsA
 Install the plugin:
 
 ```
-/plugin marketplace add matiasbattocchia/wakit-api
-/plugin install wakit@matiasbattocchia-wakit-api
+/plugin marketplace add MirloLLC/wakit-api
+/plugin install wakit@MirloLLC-wakit-api
 ```
 
 On first run, a browser opens for Google sign-in (same account as the web UI). Then configure allowed contacts for the WhatsApp channel:
@@ -192,7 +191,7 @@ Your data is yours. You can export your organization's data from the hosted inst
 > [!NOTE]
 > **Deploy your own instance in under 15 minutes** — no local environment required.
 
-1. [Fork](https://github.com/matiasbattocchia/wakit-api/fork) this repo (1 min)
+1. [Fork](https://github.com/MirloLLC/wakit-api/fork) this repo (1 min)
 2. Create a [Supabase](https://supabase.com) project (5 min)
 3. Connect the project to your fork via the Supabase GitHub Integration (5 min)
 
@@ -586,7 +585,6 @@ curl "https://<project-id>.supabase.co/rest/v1/" -H "apikey: <service_role_key>"
 
 Questions, ideas, or feedback? Join us:
 
-- [WhatsApp Community](https://chat.whatsapp.com/Ch6AwZizSDt5quzHodcYh5)
 - [Slack Community](https://wakit-community.slack.com)
-- [GitHub Issues](https://github.com/matiasbattocchia/wakit-api/issues)
+- [GitHub Issues](https://github.com/MirloLLC/wakit-api/issues)
 - [Documentation](https://docs.wakit.ai)
