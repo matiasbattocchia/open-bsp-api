@@ -13,20 +13,24 @@ async function getBusinessCredentials(
 ): Promise<{ waba_id: string; access_token: string }> {
   const { data, error } = await client
     .from("organizations_addresses")
-    .select("extra->>waba_id, extra->>access_token")
+    .select("extra->>waba_id")
     .eq("organization_id", organization_id)
     .eq("address", organization_address)
     .single();
 
   if (error || !data) {
-    log.error("Could not fetch business access token", error);
+    log.error("Could not fetch business credentials", error);
     throw new HTTPException(403, {
-      message: "Could not fetch business access token",
+      message: "Could not fetch business credentials",
       cause: error,
     });
   }
 
-  return data;
+  // Read access token from secure storage
+  const { getSecret } = await import("../_shared/secrets.ts");
+  const access_token = await getSecret(client, organization_id, organization_address, "access_token") || "";
+
+  return { waba_id: data.waba_id, access_token };
 }
 
 export async function listTemplates(
@@ -45,9 +49,12 @@ export async function listTemplates(
   );
 
   if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    const detail = error?.error?.message || JSON.stringify(error);
+    log.error("Could not fetch templates", error);
     throw new HTTPException(response.status as ContentfulStatusCode, {
-      message: "Could not fetch templates",
-      cause: await response.json().catch(() => ({})),
+      message: `Could not fetch templates: ${detail}`,
+      cause: error,
     });
   }
 
@@ -71,9 +78,12 @@ export async function fetchTemplate(
   );
 
   if (!response.ok) {
-    throw new HTTPException(response.status as any, {
-      message: "Could not fetch template",
-      cause: await response.json().catch(() => ({})),
+    const error = await response.json().catch(() => ({}));
+    const detail = error?.error?.message || JSON.stringify(error);
+    log.error("Could not fetch template", error);
+    throw new HTTPException(response.status as ContentfulStatusCode, {
+      message: `Could not fetch template: ${detail}`,
+      cause: error,
     });
   }
 
@@ -115,9 +125,13 @@ export async function createTemplate(
   );
 
   if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    const metaError = error?.error || {};
+    const detail = [metaError.message, metaError.error_data?.details, metaError.error_user_msg].filter(Boolean).join(" — ") || JSON.stringify(error);
+    log.error("Could not create template", error);
     throw new HTTPException(response.status as ContentfulStatusCode, {
-      message: "Could not create template",
-      cause: await response.json().catch(() => ({})),
+      message: `Could not create template: ${detail}`,
+      cause: error,
     });
   }
 
@@ -150,9 +164,12 @@ export async function editTemplate(
   );
 
   if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    const detail = error?.error?.message || JSON.stringify(error);
+    log.error("Could not update template", error);
     throw new HTTPException(response.status as ContentfulStatusCode, {
-      message: "Could not update template",
-      cause: await response.json().catch(() => ({})),
+      message: `Could not update template: ${detail}`,
+      cause: error,
     });
   }
 
@@ -180,9 +197,12 @@ export async function deleteTemplate(
   );
 
   if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    const detail = error?.error?.message || JSON.stringify(error);
+    log.error("Could not delete template", error);
     throw new HTTPException(response.status as ContentfulStatusCode, {
-      message: "Could not delete template",
-      cause: await response.json().catch(() => ({})),
+      message: `Could not delete template: ${detail}`,
+      cause: error,
     });
   }
 

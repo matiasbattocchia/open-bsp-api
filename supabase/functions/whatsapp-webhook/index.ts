@@ -917,9 +917,11 @@ async function processMessage(request: Request): Promise<Response> {
       const orgAddress = orgAddressMap.get(message.organization_address)!;
 
       try {
+        const { getSecret } = await import("../_shared/secrets.ts");
+        const storedToken = await getSecret(client, orgAddress.organization_id, orgAddress.address, "access_token");
         return await downloadMediaItem({
           organization_id: orgAddress.organization_id,
-          access_token: orgAddress.extra?.access_token || DEFAULT_ACCESS_TOKEN,
+          access_token: storedToken || DEFAULT_ACCESS_TOKEN,
           message,
           client,
         });

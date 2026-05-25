@@ -369,15 +369,10 @@ Deno.serve(async (req) => {
     );
   }
 
-  const { data: account } = await client
-    .from("organizations_addresses")
-    .select("extra->>access_token")
-    .eq("organization_id", message.organization_id)
-    .eq("address", message.organization_address)
-    .single()
-    .throwOnError();
-
-  const access_token = account.access_token || DEFAULT_ACCESS_TOKEN;
+  // Read access token from secure storage
+  const { getSecret } = await import("../_shared/secrets.ts");
+  const storedToken = await getSecret(client, message.organization_id, message.organization_address, "access_token");
+  const access_token = storedToken || DEFAULT_ACCESS_TOKEN;
 
   if (message.direction === "outgoing") {
     try {
