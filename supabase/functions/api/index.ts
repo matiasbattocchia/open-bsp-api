@@ -65,14 +65,15 @@ Deno.serve(async (req) => {
             .eq("service", "whatsapp")
             .eq("status", "connected");
 
+          const { getSecret } = await import("../_shared/secrets.ts");
           const results = await Promise.all(
             (addresses || []).map(async (addr) => {
               const extra = addr.extra as Record<string, unknown> | null;
               const phone = (extra?.phone_number as string) || addr.address;
               const name = (extra?.verified_name as string) || "Unknown";
-              const accessToken = extra?.access_token as string;
+              const storedToken = await getSecret(supabase, orgId, addr.address, "access_token");
               const systemToken = Deno.env.get("META_SYSTEM_USER_ACCESS_TOKEN");
-              const token = accessToken || systemToken;
+              const token = storedToken || systemToken;
 
               if (!token) {
                 return { phone, name, address: addr.address, status: "error", error: "No access token" };

@@ -392,7 +392,6 @@ export async function performEmbeddedSignup(
         waba_id: payload.waba_id,
         business_id: payload.business_id,
         flow_type: payload.flow_type,
-        access_token: business_access_token,
         phone_number: normalizePhoneNumber(phone_number.display_phone_number),
         verified_name: phone_number.verified_name,
         callback_url: payload.callback_url || null,
@@ -401,6 +400,10 @@ export async function performEmbeddedSignup(
     })
     .select()
     .single();
+
+  // Store access token securely in organization_secrets
+  const { setSecret } = await import("../_shared/secrets.ts");
+  await setSecret(client, payload.organization_id, phone_number_id, "access_token", business_access_token);
 
   if (error) {
     throw new HTTPException(500, {
@@ -479,7 +482,13 @@ export async function deleteSignup(
     });
   }
 
-  await deregisterPhoneNumber(extra.access_token || "", phone_number_id);
+  // Read access token from secure storage
+  const { getSecret, deleteSecret } = await import("../_shared/secrets.ts");
+  const accessToken = await getSecret(client, organization_id, phone_number_id, "access_token") || extra.access_token || "";
+  await deregisterPhoneNumber(accessToken, phone_number_id);
+
+  // Clean up secret
+  await deleteSecret(client, organization_id, phone_number_id, "access_token");
 
   const { data } = await client
     .from("organizations_addresses")
