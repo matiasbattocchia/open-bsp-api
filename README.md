@@ -471,6 +471,28 @@ See [PLUGINS.md](PLUGINS.md) for details on enabling and configuring plugins.
 - **webhooks**: Outbound webhook subscriptions per `organization`.
 - **quick_replies**: Reusable response snippets scoped to an `organization`.
 - **logs**: Application-level log entries (errors, warnings) written by Edge Functions.
+- **organization_secrets**: Secure storage for access tokens and credentials (see [Security](#security)).
+
+## Security
+
+WhatsApp access tokens are stored in the `organization_secrets` table, which has **no RLS read policy** for authenticated users. Only Edge Functions running with the `service_role` key can access them. Tokens are never sent to the browser or exposed via the REST API.
+
+If you need to debug token issues, query from the SQL Editor:
+
+```sql
+select address, value from organization_secrets where key = 'access_token';
+```
+
+## Monitoring
+
+wakit provides public endpoints for monitoring (no authentication required):
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /functions/v1/api/ping` | Health check — returns `{"status":"ok","db":"connected"}` if API and database are up |
+| `GET /functions/v1/api/health` | Validates Meta access tokens for all connected numbers (requires API key) |
+
+Use `/api/ping` with uptime monitoring tools (Upptime, Better Uptime, etc.) to track availability.
 
 ## Configuration
 
