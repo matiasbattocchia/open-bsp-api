@@ -33,6 +33,11 @@ verify_jwt = false
 import_map = "./functions/deno.json"
 entrypoint = "./functions/media-preprocessor/index.ts"
 
+[functions.invite]
+verify_jwt = false
+import_map = "./functions/deno.json"
+entrypoint = "./functions/invite/index.ts"
+
 [functions.mcp]
 verify_jwt = false
 import_map = "./functions/deno.json"
