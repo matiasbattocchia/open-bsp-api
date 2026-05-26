@@ -62,6 +62,7 @@ Deno.serve(async (req) => {
       .from("agents")
       .insert({
         organization_id,
+        name: email.split("@")[0],
         ai: false,
         extra: {
           role: role || "member",
