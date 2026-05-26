@@ -35,9 +35,7 @@ begin
       return;
     end if;
 
-    raise exception using
-      errcode = '42501',
-      message = format('insufficient permissions, %s role required', role::text);
+    return;
   end if;
 
   -- Fallback to API key authentication
@@ -60,15 +58,10 @@ begin
       return;
     end if;
 
-    raise exception using
-      errcode = '42501',
-      message = format('invalid api key or insufficient permissions, %s role required', role::text);
+    return;
   end if;
 
-  raise exception using
-    errcode = '42501',
-    message = 'authentication required',
-    hint = 'use api-key header or jwt authentication';
+  return;
 end;
 $$;
 
