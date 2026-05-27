@@ -75,10 +75,11 @@ Deno.serve(async (req) => {
 
     // Always try to invite — if user exists, Supabase returns an error we can handle
     const siteUrl = req.headers.get("origin") || "https://app.wakit.ai";
-    console.log(`[invite] calling inviteUserByEmail for ${email}, redirectTo=${siteUrl}`);
+    const signupUrl = `${siteUrl}/signup?invite=true&org=${encodeURIComponent(orgName)}`;
+    console.log(`[invite] calling inviteUserByEmail for ${email}, redirectTo=${signupUrl}`);
 
     const { error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
-      redirectTo: siteUrl,
+      redirectTo: signupUrl,
       data: { invitation_org: orgName },
     });
 
