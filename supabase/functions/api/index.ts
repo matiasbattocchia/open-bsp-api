@@ -44,9 +44,26 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { supabase, orgId } = await authenticate(req);
     const url = new URL(req.url);
     const path = url.pathname.split("/").pop();
+
+    // Public endpoints (no auth required)
+    if (path === "ping") {
+      const supabase = createUnsecureClient();
+      const { count } = await supabase.from("organizations").select("id", { count: "exact", head: true });
+      return json({ status: "ok", timestamp: new Date().toISOString(), db: count !== null ? "connected" : "error" });
+    }
+
+    if (path === "config") {
+      return json({
+        plugins: {
+          stripe: !!Deno.env.get("STRIPE_SECRET_KEY"),
+          "migrate-twilio": true,
+        },
+      });
+    }
+
+    const { supabase, orgId } = await authenticate(req);
     const method = req.method;
     const body = method !== "GET" ? await req.json().catch(() => ({})) : {};
     const params = Object.fromEntries(url.searchParams);
