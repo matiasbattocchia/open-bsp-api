@@ -11,6 +11,12 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const json = (data: unknown, status = 200) =>
+    new Response(JSON.stringify(data), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+
   try {
     // Authenticate the caller
     const supabase = createClient(
@@ -21,28 +27,21 @@ Deno.serve(async (req) => {
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "Unauthorized" }, 401);
     }
 
     const { organization_id, email, role } = await req.json();
 
     if (!organization_id || !email) {
-      return new Response(JSON.stringify({ error: "organization_id and email are required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "organization_id and email are required" }, 400);
     }
 
-    // Use service role client for admin operations
     const adminClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
       getServiceRoleKey(),
     );
 
-    // Get organization name for the email
+    // Get organization name
     const { data: org } = await adminClient
       .from("organizations")
       .select("name")
@@ -50,12 +49,6 @@ Deno.serve(async (req) => {
       .single();
 
     const orgName = org?.name || "an organization";
-
-    // Check if user exists in auth
-    const { data: existingUsers } = await adminClient.auth.admin.listUsers();
-    const existingUser = existingUsers?.users?.find(
-      (u) => u.email?.toLowerCase() === email.toLowerCase()
-    );
 
     // Create the invitation in agents table
     const { error: insertError } = await adminClient
@@ -74,61 +67,48 @@ Deno.serve(async (req) => {
         },
       });
 
+    console.log(`[invite] insert result: error=${insertError?.message || 'none'}`);
+
     if (insertError) {
-      return new Response(JSON.stringify({ error: insertError.message }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: insertError.message }, 400);
     }
 
-    // If user doesn't exist, invite them via Supabase Auth (sends magic link email)
-    if (!existingUser) {
-      const siteUrl = req.headers.get("origin") || "https://app.wakit.ai";
+    // Always try to invite — if user exists, Supabase returns an error we can handle
+    const siteUrl = req.headers.get("origin") || "https://app.wakit.ai";
+    console.log(`[invite] calling inviteUserByEmail for ${email}, redirectTo=${siteUrl}`);
 
-      const { error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
-        redirectTo: siteUrl,
-        data: {
-          invitation_org: orgName,
-        },
-      });
+    const { error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
+      redirectTo: siteUrl,
+      data: { invitation_org: orgName },
+    });
 
-      if (inviteError) {
-        console.error("Failed to send invite email:", inviteError);
-        // Don't fail the whole operation — the invitation was created
-        return new Response(JSON.stringify({
+    console.log(`[invite] inviteUserByEmail result: error=${inviteError?.message || 'none'}`);
+
+    if (inviteError) {
+      // "already registered" means user exists — they'll see the invitation on login
+      if (inviteError.message?.includes("already") || inviteError.message?.includes("registered")) {
+        return json({
           status: "invited",
           email_sent: false,
-          message: `Invitation created but email could not be sent: ${inviteError.message}`,
-        }), {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          message: `${email} already has an account and will see the invitation on login`,
         });
       }
 
-      return new Response(JSON.stringify({
+      console.error("Failed to send invite email:", inviteError.message);
+      return json({
         status: "invited",
-        email_sent: true,
-        message: `Invitation sent to ${email}`,
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        email_sent: false,
+        message: `Invitation created but email could not be sent: ${inviteError.message}`,
       });
     }
 
-    // User already exists — no email needed, they'll see it when they log in
-    return new Response(JSON.stringify({
+    return json({
       status: "invited",
-      email_sent: false,
-      message: `${email} already has an account and will see the invitation on login`,
-    }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      email_sent: true,
+      message: `Invitation sent to ${email}`,
     });
 
   } catch (err) {
-    return new Response(JSON.stringify({ error: (err as Error).message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ error: (err as Error).message }, 500);
   }
 });
