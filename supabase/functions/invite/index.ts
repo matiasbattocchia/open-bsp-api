@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
 
     if (!existingUser) {
       return json({
-        error: "El usuario debe crear su cuenta en wakit antes de ser invitado",
+        error: "User must create an account before being invited",
       }, 400);
     }
 
