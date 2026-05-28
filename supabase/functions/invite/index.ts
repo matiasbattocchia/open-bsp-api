@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
     if (!existingUser) {
       return json({
         error: "User must create an account before being invited",
-      }, 400);
+      });
     }
 
     // Create the invitation in agents table
