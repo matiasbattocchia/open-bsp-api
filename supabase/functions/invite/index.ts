@@ -50,6 +50,18 @@ Deno.serve(async (req) => {
 
     const orgName = org?.name || "an organization";
 
+    // Check if the user has an account — only allow inviting existing users
+    const { data: { users } } = await adminClient.auth.admin.listUsers();
+    const existingUser = users?.find(
+      (u) => u.email?.toLowerCase() === email.toLowerCase()
+    );
+
+    if (!existingUser) {
+      return json({
+        error: "El usuario debe crear su cuenta en wakit antes de ser invitado",
+      }, 400);
+    }
+
     // Create the invitation in agents table
     const { error: insertError } = await adminClient
       .from("agents")
@@ -67,46 +79,13 @@ Deno.serve(async (req) => {
         },
       });
 
-    console.log(`[invite] insert result: error=${insertError?.message || 'none'}`);
-
     if (insertError) {
       return json({ error: insertError.message }, 400);
     }
 
-    // Always try to invite — if user exists, Supabase returns an error we can handle
-    const siteUrl = req.headers.get("origin") || "https://app.wakit.ai";
-    const signupUrl = `${siteUrl}/signup?invite=true&org=${encodeURIComponent(orgName)}`;
-    console.log(`[invite] calling inviteUserByEmail for ${email}, redirectTo=${signupUrl}`);
-
-    const { error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
-      redirectTo: signupUrl,
-      data: { invitation_org: orgName },
-    });
-
-    console.log(`[invite] inviteUserByEmail result: error=${inviteError?.message || 'none'}`);
-
-    if (inviteError) {
-      // "already registered" means user exists — they'll see the invitation on login
-      if (inviteError.message?.includes("already") || inviteError.message?.includes("registered")) {
-        return json({
-          status: "invited",
-          email_sent: false,
-          message: `${email} already has an account and will see the invitation on login`,
-        });
-      }
-
-      console.error("Failed to send invite email:", inviteError.message);
-      return json({
-        status: "invited",
-        email_sent: false,
-        message: `Invitation created but email could not be sent: ${inviteError.message}`,
-      });
-    }
-
     return json({
       status: "invited",
-      email_sent: true,
-      message: `Invitation sent to ${email}`,
+      message: `${email} verá la invitación a ${orgName} cuando inicie sesión`,
     });
 
   } catch (err) {
