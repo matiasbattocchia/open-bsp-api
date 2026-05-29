@@ -184,10 +184,13 @@ export async function listConversations(params: ListConversationsParams) {
       phone: account.phone,
     },
     conversations: sortedConversations.map((c) => ({
-      contact: {
-        name: c.contact_address?.contact?.name || c.contact_address?.extra?.name || "Unknown",
-        phone: c.contact_address?.address
-      },
+      ...(c.group_address
+        ? { group: { id: c.group_address, name: c.name || "Group" } }
+        : { contact: {
+            name: c.contact_address?.contact?.name || c.contact_address?.extra?.name || "Unknown",
+            phone: c.contact_address?.address
+          } }
+      ),
       unread: countUnread(c.messages),
       last_message: c.messages?.length ? {
         direction: c.messages[0].direction,
@@ -202,7 +205,8 @@ export async function listConversations(params: ListConversationsParams) {
 interface FetchConversationParams {
   supabase: SupabaseClient<Database>;
   orgId: string;
-  contactPhone: string;
+  contactPhone?: string;
+  groupId?: string;
   limit?: number;
   allowedAccounts: string[];
   allowedContacts: string[];
@@ -210,12 +214,17 @@ interface FetchConversationParams {
 }
 
 export async function fetchConversation(params: FetchConversationParams) {
-  const contactPhone = normalizePhone(params.contactPhone);
+  const contactPhone = params.contactPhone ? normalizePhone(params.contactPhone) : undefined;
+  const groupId = params.groupId;
   const accountPhone = params.accountPhone ? normalizePhone(params.accountPhone) : undefined;
   const allowedAccounts = params.allowedAccounts;
   const allowedContacts = params.allowedContacts;
 
-  if (allowedContacts.length && !allowedContacts.includes(contactPhone)) {
+  if (!contactPhone && !groupId) {
+    throw new Error("Either contactPhone or groupId is required");
+  }
+
+  if (contactPhone && allowedContacts.length && !allowedContacts.includes(contactPhone)) {
     throw new Error(`Contact ${contactPhone} is not allowed. Allowed contacts: ${allowedContacts.join(", ")}`);
   }
 
@@ -226,7 +235,7 @@ export async function fetchConversation(params: FetchConversationParams) {
     allowedAccounts
   });
 
-  const { data: conversation } = await params.supabase
+  let query = params.supabase
     .from("conversations")
     .select(`
       *,
@@ -234,7 +243,6 @@ export async function fetchConversation(params: FetchConversationParams) {
       contacts_addresses(*, contacts(*))
     `)
     .eq("organization_id", params.orgId)
-    .eq("contact_address", contactPhone)
     .eq("organization_address", account.address)
     .eq("service", "whatsapp")
     .eq("status", "active")
@@ -242,12 +250,19 @@ export async function fetchConversation(params: FetchConversationParams) {
     .order("created_at", { ascending: false })
     .order("timestamp", { ascending: false, referencedTable: "messages" })
     .limit(1)
-    .limit(params.limit || 10, { referencedTable: "messages" })
-    .maybeSingle()
-    .throwOnError();
+    .limit(params.limit || 10, { referencedTable: "messages" });
 
+  if (groupId) {
+    query = query.eq("group_address", groupId);
+  } else {
+    query = query.eq("contact_address", contactPhone!);
+  }
+
+  const { data: conversation } = await query.maybeSingle().throwOnError();
+
+  const identifier = groupId ? `group ${groupId}` : `contact ${contactPhone}`;
   if (!conversation) {
-    throw new Error(`Conversation with contact ${contactPhone} not found`);
+    throw new Error(`Conversation with ${identifier} not found`);
   }
 
   // Service Window Logic
@@ -359,19 +374,25 @@ interface SendMessageParams {
   supabase: SupabaseClient<Database>;
   orgId: string;
   content: OutgoingMessage;
-  contactPhone: string;
+  contactPhone?: string;
+  groupId?: string;
   accountPhone?: string;
   allowedAccounts: string[];
   allowedContacts: string[];
 }
 
 export async function sendMessage(params: SendMessageParams) {
-  const contactPhone = normalizePhone(params.contactPhone);
+  const contactPhone = params.contactPhone ? normalizePhone(params.contactPhone) : undefined;
+  const groupId = params.groupId;
   const accountPhone = params.accountPhone ? normalizePhone(params.accountPhone) : undefined;
   const allowedAccounts = params.allowedAccounts;
   const allowedContacts = params.allowedContacts;
 
-  if (allowedContacts.length && !allowedContacts.includes(contactPhone)) {
+  if (!contactPhone && !groupId) {
+    throw new Error("Either contactPhone or groupId is required");
+  }
+
+  if (contactPhone && allowedContacts.length && !allowedContacts.includes(contactPhone)) {
     throw new Error(`Contact ${contactPhone} not allowed. Allowed contacts: ${allowedContacts.join(", ")}`);
   }
 
@@ -382,14 +403,14 @@ export async function sendMessage(params: SendMessageParams) {
     allowedAccounts
   });
 
-  // Check service window if type is text
-  if (params.content.kind !== 'template') {
+  // Check service window if type is text (only for individual chats, not groups)
+  if (!groupId && params.content.kind !== 'template') {
     const { data: lastMsg } = await params.supabase
       .from("messages")
       .select("timestamp")
       .eq("organization_id", params.orgId)
       .eq("organization_address", account.address)
-      .eq("contact_address", contactPhone)
+      .eq("contact_address", contactPhone!)
       .eq("direction", "incoming")
       .order("timestamp", { ascending: false })
       .limit(1)
@@ -420,7 +441,9 @@ export async function sendMessage(params: SendMessageParams) {
     .insert({
       organization_id: params.orgId,
       organization_address: account.address,
-      contact_address: contactPhone,
+      ...(groupId
+        ? { group_address: groupId }
+        : { contact_address: contactPhone }),
       service: "whatsapp",
       direction: "outgoing",
       content: params.content,

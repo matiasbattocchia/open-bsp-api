@@ -138,12 +138,14 @@ Deno.serve(async (req) => {
       }
 
       // GET /api/conversation?contact_phone=...&limit=50&account_phone=...
+      // GET /api/conversation?group_id=...&limit=50&account_phone=...
       case "conversation": {
         if (method === "GET") {
-          if (!params.contact_phone) return error("contact_phone is required");
+          if (!params.contact_phone && !params.group_id) return error("contact_phone or group_id is required");
           const result = await tools.fetchConversation({
             ...common,
             contactPhone: params.contact_phone,
+            groupId: params.group_id,
             limit: Number(params.limit) || 50,
             accountPhone: params.account_phone,
           });
@@ -176,10 +178,11 @@ Deno.serve(async (req) => {
       }
 
       // POST /api/messages { contact_phone, text?, template?, account_phone? }
+      // POST /api/messages { group_id, text?, template?, account_phone? }
       case "messages": {
         if (method === "POST") {
-          const { contact_phone, text, template, account_phone } = body;
-          if (!contact_phone) return error("contact_phone is required");
+          const { contact_phone, group_id, text, template, account_phone } = body;
+          if (!contact_phone && !group_id) return error("contact_phone or group_id is required");
 
           let content;
           if (template) {
@@ -193,18 +196,21 @@ Deno.serve(async (req) => {
           const result = await tools.sendMessage({
             ...common,
             contactPhone: contact_phone,
+            groupId: group_id,
             content,
             accountPhone: account_phone,
           });
           return json(result);
         }
 
-        // GET /api/messages?conversation_id=...&limit=50
+        // GET /api/messages?contact_phone=...&limit=50
+        // GET /api/messages?group_id=...&limit=50
         if (method === "GET") {
-          if (!params.contact_phone) return error("contact_phone is required");
+          if (!params.contact_phone && !params.group_id) return error("contact_phone or group_id is required");
           const result = await tools.fetchConversation({
             ...common,
             contactPhone: params.contact_phone,
+            groupId: params.group_id,
             limit: Number(params.limit) || 50,
             accountPhone: params.account_phone,
           });
@@ -239,10 +245,13 @@ Deno.serve(async (req) => {
             "GET  /api/accounts",
             "GET  /api/conversations?limit=10&account_phone=...",
             "GET  /api/conversation?contact_phone=...&limit=50",
+            "GET  /api/conversation?group_id=...&limit=50",
             "GET  /api/contacts?name=...&number=...&limit=10",
             "POST /api/messages { contact_phone, text, account_phone? }",
-            "POST /api/messages { contact_phone, template: {...}, account_phone? }",
+            "POST /api/messages { group_id, text, account_phone? }",
+            "POST /api/messages { contact_phone|group_id, template: {...}, account_phone? }",
             "GET  /api/messages?contact_phone=...&limit=50",
+            "GET  /api/messages?group_id=...&limit=50",
             "GET  /api/templates?account_phone=...",
             "GET  /api/templates?template_id=...&account_phone=...",
           ],
