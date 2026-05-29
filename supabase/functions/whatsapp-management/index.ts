@@ -285,24 +285,24 @@ app.post("/whatsapp-management/signup", requireRoles(["owner"]), async (c) => {
 
     return c.json(address);
   } catch (error) {
-    if (error instanceof HTTPException) {
-      log.error(error.message, error);
+    const message = error instanceof HTTPException ? error.message : "Signup failed";
+    const metadata = error instanceof HTTPException ? error.cause as Json : null;
 
-      await unsecureClient
-        .from("logs")
-        .insert({
-          organization_id: payload.organization_id,
-          category: "signup",
-          level: "error",
-          message: error.message,
-          metadata: error.cause as Json,
-        })
-        .throwOnError();
-    } else {
-      log.error("Embedded signup failed", error);
-    }
+    log.error(message, error);
 
-    throw error;
+    await unsecureClient
+      .from("logs")
+      .insert({
+        organization_id: payload.organization_id,
+        category: "signup",
+        level: "error",
+        message,
+        metadata,
+      })
+      .throwOnError();
+
+    // Return 200 with error field so supabase.functions.invoke exposes the message
+    return c.json({ error: message });
   }
 });
 
