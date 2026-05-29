@@ -188,9 +188,11 @@ async function postRegisterPhoneNumber(
   );
 
   if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    const detail = error?.error?.error_data?.details || error?.error?.message || "Unknown error";
     throw new HTTPException(response.status as ContentfulStatusCode, {
-      message: "Could not register phone number",
-      cause: await response.json().catch(() => ({})),
+      message: `Could not register phone number: ${detail}`,
+      cause: error,
     });
   }
 
