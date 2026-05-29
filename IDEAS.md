@@ -204,3 +204,181 @@ the only way to delete both.
 3. **Accept orphans** — if org deletion is rare, let files sit. Storage cost is
    low and orphaned files are inaccessible anyway (RLS blocks reads for
    non-existent orgs).
+
+## 100% AI Agent Users
+
+### Problem
+
+There's no fully agentic way for AI agents to create real platform users
+(`auth.users` rows) without human intervention. Today the only ways into
+`auth.users` are interactive OAuth, the email-magic-link flow, or an admin
+invitation — all of which need a human to click something or paste a code.
+
+For agent-driven workflows (synthetic test users, agent-owned scratch accounts,
+multi-tenant automation creating accounts on behalf of an org) we need a path
+that:
+
+- Doesn't require a real email inbox.
+- Doesn't require a human to solve a CAPTCHA.
+- Produces a row that's indistinguishable from a normal user (so RLS, dashboards
+  and audits don't need to special-case it).
+
+### Proposed Solution
+
+Two-track signup. Public users keep going through the regular `auth.signUp`
+endpoint, gated by CAPTCHA. Agents go through an edge function we own
+(`agent-onboard`) that wraps `supabase.auth.admin.createUser()` with the
+service-role key.
+
+```ts
+// edge function: agent-onboard
+//   Authorization: Bearer <agent api-key>
+const apiKey = req.headers.get("Authorization")?.replace("Bearer ", "");
+const { data: keyRow } = await unsecure.from("api_keys")
+  .select("organization_id, role").eq("key", apiKey).maybeSingle();
+if (!keyRow) return new Response("unauthorized", { status: 401 });
+
+const admin = createClient(SUPA_URL, SERVICE_ROLE_KEY);
+const { data, error } = await admin.auth.admin.createUser({
+  email: `agent-${stableKey}@agents.openbsp.local`, // made-up, never delivered
+  email_confirm: true,                              // skip verification
+  password: derivedPassword(stableKey),             // optional, for later sign-in
+  user_metadata: { source: "agent" },
+  app_metadata:  { source: "agent", created_by_org: keyRow.organization_id },
+});
+```
+
+The admin path has **no per-IP rate limit** (it's gated by the service-role key,
+not anonymous traffic), so the agent throughput is whatever the edge function
+allows. Public users still get the 60 s per-IP signup window plus CAPTCHA.
+
+If the user already exists, fall back to `signInWithPassword({ email, password })`
+with the deterministic credentials.
+
+### Open Questions
+
+- **Password storage vs. derivation**: derive from `hmac(agent_secret, stableKey)`
+  for reproducibility without storage, or persist on first signup in
+  `vault.decrypted_secrets` for rotation. Likely derivation; rotation isn't
+  needed for synthetic users.
+- **Cleanup**: tag `app_metadata.source = 'agent'` and schedule a weekly cron
+  that deletes orphan agent users with no `agents` row and `created_at` older
+  than 7 days. Caps storage drift.
+- **Index for the existing email-link trigger**: the post-signup trigger
+  `lookup_agents_by_email_after_insert_on_auth_users` does a case-insensitive
+  scan over `agents.extra->'invitation'->>'email'`. As `agents` grows this
+  becomes O(N) per insert. Add a functional index on
+  `lower(extra->'invitation'->>'email')` before turning agent-signup on at
+  scale.
+- **Abuse without CAPTCHA**: 60 users/hr/IP is the default ceiling on the public
+  endpoint; the admin path has no ceiling. Move the throttle into the edge
+  function (N signups per `api_key`/org/day).
+
+### Why not anonymous sign-in
+
+`auth.signInWithAnonymously()` skips email entirely and is conceptually clean,
+but:
+
+- RLS gotcha: anonymous users share the `authenticated` Postgres role with
+  permanent users (Supabase advisor lint `0012`). Policies relying on `to
+  authenticated` would accept them.
+- 30/hr/IP rate limit on the client SDK (admin-side is unbounded).
+- They're visually flagged as `is_anonymous = true`, so support tooling has to
+  special-case them.
+
+Option A (admin createUser with a reserved `@agents.openbsp.local` domain)
+produces users that look like every other user, with cleaner RLS semantics.
+
+## Agent Email Service
+
+### Problem
+
+OpenBSP wants an email channel symmetric to the existing WhatsApp surface —
+agents send/receive email for their org, messages land in the same `messages`
+table, the conversation model just works. The hard part is inbound: edge
+functions can't host an MX server (HTTP-only, request/response, hard timeouts),
+so we need an SMTP→HTTP relay we control without running our own daemon.
+
+### Proposed Solution
+
+Use Cloudflare Email Service to terminate SMTP at the edge and forward parsed
+messages to a Supabase edge function as a webhook. Symmetric architecture to
+WhatsApp.
+
+```
+┌──────────────┐  SMTP   ┌──────────────────┐  HTTP   ┌──────────────────┐
+│ Public MTA   │ ──────▶ │ Cloudflare Email │ ──────▶ │  email-webhook   │
+│ (sender)     │  inbound│  Service Worker  │  webhook│  edge function   │
+└──────────────┘         │  (catch-all)     │         │  (insert into    │
+                         │  - filter dom    │         │   messages)      │
+                         │  - parse MIME    │         │                  │
+                         │  - POST JSON     │         └──────────────────┘
+                         └──────────────────┘
+```
+
+Worker outline (~50 LOC):
+
+```ts
+import PostalMime from "postal-mime";
+
+export default {
+  async email(message, env) {
+    const host = message.to.split("@")[1]?.toLowerCase() ?? "";
+    if (!["openbsp.dev"].some(h => host === h || host.endsWith(`.${h}`))) {
+      message.setReject("Recipient not accepted");
+      return;
+    }
+    const parsed = await PostalMime.parse(message.raw);
+    await fetch(env.WEBHOOK_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${env.EMAIL_WEBHOOK_SECRET}`,
+      },
+      body: JSON.stringify({
+        envelope: { from: message.from, to: message.to },
+        subject: parsed.subject,
+        text: parsed.text,
+        html: parsed.html,
+        attachments: parsed.attachments,
+        headers: Object.fromEntries(message.headers),
+      }),
+    });
+  },
+};
+```
+
+DNS: add the MX records Cloudflare provides for `openbsp.dev`, set a catch-all
+rule "any address → Worker."
+
+Edge function `email-webhook` mirrors `whatsapp-webhook`: verify the bearer
+secret, look up the recipient against `organizations_addresses.address`, insert
+into `messages` with `service='email'`, `direction='incoming'`.
+
+### Multi-tenant Addressing
+
+Cloudflare Email Routing applies per-zone, not per-subdomain. Wildcard MX
+(`*.openbsp.dev`) would require each subdomain to be its own zone — tedious and
+limited. Standard pattern: **bake the tenant ID into the local-part** instead.
+
+- `acme-support@openbsp.dev` rather than `support@acme.openbsp.dev`.
+- Worker splits on `-` (or first `.`) to recover the tenant slug; resolves it to
+  `organization_id` via `organizations_addresses` lookup before the webhook
+  call.
+
+### Practical Notes
+
+- **Size limit**: 25 MB inbound per Cloudflare. Attachments over ~5 MB → write
+  to R2 from the Worker and pass a URL to the edge function; below that, inline
+  base64 in the webhook body is fine.
+- **Free tier**: 200 inbound emails/day. Workers Paid is needed beyond that
+  (~$5/mo + small per-email).
+- **Outbound**: this path is receive-only. Sending uses the separate Email
+  Service REST API or the `SEND_EMAIL` Workers binding — separate concern,
+  separate provider decisions (deliverability, DKIM, bounce handling).
+- **Auth**: shared secret on the webhook + IP allowlist on the edge function
+  closes the loop without a heavier signed-payload scheme.
+- **Spam / abuse**: the Worker is the natural place for keyword filters and
+  domain-reputation checks before forwarding. Cloudflare's `spam-filtering`
+  example walks through this; we'd also want a simple rate limiter per envelope
+  sender.

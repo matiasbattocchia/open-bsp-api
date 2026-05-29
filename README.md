@@ -169,6 +169,24 @@ Your data is yours. You can export your organization's data from the hosted
 instance and load it into a self-hosted deployment — both run the same schema,
 and all data is scoped by organization with no cross-org dependencies.
 
+## Migrating from another platform
+
+If you're moving an existing WhatsApp integration to OpenBSP, two guides cover
+the most common starting points:
+
+- **[Migrating from Twilio](MIGRATING_FROM_TWILIO.md)** — for teams on Twilio's
+  Programmable Messaging API. Mostly a direct port: same Meta Cloud API
+  underneath, different BSP. Templates need to be re-registered against your own
+  WABA; everything else maps one-to-one.
+- **[Migrating from whatsapp-web.js](MIGRATING_FROM_WHATSAPP_WEB_JS.md)** — for
+  teams using the unofficial Puppeteer-based library. This is a platform change,
+  not just a code change: you move from a personal WhatsApp account to a
+  registered WhatsApp Business Account, and some features (group management,
+  polls, communities, status) don't exist on the Cloud API at all. Read the
+  compatibility matrix before deciding.
+
+Both guides use HTTP + JSON examples and assume no prior OpenBSP knowledge.
+
 ## Self-host deployment
 
 > [!NOTE]
@@ -178,15 +196,22 @@ and all data is scoped by organization with no cross-org dependencies.
 1. [Fork](https://github.com/matiasbattocchia/open-bsp-api/fork) this repo (1
    min)
 2. Create a [Supabase](https://supabase.com) project (5 min)
-3. Connect the project to your fork via the Supabase GitHub Integration (5 min)
+3. Connect the project to your fork via the
+   [Supabase GitHub Integration](https://supabase.com/docs/guides/deployment/branching/github-integration)
+   (5 min)
 
 You are live! 🚀 Pushes to your default branch will automatically deploy
 database migrations and Edge Functions.
 
-#### Connect via Supabase GitHub Integration
+<details>
+<summary>
+Option A: deploy via Supabase GitHub Integration
+</summary>
 
-In the [Supabase Dashboard](https://supabase.com/dashboard):
+##### Connection
 
+0. Navigate to your
+   [Supabase project's Dashboard](https://supabase.com/dashboard)
 1. Go to **Project Settings** > **Integrations**
 2. Under **GitHub Integration**, click **Authorize GitHub**
 3. On the GitHub authorization page, click **Authorize Supabase**
@@ -197,9 +222,33 @@ In the [Supabase Dashboard](https://supabase.com/dashboard):
 7. Configure the remaining options as needed
 8. Click **Enable integration**
 
+##### Vault secrets
+
+> Create the secrets at Supabase Dashboard > Integrations > Vault > Secrets >
+> Add new secret
+
+- **edge_functions_url**:
+  `https://{SUPABASE_PROJECT_ID}.supabase.co/functions/v1`
+- **edge_functions_token**: the `SUPABASE_SERVICE_ROLE_KEY`
+
+##### Release
+
+> From GitHub > ➕ (the button near the `<> Code` button) > Create new file >
+> Name it something like `.trigger_deploy` > Commit changes... > Commit directly
+> to the `main` branch > Commit changes
+
+A one-time push to your fork is required to trigger the very first deploy. After
+that it is no longer needed — every time you sync your fork with this
+repository, the deploy happens automatically.
+
+Please upvote [this request](https://github.com/orgs/supabase/discussions/45554)
+to help Supabase improve this process.
+
+</details>
+
 <details>
 <summary>
-Alternative: deploy via GitHub Actions (optional)
+Option B: deploy via GitHub Actions
 </summary>
 
 The repository also ships with a `Release` GitHub Actions workflow that performs
@@ -210,7 +259,6 @@ self-contained in GitHub Actions instead of relying on Supabase's integration.
 
 ##### Secrets
 
-> [!TIP]
 > Create the secrets at GitHub > Repository > Settings ⚙️ > Secrets and
 > variables \*️⃣ > Actions > Secrets
 >
@@ -226,7 +274,6 @@ self-contained in GitHub Actions instead of relying on Supabase's integration.
 
 ##### Variables
 
-> [!TIP]
 > Create the variables at GitHub > Repository > Settings ⚙️ > Secrets and
 > variables \*️⃣ > Actions > Variables
 >
@@ -240,7 +287,6 @@ self-contained in GitHub Actions instead of relying on Supabase's integration.
 
 ##### Release
 
-> [!TIP]
 > Go to GitHub > Repository > Actions ▶️ > Release
 >
 > <!-- `https://github.com/{github_account}/open-bsp-api/actions/workflows/release.yml` -->
@@ -453,9 +499,26 @@ Note the **organization ID**.
 Register the phone number with your organization in the system.
 
 ```sql
-insert into public.organizations_addresses (address, organization_id, service, extra) values
-  ('<Phone number ID>', '<Organization ID>', 'whatsapp', '{ "waba_id": "<WhatsApp Business Account ID>", "phone_number": "<Phone number>" }')
-;
+insert into public.organizations_addresses (
+    organization_id,
+    service,
+    address,
+    status,
+    extra
+  ) values (
+    '<Organization ID>',                     -- ID from the previous step
+    'whatsapp',
+    '<Phone number ID>',                     -- Meta's phone_number_id (NOT the phone number)
+    'connected',                             -- 'connected' | 'disconnected'
+    jsonb_build_object(
+      'waba_id',       '<WhatsApp Business Account ID>', -- WhatsApp Business Account ID
+      'phone_number',  '<Phone number>',      -- bare E.164 digits, no '+', no spaces
+      'verified_name', 'Acme Inc.',           -- Optional: display name shown to recipients
+      'business_id',   '<Meta Business Portfolio ID>', -- Optional: Meta Business Portfolio ID (parent of the WABA)
+      'flow_type',     'new_phone_number',    -- 'new_phone_number' | 'existing_phone_number'
+      'access_token',  '<System User Token>'  -- Optional: per-WABA token; if not provided, the system user token is used
+    )
+  );
 ```
 
 </details>
