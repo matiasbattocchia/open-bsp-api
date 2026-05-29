@@ -193,13 +193,15 @@ async function uploadMediaItem({
 async function outgoingMessageToEndpointMessage({
   content,
   to,
+  recipientType = "individual",
 }: {
   content: OutgoingMessage;
   to: string;
+  recipientType?: "individual" | "group";
 }): Promise<EndpointMessage> {
   const baseMessage = {
     messaging_product: "whatsapp" as const,
-    recipient_type: "individual" as const,
+    recipient_type: recipientType,
     to,
     ...(content.kind !== "reaction" && // From the docs: You cannot send a reaction message as a contextual reply.
       content.re_message_id &&
@@ -363,9 +365,12 @@ Deno.serve(async (req) => {
 
   log.info(`Dispatching message ${message.id}`, message);
 
-  if (!message.contact_address) {
+  const isGroup = !!message.group_address;
+  const recipient = isGroup ? message.group_address! : message.contact_address;
+
+  if (!recipient) {
     throw new Error(
-      `Cannot dispatch message with id ${message.id} because contact_address is missing`,
+      `Cannot dispatch message with id ${message.id} because neither contact_address nor group_address is set`,
     );
   }
 
@@ -384,7 +389,8 @@ Deno.serve(async (req) => {
 
       const payload = await outgoingMessageToEndpointMessage({
         content: patchedMessage.content as OutgoingMessage,
-        to: message.contact_address,
+        to: recipient,
+        recipientType: isGroup ? "group" : "individual",
       });
 
       const response = await postPayloadToWhatsAppEndpoint({

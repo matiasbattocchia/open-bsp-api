@@ -600,16 +600,19 @@ async function processMessage(request: Request): Promise<Response> {
             continue;
           }
 
+          const isGroup = !!webhookMessage.group_id;
+
           const message = {
             organization_id,
-            // id is the internal (aka surrogate) identifier given by the DB, while
-            // external_id is the one given by the service, such as the WhatsApp message id (WAMID)
             external_id: webhookMessage.id,
             service: "whatsapp" as const,
             organization_address,
-            contact_address,
+            // For groups: contact_address is null (conversation keyed by group_address).
+            // The individual sender is stored in content.sender for display.
+            contact_address: isGroup ? null : contact_address,
+            ...(isGroup && { group_address: webhookMessage.group_id }),
             direction: "incoming" as const,
-            content,
+            content: isGroup ? { ...content, sender: contact_address } : content,
             timestamp: new Date(webhookMessage.timestamp * 1000).toISOString(),
           };
 
@@ -624,7 +627,11 @@ async function processMessage(request: Request): Promise<Response> {
             external_id: status.id,
             service: "whatsapp",
             organization_address,
-            contact_address: status.recipient_id,
+            contact_address: status.recipient_type === "group"
+              ? status.recipient_participant_id || status.recipient_id
+              : status.recipient_id,
+            // WhatsApp Groups: recipient_type "group" means recipient_id is the group
+            ...(status.recipient_type === "group" && { group_address: status.recipient_id }),
             direction: "outgoing",
             content: {} as OutgoingMessage, // this will get merged (it won't overwrite)
             status: {
