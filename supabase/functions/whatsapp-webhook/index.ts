@@ -608,6 +608,8 @@ async function processMessage(request: Request): Promise<Response> {
             service: "whatsapp" as const,
             organization_address,
             contact_address,
+            // WhatsApp Groups: group_id identifies the group conversation
+            ...(webhookMessage.group_id && { group_address: webhookMessage.group_id }),
             direction: "incoming" as const,
             content,
             timestamp: new Date(webhookMessage.timestamp * 1000).toISOString(),
@@ -624,7 +626,11 @@ async function processMessage(request: Request): Promise<Response> {
             external_id: status.id,
             service: "whatsapp",
             organization_address,
-            contact_address: status.recipient_id,
+            contact_address: status.recipient_type === "group"
+              ? status.recipient_participant_id || status.recipient_id
+              : status.recipient_id,
+            // WhatsApp Groups: recipient_type "group" means recipient_id is the group
+            ...(status.recipient_type === "group" && { group_address: status.recipient_id }),
             direction: "outgoing",
             content: {} as OutgoingMessage, // this will get merged (it won't overwrite)
             status: {

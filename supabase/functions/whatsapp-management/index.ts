@@ -23,6 +23,15 @@ import {
   performEmbeddedSignup,
   SignupPayload,
 } from "./embedded_signup.ts";
+import {
+  listGroups,
+  createGroup,
+  deleteGroup,
+  getGroupInviteLink,
+  listJoinRequests,
+  approveJoinRequests,
+  rejectJoinRequests,
+} from "./groups.ts";
 import { type User } from "@supabase/supabase-js";
 
 type TemplatePayload = {
@@ -208,6 +217,55 @@ app.delete("/whatsapp-management/templates", requireRoles(["admin", "owner"]), a
   const response = await deleteTemplate(client, organization_id, organization_address, template!);
 
   return c.json(response);
+});
+
+// Groups routes
+
+app.get("/whatsapp-management/groups", requireRoles(["member", "admin", "owner"]), async (c) => {
+  const organization_id = c.req.query("organization_id")!;
+  const organization_address = c.req.query("organization_address")!;
+  const client = c.get("supabase");
+  return c.json(await listGroups(client, organization_id, organization_address));
+});
+
+app.post("/whatsapp-management/groups", requireRoles(["admin", "owner"]), async (c) => {
+  const { organization_id, organization_address, subject, description } = await c.req.json();
+  const client = c.get("supabase");
+  return c.json(await createGroup(client, organization_id, organization_address, subject, description));
+});
+
+app.delete("/whatsapp-management/groups", requireRoles(["admin", "owner"]), async (c) => {
+  const { organization_id, organization_address, group_id } = await c.req.json();
+  const client = c.get("supabase");
+  return c.json(await deleteGroup(client, organization_id, organization_address, group_id));
+});
+
+app.get("/whatsapp-management/groups/invite", requireRoles(["member", "admin", "owner"]), async (c) => {
+  const organization_id = c.req.query("organization_id")!;
+  const organization_address = c.req.query("organization_address")!;
+  const group_id = c.req.query("group_id")!;
+  const client = c.get("supabase");
+  return c.json(await getGroupInviteLink(client, organization_id, organization_address, group_id));
+});
+
+app.get("/whatsapp-management/groups/join-requests", requireRoles(["admin", "owner"]), async (c) => {
+  const organization_id = c.req.query("organization_id")!;
+  const organization_address = c.req.query("organization_address")!;
+  const group_id = c.req.query("group_id")!;
+  const client = c.get("supabase");
+  return c.json(await listJoinRequests(client, organization_id, organization_address, group_id));
+});
+
+app.post("/whatsapp-management/groups/join-requests", requireRoles(["admin", "owner"]), async (c) => {
+  const { organization_id, organization_address, group_id, join_requests } = await c.req.json();
+  const client = c.get("supabase");
+  return c.json(await approveJoinRequests(client, organization_id, organization_address, group_id, join_requests));
+});
+
+app.delete("/whatsapp-management/groups/join-requests", requireRoles(["admin", "owner"]), async (c) => {
+  const { organization_id, organization_address, group_id, join_requests } = await c.req.json();
+  const client = c.get("supabase");
+  return c.json(await rejectJoinRequests(client, organization_id, organization_address, group_id, join_requests));
 });
 
 // Embedded signup routes
