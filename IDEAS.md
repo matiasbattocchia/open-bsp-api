@@ -241,10 +241,10 @@ if (!keyRow) return new Response("unauthorized", { status: 401 });
 const admin = createClient(SUPA_URL, SERVICE_ROLE_KEY);
 const { data, error } = await admin.auth.admin.createUser({
   email: `agent-${stableKey}@agents.openbsp.local`, // made-up, never delivered
-  email_confirm: true,                              // skip verification
-  password: derivedPassword(stableKey),             // optional, for later sign-in
+  email_confirm: true, // skip verification
+  password: derivedPassword(stableKey), // optional, for later sign-in
   user_metadata: { source: "agent" },
-  app_metadata:  { source: "agent", created_by_org: keyRow.organization_id },
+  app_metadata: { source: "agent", created_by_org: keyRow.organization_id },
 });
 ```
 
@@ -252,15 +252,15 @@ The admin path has **no per-IP rate limit** (it's gated by the service-role key,
 not anonymous traffic), so the agent throughput is whatever the edge function
 allows. Public users still get the 60 s per-IP signup window plus CAPTCHA.
 
-If the user already exists, fall back to `signInWithPassword({ email, password })`
-with the deterministic credentials.
+If the user already exists, fall back to
+`signInWithPassword({ email, password })` with the deterministic credentials.
 
 ### Open Questions
 
-- **Password storage vs. derivation**: derive from `hmac(agent_secret, stableKey)`
-  for reproducibility without storage, or persist on first signup in
-  `vault.decrypted_secrets` for rotation. Likely derivation; rotation isn't
-  needed for synthetic users.
+- **Password storage vs. derivation**: derive from
+  `hmac(agent_secret, stableKey)` for reproducibility without storage, or
+  persist on first signup in `vault.decrypted_secrets` for rotation. Likely
+  derivation; rotation isn't needed for synthetic users.
 - **Cleanup**: tag `app_metadata.source = 'agent'` and schedule a weekly cron
   that deletes orphan agent users with no `agents` row and `created_at` older
   than 7 days. Caps storage drift.
@@ -280,7 +280,8 @@ with the deterministic credentials.
 but:
 
 - RLS gotcha: anonymous users share the `authenticated` Postgres role with
-  permanent users (Supabase advisor lint `0012`). Policies relying on `to
+  permanent users (Supabase advisor lint `0012`). Policies relying on
+  `to
   authenticated` would accept them.
 - 30/hr/IP rate limit on the client SDK (admin-side is unbounded).
 - They're visually flagged as `is_anonymous = true`, so support tooling has to
@@ -324,7 +325,7 @@ import PostalMime from "postal-mime";
 export default {
   async email(message, env) {
     const host = message.to.split("@")[1]?.toLowerCase() ?? "";
-    if (!["openbsp.dev"].some(h => host === h || host.endsWith(`.${h}`))) {
+    if (!["openbsp.dev"].some((h) => host === h || host.endsWith(`.${h}`))) {
       message.setReject("Recipient not accepted");
       return;
     }

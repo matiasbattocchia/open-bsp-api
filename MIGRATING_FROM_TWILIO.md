@@ -8,17 +8,17 @@ Scope: WhatsApp only. Audience: developers comfortable with HTTP and JSON.
 
 ## Cheat sheet
 
-| In Twilio you do this | In OpenBSP you do this |
-|---|---|
-| `POST /Messages.json` with `From`, `To`, `Body` | `POST /rest/v1/messages` with `organization_address`, `contact_address`, `content.text` |
-| `whatsapp:+E164` everywhere | bare E.164, set `service: "whatsapp"` once |
-| `MediaUrl` field | `content.type: "file"`, pass the public URL in `content.file.uri` |
-| `ContentSid` + `ContentVariables` | `content.kind: "template"` + `data: { name, language, parameters }` (templates must be re-registered with Meta) |
-| `StatusCallback` per message | one row in `webhooks` table, fires for every status update |
-| Per-number inbound webhook in Twilio console | one row in `webhooks` table with `operations: ["insert"]` |
-| `MessageSid` (`SM…`) | `messages.id` (uuid) or `external_id` (the Meta WAMID) |
-| Twilio number purchase | Embedded Signup to attach your existing WhatsApp Business number |
-| HTTP Basic auth | `apikey` + `api-key` headers |
+| In Twilio you do this                           | In OpenBSP you do this                                                                                          |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `POST /Messages.json` with `From`, `To`, `Body` | `POST /rest/v1/messages` with `organization_address`, `contact_address`, `content.text`                         |
+| `whatsapp:+E164` everywhere                     | bare E.164, set `service: "whatsapp"` once                                                                      |
+| `MediaUrl` field                                | `content.type: "file"`, pass the public URL in `content.file.uri`                                               |
+| `ContentSid` + `ContentVariables`               | `content.kind: "template"` + `data: { name, language, parameters }` (templates must be re-registered with Meta) |
+| `StatusCallback` per message                    | one row in `webhooks` table, fires for every status update                                                      |
+| Per-number inbound webhook in Twilio console    | one row in `webhooks` table with `operations: ["insert"]`                                                       |
+| `MessageSid` (`SM…`)                            | `messages.id` (uuid) or `external_id` (the Meta WAMID)                                                          |
+| Twilio number purchase                          | Embedded Signup to attach your existing WhatsApp Business number                                                |
+| HTTP Basic auth                                 | `apikey` + `api-key` headers                                                                                    |
 
 ## Authentication
 
@@ -202,22 +202,23 @@ ContentVariables=%7B%221%22%3A%22Acme%22%2C%222%22%3A%22%2450%22%7D
 
 > [!IMPORTANT]
 > Twilio templates are registered with Twilio (and proxied to Meta under
-> Twilio's WABA). OpenBSP templates are registered directly with Meta under
-> your own WABA. **You cannot port `ContentSid` values** — re-create each
-> template against your Meta account, get new names, and update your code.
-> This is unavoidable when moving off Twilio to any direct-Meta BSP.
+> Twilio's WABA). OpenBSP templates are registered directly with Meta under your
+> own WABA. **You cannot port `ContentSid` values** — re-create each template
+> against your Meta account, get new names, and update your code. This is
+> unavoidable when moving off Twilio to any direct-Meta BSP.
 
-Templates bypass the 24-hour customer-service window in both Twilio and
-OpenBSP.
+Templates bypass the 24-hour customer-service window in both Twilio and OpenBSP.
 
 ## Status callbacks (delivery state)
 
 ### Twilio
+
 Per-message `StatusCallback` URL. Twilio POSTs `MessageStatus` updates keyed by
-`MessageSid` as the message moves through `queued → sent → delivered → read`
-(or `failed` / `undelivered`).
+`MessageSid` as the message moves through `queued → sent → delivered → read` (or
+`failed` / `undelivered`).
 
 ### OpenBSP
+
 Status updates land on the same `messages` row's `status` JSONB column:
 
 ```json
@@ -232,12 +233,13 @@ Status updates land on the same `messages` row's `status` JSONB column:
 Two ways to consume them:
 
 **Polling** (one-off):
+
 ```http
 GET /rest/v1/messages?id=eq.<id>&select=status
 ```
 
-**Push** (recommended for parity with Twilio's `StatusCallback`):
-register one webhook once:
+**Push** (recommended for parity with Twilio's `StatusCallback`): register one
+webhook once:
 
 ```http
 POST /rest/v1/webhooks
@@ -258,8 +260,9 @@ One registration replaces the per-send `StatusCallback` URL.
 ## Inbound webhook (receiving messages)
 
 ### Twilio
-Configure a webhook URL per WhatsApp number in the Twilio console. Twilio
-POSTs form-encoded payloads:
+
+Configure a webhook URL per WhatsApp number in the Twilio console. Twilio POSTs
+form-encoded payloads:
 
 ```
 MessageSid=SMxxx
@@ -276,6 +279,7 @@ WaId=5491155551234
 You return `200 OK` (optionally with TwiML XML to auto-reply).
 
 ### OpenBSP
+
 Same `webhooks` table as for status callbacks, with `operations: ["insert"]`.
 Payload is JSON, not form-urlencoded:
 
@@ -297,9 +301,9 @@ Payload is JSON, not form-urlencoded:
 
 Two things to know:
 
-- **`messages` mixes both directions.** Filter on `data.direction === "incoming"`
-  in your handler if you only want inbound (the webhook fires for outgoing
-  inserts too).
+- **`messages` mixes both directions.** Filter on
+  `data.direction === "incoming"` in your handler if you only want inbound (the
+  webhook fires for outgoing inserts too).
 - **No TwiML.** OpenBSP doesn't have a synchronous-reply mechanism. To reply,
   POST a new outgoing message to `/rest/v1/messages` from your handler — same
   shape as any other send.
@@ -307,11 +311,13 @@ Two things to know:
 ## Errors and retries
 
 ### Twilio
+
 HTTP status + numeric `code` in the response body. Examples: `21610` (user not
 allowed to message), `63016` (outside 24h window), `21408` (no Twilio number
 permission).
 
 ### OpenBSP
+
 Errors land in two places.
 
 **Synchronous** — HTTP 4xx on the `POST /rest/v1/messages` if the request shape
@@ -338,7 +344,7 @@ If your code switches on Twilio error codes, you'll need a translation table.
 Twilio: buy a WhatsApp-enabled number from Twilio (or use the sandbox for
 testing).
 
-OpenBSP: connect your *existing* WhatsApp Business Account via Meta's Embedded
+OpenBSP: connect your _existing_ WhatsApp Business Account via Meta's Embedded
 Signup. The number stays yours; you're not renting from a provider. One-time UI
 flow in the OpenBSP dashboard. After it completes, your `organization_address`
 is the Meta `phone_number_id` of the connected number.
@@ -354,9 +360,8 @@ Send-side code doesn't change once the number is connected.
   conversation pause, internal-direction messages, multi-tenant org isolation,
   service-window helpers. See the main README.
 - **Inbound media download.** Twilio hosts inbound media on its servers behind
-  Basic auth. OpenBSP downloads it from Meta and stores it in Supabase
-  Storage; the `content.file.uri` in the webhook payload points to a signed
-  Storage URL.
+  Basic auth. OpenBSP downloads it from Meta and stores it in Supabase Storage;
+  the `content.file.uri` in the webhook payload points to a signed Storage URL.
 
 ## A note on cost
 
