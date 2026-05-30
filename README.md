@@ -702,6 +702,41 @@ Fetch the OpenAPI spec from PostgREST (requires the service role key):
 curl "https://<project-id>.supabase.co/rest/v1/" -H "apikey: <service_role_key>" > openapi.json
 ```
 
+## Related open-source projects
+
+### Official (Meta Cloud API)
+
+Connect through Meta's official WhatsApp Business Cloud API. Compliant with
+WhatsApp Business policies, production-ready, requires Meta verification.
+
+- [EvolutionAPI/evolution-api](https://github.com/EvolutionAPI/evolution-api) —
+  REST API for WhatsApp integration, supports Cloud API.
+- [shridarpatil/whatomate](https://github.com/shridarpatil/whatomate) —
+  open-source WhatsApp integration on Cloud API.
+
+### Unofficial (WhatsApp Web)
+
+Reverse-engineered WhatsApp Web protocols. Work without Meta approval and
+support personal accounts, but at risk of bans and not suited for high-volume
+production.
+
+- [wwebjs/whatsapp-web.js](https://github.com/wwebjs/whatsapp-web.js) — Node.js
+  client library using Puppeteer.
+- [WhiskeySockets/Baileys](https://github.com/WhiskeySockets/Baileys) —
+  TypeScript/JavaScript socket-based library.
+- [rmyndharis/OpenWA](https://github.com/rmyndharis/OpenWA) — self-hosted
+  WhatsApp API gateway.
+- [devlikeapro/waha](https://github.com/devlikeapro/waha) — HTTP/REST API with
+  three engines (Web, Node, Go).
+- [tulir/whatsmeow](https://github.com/tulir/whatsmeow) — Go library for the
+  WhatsApp Web multidevice API.
+- [open-wa/wa-automate-nodejs](https://github.com/open-wa/wa-automate-nodejs) —
+  Node.js chatbot toolkit.
+
+OpenBSP is in the first category. If you need to talk to personal accounts, work
+without Meta verification, or prefer a library/SDK to a platform, the projects
+in the second category are better fits.
+
 ## Acknowledgments
 
 - [@diegoparma](https://github.com/diegoparma) — for years of feedback, design
