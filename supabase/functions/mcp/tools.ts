@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, IncomingStatus, OutgoingStatus, OutgoingMessage, MessageRow, TemplateData } from "../_shared/supabase.ts";
 import dayjs from "dayjs";
 import { listTemplates as listTemplatesMethod, fetchTemplate as fetchTemplateMethod } from "../whatsapp-management/templates.ts";
+import { createSignedUrl } from "../_shared/media.ts";
 
 // Helper: Normalize phone number to digits only
 function normalizePhone(phone: string): string {
@@ -276,6 +277,16 @@ export async function fetchConversation(params: FetchConversationParams) {
     const diffHours = dayjs().diff(dayjs(lastIncoming.timestamp), 'hour');
 
     if (diffHours < 24) { serviceWindow = "open" };
+  }
+
+  // Rewrite internal:// media URIs to signed URLs
+  const supabase = params.supabase;
+  for (const m of conversation.messages || []) {
+    if (m.content?.type === "file" && m.content.file?.uri?.startsWith("internal://")) {
+      try {
+        m.content.file.uri = await createSignedUrl(supabase, m.content.file.uri);
+      } catch { /* keep original URI if signing fails */ }
+    }
   }
 
   const lightweightMessages = conversation.messages?.toReversed().map(m => {
