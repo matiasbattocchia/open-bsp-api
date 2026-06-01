@@ -28,6 +28,7 @@ import {
   createGroup,
   deleteGroup,
   getGroupInviteLink,
+  sendGroupInvite,
   listJoinRequests,
   approveJoinRequests,
   rejectJoinRequests,
@@ -266,6 +267,12 @@ app.delete("/whatsapp-management/groups/join-requests", requireRoles(["admin", "
   const { organization_id, organization_address, group_id, join_requests } = await c.req.json();
   const client = c.get("supabase");
   return c.json(await rejectJoinRequests(client, organization_id, organization_address, group_id, join_requests));
+});
+
+app.post("/whatsapp-management/groups/invite", requireRoles(["admin", "owner"]), async (c) => {
+  const { organization_id, organization_address, group_id, invite_link, recipient_phone, template_name, language_code } = await c.req.json();
+  const client = c.get("supabase");
+  return c.json(await sendGroupInvite(client, organization_id, organization_address, group_id, invite_link, recipient_phone, template_name, language_code));
 });
 
 // Embedded signup routes

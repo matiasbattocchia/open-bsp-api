@@ -162,3 +162,55 @@ export async function rejectJoinRequests(
     },
   );
 }
+
+/**
+ * Send a group invite link template message to a contact.
+ * Uses the Meta "Group invite link" template type.
+ * See: https://developers.facebook.com/documentation/business-messaging/whatsapp/groups/get-started
+ */
+export async function sendGroupInvite(
+  client: SupabaseClient<Database>,
+  organization_id: string,
+  organization_address: string,
+  group_id: string,
+  invite_link: string,
+  recipient_phone: string,
+  template_name: string,
+  language_code = "en",
+) {
+  const { access_token } = await getCredentials(client, organization_id, organization_address);
+
+  return await metaFetch(
+    `https://graph.facebook.com/${API_VERSION}/${organization_address}/messages`,
+    access_token,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: recipient_phone,
+        type: "template",
+        template: {
+          name: template_name,
+          language: { code: language_code },
+          components: [
+            {
+              type: "button",
+              sub_type: "group_invite",
+              index: "0",
+              parameters: [
+                {
+                  type: "group_invite",
+                  group_invite: {
+                    group_id,
+                    invite_link,
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    },
+  );
+}

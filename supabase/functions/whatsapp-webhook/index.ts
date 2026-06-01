@@ -667,6 +667,15 @@ async function processMessage(request: Request): Promise<Response> {
         }
       }
 
+      // WhatsApp Groups: lifecycle, participants, settings, status updates
+      if (field === "group_lifecycle_update" || field === "group_participants_update" ||
+          field === "group_settings_update" || field === "group_status_update") {
+        const groups = "groups" in value ? (value as { groups: unknown[] }).groups : [];
+        for (const group of groups) {
+          log.info(`Group webhook: ${field}`, { organization_id, organization_address, group });
+        }
+      }
+
       if ((field === "smb_message_echoes" || field === "history") && "message_echoes" in value) {
         for (const webhookMessage of value.message_echoes) {
           const contact_address = webhookMessage.to;
