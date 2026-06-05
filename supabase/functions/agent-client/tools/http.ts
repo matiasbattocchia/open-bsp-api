@@ -68,6 +68,53 @@ export const RequestToolOutputSchema = z.union([
   }),
 ]);
 
+/**
+ * Strict URL allow-list check.
+ *
+ * Returns `true` only when `inputUrl` resolves to a URL whose host matches
+ * `configUrl`'s host exactly, whose scheme is http(s), whose userinfo is
+ * empty, and whose path either matches `configUrl`'s path exactly (no
+ * wildcard) or extends it on a `/` path-boundary (wildcard `configUrl`
+ * ends in `/*`).
+ *
+ * Replaces a previous `startsWith(baseUrl)` check that allowed:
+ *   - host-suffix confusion (`api.acme.com.evil.com`)
+ *   - userinfo trick        (`api.acme.com@evil.com`)
+ *   - path-boundary escape  (`/public/*` matched `/public-admin/...`)
+ */
+function isUrlAllowed(configUrl: string, inputUrl: string): boolean {
+  const isWildcard = configUrl.endsWith("/*");
+  let cfg: URL;
+  let inp: URL;
+  try {
+    cfg = new URL(isWildcard ? configUrl.slice(0, -2) : configUrl);
+    inp = new URL(inputUrl);
+  } catch {
+    return false;
+  }
+
+  if (inp.protocol !== "https:" && inp.protocol !== "http:") {
+    return false;
+  }
+  if (inp.username !== "" || inp.password !== "") {
+    return false;
+  }
+  if (inp.host !== cfg.host) {
+    return false;
+  }
+
+  if (!isWildcard) {
+    return inp.pathname === cfg.pathname && inp.search === cfg.search;
+  }
+
+  // Wildcard: require exact path-prefix on a `/` boundary.
+  const base = cfg.pathname.endsWith("/") ? cfg.pathname : cfg.pathname + "/";
+  return (
+    inp.pathname === cfg.pathname.replace(/\/$/, "") ||
+    inp.pathname.startsWith(base)
+  );
+}
+
 export async function requestToolImplementation(
   input: z.infer<typeof RequestToolInputSchema>,
   config: LocalHTTPToolConfig["config"],
@@ -77,23 +124,12 @@ export async function requestToolImplementation(
 
   // Security check: URL restriction
   if (config.url) {
-    if (config.url.endsWith("/*")) {
-      const baseUrl = config.url.slice(0, -2);
-      if (!input.url.startsWith(baseUrl)) {
-        return {
-          status: 403,
-          isError: true,
-          message: `URL not allowed. Must start with ${baseUrl}`,
-        };
-      }
-    } else {
-      if (input.url !== config.url) {
-        return {
-          status: 403,
-          isError: true,
-          message: `URL not allowed. Must match ${config.url}`,
-        };
-      }
+    if (!isUrlAllowed(config.url, input.url)) {
+      return {
+        status: 403,
+        isError: true,
+        message: `URL not allowed by tool config (${config.url}).`,
+      };
     }
   }
 
