@@ -441,10 +441,11 @@ export async function sendMessage(params: SendMessageParams) {
   // Validate content type is actively supported for sending via this tool
   const isSupported =
     (params.content.type === 'text') ||
-    (params.content.type === 'data' && params.content.kind === 'template');
+    (params.content.type === 'data' && params.content.kind === 'template') ||
+    (params.content.type === 'file' && params.content.kind === 'document');
 
   if (!isSupported) {
-    throw new Error("Unsupported content type. Only 'text' and 'template' (data/kind=template) are supported.");
+    throw new Error("Unsupported content type. Only 'text', 'template' (data/kind=template) and 'document' (file/kind=document) are supported.");
   }
 
   await params.supabase
