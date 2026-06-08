@@ -11,6 +11,7 @@ import {
   type WebhookPayload,
 } from "../_shared/supabase.ts";
 import { downloadFromStorage } from "../_shared/media.ts";
+import { commitDispatchedMessage } from "../_shared/dispatch.ts";
 import { Json } from "../_shared/db_types.ts";
 import { markdownToWhatsApp } from "../_shared/markdown.ts";
 
@@ -430,17 +431,15 @@ Deno.serve(async (req) => {
         access_token,
       });
 
-      await client
-        .from("messages")
-        .update({
-          external_id: response.messages[0].id,
-          status: {
-            [response.messages[0].message_status || "accepted"]: new Date()
-              .toISOString(),
-          },
-        })
-        .eq("id", message.id)
-        .throwOnError();
+      await commitDispatchedMessage({
+        client,
+        messageId: message.id,
+        externalId: response.messages[0].id,
+        status: {
+          [response.messages[0].message_status || "accepted"]: new Date()
+            .toISOString(),
+        },
+      });
     } catch (error) {
       const isWhatsAppError = error instanceof WhatsAppError;
       const errorMessage = error instanceof Error

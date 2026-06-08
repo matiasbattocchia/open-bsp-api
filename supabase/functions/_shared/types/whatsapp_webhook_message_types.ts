@@ -251,6 +251,30 @@ export type HistoryContext = {
   status: WebhookStatus["status"];
 };
 
+// Coexistence-only: a user edited a previously sent message (text or media
+// caption). `edit.message` carries the NEW content with no from/id/timestamp
+// envelope; `original_message_id` identifies the message being edited. The
+// event's own `id` is a fresh WAMID, not the edited message's id.
+export type EditedMessage =
+  & IncomingContextInfo
+  & (TextMessage | ImageMessage | VideoMessage | DocumentMessage);
+
+export type EditMessage = {
+  type: "edit";
+  edit: {
+    original_message_id: string;
+    message: EditedMessage;
+  };
+};
+
+// Coexistence-only: a user revoked (deleted) a previously sent message.
+export type RevokeMessage = {
+  type: "revoke";
+  revoke: {
+    original_message_id: string;
+  };
+};
+
 export type WebhookMessageBase =
   & {
     from: string;
@@ -263,12 +287,14 @@ export type WebhookMessageBase =
     | ButtonMessage
     | ContactsMessage
     | DocumentMessage
+    | EditMessage
     | ErrorsMessage
     | ImageMessage
     | InteractiveMessage
     | LocationMessage
     | OrderMessage
     | ReactionMessage
+    | RevokeMessage
     | StickerMessage
     | SystemMessage
     | TextMessage

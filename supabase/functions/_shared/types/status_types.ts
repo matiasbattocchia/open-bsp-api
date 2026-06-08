@@ -46,6 +46,8 @@ export type IncomingStatus = {
   pending?: string; // new Date().toISOString()
   read?: string;
   typing?: string;
+  edited?: string; // sender edited the message (Instagram, WhatsApp coexistence)
+  deleted?: string; // sender deleted/revoked the message (Instagram, WhatsApp coexistence)
   preprocessing?: string;
   preprocessed?: string;
 };
@@ -57,6 +59,8 @@ export type OutgoingStatus = {
   sent?: string;
   delivered?: string;
   read?: string;
+  edited?: string; // sender edited the message (Instagram, WhatsApp coexistence)
+  deleted?: string; // sender deleted/revoked the message (Instagram, WhatsApp coexistence)
   failed?: string;
   preprocessing?: string;
   preprocessed?: string;

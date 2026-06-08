@@ -4,6 +4,7 @@ import {
   type ContactAddressInsert,
   createUnsecureClient,
   type Database,
+  type EditedMessage,
   type IncomingMessage,
   type MessageInsert,
   type MetaWebhookPayload,
@@ -486,6 +487,32 @@ async function webhookMessageToIncomingMessage(
   }
 }
 
+/**
+ * Extracts the new text/caption from an edited message. WhatsApp only allows
+ * editing text bodies and media captions, so that is the only field that can
+ * change; returns undefined for message types we do not edit in place.
+ */
+function extractEditedText(message: EditedMessage): string | undefined {
+  switch (message.type) {
+    case "text":
+      return whatsappToMarkdown(message.text.body);
+    case "image":
+      return message.image.caption
+        ? whatsappToMarkdown(message.image.caption)
+        : "";
+    case "video":
+      return message.video.caption
+        ? whatsappToMarkdown(message.video.caption)
+        : "";
+    case "document":
+      return message.document.caption
+        ? whatsappToMarkdown(message.document.caption)
+        : "";
+    default:
+      return undefined;
+  }
+}
+
 async function processMessage(request: Request): Promise<Response> {
   const body = await request.text();
 
@@ -513,6 +540,14 @@ async function processMessage(request: Request): Promise<Response> {
   const messages: MessageInsert[] = [];
   const statuses: MessageInsert[] = [];
   const contacts_addresses: ContactAddressInsert[] = [];
+  // Coexistence edit/revoke events modify existing rows by their ORIGINAL id,
+  // so they are applied as UPDATEs after the upserts rather than batched.
+  const edits: {
+    original_message_id: string;
+    text: string;
+    timestamp: string;
+  }[] = [];
+  const revokes: { original_message_id: string; timestamp: string }[] = [];
 
   for (const entry of payload.entry) {
     const _waba_id = entry.id; // WhatsApp business account ID (WABA ID)
@@ -610,6 +645,39 @@ async function processMessage(request: Request): Promise<Response> {
 
           if (webhookMessage.type === "errors") {
             errors.push(...webhookMessage.errors);
+            continue;
+          }
+
+          // ---- Revoke (deletion): merge a `deleted` status onto the original
+          // row. Coexistence-only event.
+          if (webhookMessage.type === "revoke") {
+            revokes.push({
+              original_message_id: webhookMessage.revoke.original_message_id,
+              timestamp: new Date(webhookMessage.timestamp * 1000)
+                .toISOString(),
+            });
+            continue;
+          }
+
+          // ---- Edit: replace the text/caption of the original row in place.
+          // Coexistence-only event. WhatsApp only lets users edit text or media
+          // captions, so the media itself is unchanged — update just the text
+          // leaf (merged in) and leave the stored file alone.
+          if (webhookMessage.type === "edit") {
+            const text = extractEditedText(webhookMessage.edit.message);
+            if (text === undefined) {
+              log.warn(
+                "Unsupported edited message type",
+                webhookMessage.edit.message,
+              );
+              continue;
+            }
+            edits.push({
+              original_message_id: webhookMessage.edit.original_message_id,
+              text,
+              timestamp: new Date(webhookMessage.timestamp * 1000)
+                .toISOString(),
+            });
             continue;
           }
 
@@ -936,6 +1004,8 @@ async function processMessage(request: Request): Promise<Response> {
   log.info("Webhook processing summary", {
     messages: messages.length,
     statuses: statuses.length,
+    edits: edits.length,
+    revokes: revokes.length,
     contacts_addresses: contacts_addresses.length,
     organizations: orgSummary,
   });
@@ -1014,29 +1084,54 @@ async function processMessage(request: Request): Promise<Response> {
   // Patched messages include media local id and file size
   const patchedMessages = await downloadMediaPromise;
 
-  const allMessages = [...statuses, ...patchedMessages];
+  // A status row (content `{}`) and a message row can carry the same
+  // external_id within one webhook (e.g. an echo plus a status/edit/revoke for
+  // the same WAMID). We upsert statuses and messages in two separate statements
+  // rather than deduping: Postgres' ON CONFLICT cannot affect the same row twice
+  // in one statement, and a last-wins dedup would drop the complementary half
+  // (content vs status) that the merge trigger is meant to combine.
+  const upsertBatch = async (label: string, rows: MessageInsert[]) => {
+    if (rows.length === 0) return;
 
-  if (allMessages.length > 0) {
-    const { error: messagesError } = await client
+    const { error } = await client
       .from("messages")
-      .upsert(allMessages, {
-        onConflict: "external_id",
-      });
+      .upsert(rows, { onConflict: "external_id" });
 
-    if (messagesError) {
-      log.error("Failed to upsert messages", {
-        error: messagesError,
+    if (error) {
+      log.error(`Failed to upsert ${label}`, {
+        error,
         organizations: orgSummary,
-        message_count: allMessages.length,
+        count: rows.length,
       });
-      throw messagesError;
+      throw error;
     }
 
-    log.info("Persisted messages", {
-      total: allMessages.length,
-      statuses: statuses.length,
-      messages: patchedMessages.length,
-    });
+    log.info(`Persisted ${label}`, { count: rows.length });
+  };
+
+  await upsertBatch("statuses", statuses);
+  await upsertBatch("messages", patchedMessages);
+
+  // Apply edits and revokes as in-place updates keyed by the ORIGINAL message
+  // id (not the event's own id). They modify existing rows, so an UPDATE lets
+  // the content/status merge triggers run without clobbering the row's
+  // direction; if we never stored the original, the update matches no rows (you
+  // cannot edit or delete a message we do not have). Run after the upserts so an
+  // original delivered in the same webhook already exists.
+  for (const { original_message_id, text, timestamp } of edits) {
+    await client
+      .from("messages")
+      .update({ content: { text }, status: { edited: timestamp } })
+      .eq("external_id", original_message_id)
+      .throwOnError();
+  }
+
+  for (const { original_message_id, timestamp } of revokes) {
+    await client
+      .from("messages")
+      .update({ status: { deleted: timestamp } })
+      .eq("external_id", original_message_id)
+      .throwOnError();
   }
 
   return new Response();

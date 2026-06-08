@@ -35,6 +35,8 @@ export type {
   Contact,
   ContactsMessage,
   DocumentMessage,
+  EditedMessage,
+  EditMessage,
   ErrorsMessage,
   HistoryContext,
   ImageMessage,
@@ -47,6 +49,7 @@ export type {
   OrderMessage,
   ReactionMessage,
   ReferralInfo,
+  RevokeMessage,
   StickerMessage,
   SystemMessage,
   TextMessage,
@@ -110,6 +113,20 @@ export type {
   WhatsAppContactAddressExtra,
   WhatsAppOrganizationAddressExtra,
 } from "./types/extra_types.ts";
+export type {
+  IgAttachmentType,
+  IgEndpointMessage,
+  IgEndpointMessageResponse,
+  IgEndpointPayload,
+  IgErrorResponse,
+  IgMediaPayload,
+  IgOutgoingAttachment,
+  IgOutgoingLikeHeart,
+  IgOutgoingText,
+  IgReactionAction,
+  IgRecipient,
+  IgSenderAction,
+} from "./types/instagram_endpoint_types.ts";
 export type {
   InstagramAttachment,
   InstagramAttachmentPayload,

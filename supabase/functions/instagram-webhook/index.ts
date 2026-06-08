@@ -32,10 +32,13 @@ const APP_SECRET = Deno.env.get("META_APP_SECRET");
 const PROFILE_TTL_MS = 24 * 60 * 60 * 1000;
 
 type IgProfile = {
-  username?: string;
   name?: string;
-  biography?: string;
-  profile_picture_url?: string;
+  username?: string;
+  // The User Profile API exposes the picture as `profile_pic`. Note that
+  // `profile_picture_url` and `biography` are NOT valid fields on a messaging
+  // participant (Instagram User) node — they only exist on the business's own
+  // account — so requesting them makes the whole fetch fail with (#100).
+  profile_pic?: string;
 };
 
 /**
@@ -270,6 +273,13 @@ async function downloadMediaItem({
   const file_size = file.size;
   message.content.file.size = file_size;
 
+  // The webhook only carries a coarse attachment type, so the MIME was a
+  // hardcoded guess (e.g. every image assumed image/jpeg). Correct it from the
+  // CDN response's Content-Type when present.
+  if (file.type) {
+    message.content.file.mime_type = file.type;
+  }
+
   // Check storage upload size limit
   if (file_size > MAX_STORAGE_UPLOAD_SIZE) {
     const sizeMB = (file_size / (1000 * 1000)).toFixed(1);
@@ -312,7 +322,7 @@ async function fetchProfile(
 
   try {
     const response = await fetch(
-      `https://graph.instagram.com/${API_VERSION}/${igsid}?fields=username,name,biography,profile_picture_url&access_token=${accessToken}`,
+      `https://graph.instagram.com/${API_VERSION}/${igsid}?fields=name,username,profile_pic&access_token=${accessToken}`,
     );
 
     if (!response.ok) {
@@ -605,9 +615,8 @@ async function processMessage(request: Request): Promise<Response> {
     };
     if (profile?.name) extra.name = profile.name;
     if (profile?.username) extra.username = profile.username;
-    if (profile?.biography) extra.biography = profile.biography;
-    if (profile?.profile_picture_url) {
-      extra.profile_picture_url = profile.profile_picture_url;
+    if (profile?.profile_pic) {
+      extra.profile_picture_url = profile.profile_pic;
     }
     contacts_addresses.push({
       organization_id: contact.organization_id,
@@ -707,7 +716,11 @@ async function processMessage(request: Request): Promise<Response> {
             version: "1",
             type: "text",
             kind: "reaction",
-            text: event.reaction.emoji ?? "",
+            // An "unreact" removes the reaction; model it as an empty emoji,
+            // the same convention WhatsApp uses for a removed reaction.
+            text: event.reaction.action === "unreact"
+              ? ""
+              : event.reaction.emoji ?? "",
             re_message_id: event.reaction.mid,
           },
           timestamp,
@@ -730,8 +743,12 @@ async function processMessage(request: Request): Promise<Response> {
         continue;
       }
 
-      // ---- Edit — update the original row in place (no new row, no history).
-      // The merge trigger replaces `text` (string leaf) and merges status.
+      // ---- Edit — update the original row in place (no new row).
+      // The content merge trigger replaces the `text` leaf and the `edited`
+      // status records when it changed. Prior versions are not retained yet —
+      // this is the first step toward proper edit handling. `num_edit` is
+      // intentionally dropped: it has no home on a TextPart and merging it into
+      // `content` would pollute the text object.
       if (event.message_edit) {
         messages.push({
           organization_id,
@@ -745,8 +762,7 @@ async function processMessage(request: Request): Promise<Response> {
             type: "text",
             kind: "text",
             text: event.message_edit.text,
-            data: { num_edit: event.message_edit.num_edit },
-          } as IncomingMessage,
+          },
           status: { edited: timestamp },
           timestamp,
         });
@@ -879,29 +895,31 @@ async function processMessage(request: Request): Promise<Response> {
   // the status field.
   const patchedMessages = await downloadMediaPromise;
 
-  const allMessages = [...statuses, ...patchedMessages];
+  // A status row (content `{}`) and a message row can carry the same
+  // external_id within a single webhook — e.g. an echo plus a read/delete of an
+  // earlier message. We upsert statuses and messages in two separate statements
+  // rather than deduping: Postgres' ON CONFLICT cannot affect the same row twice
+  // in one statement, and a last-wins dedup would drop the complementary half
+  // (content vs status) that the merge trigger is meant to combine.
+  const upsertBatch = async (label: string, rows: MessageInsert[]) => {
+    if (rows.length === 0) return;
 
-  if (allMessages.length > 0) {
-    const { error: messagesError } = await client
+    const { error } = await client
       .from("messages")
-      .upsert(allMessages, {
-        onConflict: "external_id",
-      });
+      .upsert(rows, { onConflict: "external_id" });
 
-    if (messagesError) {
-      log.error("Failed to upsert messages", {
-        error: messagesError,
-        message_count: allMessages.length,
-      });
-      throw messagesError;
+    if (error) {
+      log.error(`Failed to upsert ${label}`, { error, count: rows.length });
+      throw error;
     }
 
-    log.info("Persisted messages", {
-      total: allMessages.length,
-      statuses: statuses.length,
-      messages: patchedMessages.length,
-    });
-  }
+    log.info(`Persisted ${label}`, { count: rows.length });
+  };
+
+  // Statuses first so a status-only row exists for the content row to merge
+  // onto; within a conflicting pair either order yields the same merged result.
+  await upsertBatch("statuses", statuses);
+  await upsertBatch("messages", patchedMessages);
 
   return new Response();
 }
