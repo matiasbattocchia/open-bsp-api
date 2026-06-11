@@ -10,10 +10,7 @@ import type {
   WhatsAppReferral,
 } from "./whatsapp_webhook_message_types.ts";
 import type { Template } from "./whatsapp_template_types.ts";
-import type {
-  InstagramAttachmentPayload,
-  InstagramReferral,
-} from "./instagram_webhook_payload_types.ts";
+import type { InstagramReferral } from "./instagram_webhook_payload_types.ts";
 
 //===================================
 // Agent Protocol Types
@@ -102,6 +99,16 @@ export const MediaTypes = [
   "sticker",
   "file", // Instagram native attachment type (e.g. pdf)
   "media", // Instagram generic media attachment
+  // Instagram "native" attachments. They all carry a downloadable CDN url, so
+  // they are modeled as files (downloaded/persisted) while keeping their native
+  // kind so consumers can tell a shared reel from a plain video.
+  "ig_post",
+  "ig_reel",
+  "reel",
+  "story",
+  "ig_story",
+  "story_mention",
+  "story_reply", // synthetic: the story a user replied to (reply_to.story)
 ] as const;
 
 /**
@@ -159,14 +166,6 @@ type UnsupportedPart = DataPart<
   UnsupportedMessage["unsupported"]
 >;
 
-// Instagram-native data parts. Kind = native IG attachment type; data carries the raw
-// attachment payload so business logic can resolve it later (e.g. fetching post media).
-type IgPostPart = DataPart<"ig_post", InstagramAttachmentPayload>;
-type StoryMentionPart = DataPart<"story_mention", InstagramAttachmentPayload>;
-type IgReelPart = DataPart<"ig_reel", InstagramAttachmentPayload>;
-type ReelPart = DataPart<"reel", InstagramAttachmentPayload>;
-type StoryPart = DataPart<"story", InstagramAttachmentPayload>;
-type IgStoryPart = DataPart<"ig_story", InstagramAttachmentPayload>;
 // Synthetic content for messaging_referral events (no message attached).
 type ReferralPart = DataPart<"referral", InstagramReferral>;
 
@@ -175,15 +174,7 @@ type ReferralPart = DataPart<"referral", InstagramReferral>;
 export type Part =
   | TextPart
   | DataPart
-  | FilePart
-  // Instagram-native data parts can appear inside a Parts bundle (e.g. when an
-  // event delivers multiple attachments alongside text).
-  | IgPostPart
-  | StoryMentionPart
-  | IgReelPart
-  | ReelPart
-  | StoryPart
-  | IgStoryPart;
+  | FilePart;
 
 // Parts type is not used yet. It is a proof of concept.
 export type Parts = {
@@ -208,7 +199,6 @@ export type IncomingMessage =
   & {
     version: "1";
     re_message_id?: string; // replied, reacted or forwarded message id
-    re_story?: { url: string; id: string }; // Instagram story reply (no mid)
     forwarded?: boolean;
     referred_product?: {
       catalog_id: string;
@@ -227,12 +217,6 @@ export type IncomingMessage =
     | ButtonPart
     | MediaPlaceholderPart
     | UnsupportedPart
-    | IgPostPart
-    | StoryMentionPart
-    | IgReelPart
-    | ReelPart
-    | StoryPart
-    | IgStoryPart
     | ReferralPart
     | Parts
   );

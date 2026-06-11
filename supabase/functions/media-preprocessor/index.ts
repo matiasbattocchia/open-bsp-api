@@ -196,6 +196,28 @@ Deno.serve(async (req) => {
   const mimeType = content.file.mime_type;
   const mediaType = content.kind === "sticker" ? "image" : content.kind;
 
+  const imageMimeTypes = [
+    "image/png",
+    "image/jpeg",
+    "image/webp",
+    "image/heic",
+    "image/heif",
+  ];
+  const videoMimeTypes = [
+    "video/mp4",
+    "video/mpeg",
+    "video/mov",
+    "video/avi",
+    "video/x-flv",
+    "video/mpg",
+    "video/webm",
+    "video/wmv",
+    "video/3gpp",
+  ];
+  // Instagram "native" shares (post/reel/story/story_mention/story_reply) can be
+  // either an image or a video, so they accept both.
+  const igShareMimeTypes = [...imageMimeTypes, ...videoMimeTypes];
+
   const allowedMimeTypes: Record<string, string[]> = {
     audio: [
       "audio/wav",
@@ -205,31 +227,9 @@ Deno.serve(async (req) => {
       "audio/ogg",
       "audio/flac",
     ],
-    image: [
-      "image/png",
-      "image/jpeg",
-      "image/webp",
-      "image/heic",
-      "image/heif",
-    ],
-    sticker: [
-      "image/png",
-      "image/jpeg",
-      "image/webp",
-      "image/heic",
-      "image/heif",
-    ],
-    video: [
-      "video/mp4",
-      "video/mpeg",
-      "video/mov",
-      "video/avi",
-      "video/x-flv",
-      "video/mpg",
-      "video/webm",
-      "video/wmv",
-      "video/3gpp",
-    ],
+    image: imageMimeTypes,
+    sticker: imageMimeTypes,
+    video: videoMimeTypes,
     document: [
       "application/pdf", // PDF is the only mime type which goes through visual recognition
       // All the other mime types extract text content
@@ -240,6 +240,13 @@ Deno.serve(async (req) => {
       "application/sql",
       "application/rtf",
     ],
+    ig_post: igShareMimeTypes,
+    ig_reel: videoMimeTypes,
+    reel: videoMimeTypes,
+    story: igShareMimeTypes,
+    ig_story: igShareMimeTypes,
+    story_mention: igShareMimeTypes,
+    story_reply: igShareMimeTypes,
   };
 
   const isSupportedMimeType = mimeType.startsWith("text/") ||

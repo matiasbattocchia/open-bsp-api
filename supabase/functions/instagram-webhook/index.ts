@@ -6,6 +6,7 @@ import {
   type Database,
   type IncomingMessage,
   type InstagramAttachment,
+  type InstagramAttachmentType,
   type InstagramContactAddressExtra,
   type InstagramEvent,
   type InstagramMessage,
@@ -342,69 +343,54 @@ async function fetchProfile(
   }
 }
 
+// TODO(retention): the native shares (ig_post/ig_reel/reel/story/ig_story/
+// story_mention, plus the synthetic story_reply) persist third-party creators'
+// media in our storage. Add a cron job to purge those stored files after a
+// retention window (the message rows can keep a reference/placeholder). Plain DM
+// media is the contact's own message content and is exempt.
+
+// Coarse MIME guess per attachment type; corrected from the CDN response's
+// Content-Type after download (see downloadMediaItem). Posts can be image or
+// video, so the guess only needs to be close enough to bootstrap the download.
+const IG_ATTACHMENT_MIME: Record<InstagramAttachmentType, string> = {
+  audio: "audio/mpeg",
+  // IG calls this "file" (e.g. pdf); we keep the native flavor as kind "file"
+  // even though WhatsApp's analogous concept is kind "document".
+  file: "application/pdf",
+  image: "image/jpeg",
+  video: "video/mp4",
+  media: "application/octet-stream",
+  ig_post: "image/jpeg",
+  story_mention: "image/jpeg",
+  ig_reel: "video/mp4",
+  reel: "video/mp4",
+  story: "image/jpeg",
+  ig_story: "image/jpeg",
+};
+
 /**
- * Converts an IG attachment into a bare `Part` (no message-level fields).
- * The caller wraps it either as a stand-alone IncomingMessage or, for
- * multi-attachment events, as one entry inside a `Parts` bundle.
+ * Converts an IG attachment into a `FilePart`. Every attachment type — plain
+ * media (image/video/audio/file) and the native shares (post/reel/story/
+ * story_mention) — carries a downloadable CDN `payload.url`, so all are
+ * persisted as files. `payload.title` (e.g. a shared post/reel caption) is kept
+ * in `file.name`; the native `kind` is preserved so consumers can distinguish a
+ * shared reel from a plain video. The caller wraps the result as a stand-alone
+ * IncomingMessage or, for multi-attachment events, inside a `Parts` bundle.
  */
 function attachmentToPart(attachment: InstagramAttachment): Part | undefined {
   const url = attachment.payload?.url;
+  if (!url) return undefined;
 
-  switch (attachment.type) {
-    case "audio":
-      if (!url) return undefined;
-      return {
-        type: "file",
-        kind: "audio",
-        file: { mime_type: "audio/mpeg", uri: url, size: 0 },
-      };
-
-    case "file":
-      if (!url) return undefined;
-      // IG calls this "file" (e.g. pdf). We keep the native flavor as kind: "file"
-      // even though WhatsApp's analogous concept is kind: "document".
-      return {
-        type: "file",
-        kind: "file",
-        file: { mime_type: "application/pdf", uri: url, size: 0 },
-      };
-
-    case "image":
-      if (!url) return undefined;
-      return {
-        type: "file",
-        kind: "image",
-        file: { mime_type: "image/jpeg", uri: url, size: 0 },
-      };
-
-    case "video":
-      if (!url) return undefined;
-      return {
-        type: "file",
-        kind: "video",
-        file: { mime_type: "video/mp4", uri: url, size: 0 },
-      };
-
-    case "media":
-      if (!url) return undefined;
-      return {
-        type: "file",
-        kind: "media",
-        file: { mime_type: "application/octet-stream", uri: url, size: 0 },
-      };
-
-    case "ig_post":
-    case "story_mention":
-    case "ig_reel":
-    case "reel":
-    case "story":
-    case "ig_story":
-      return {
-        type: "data",
-        kind: attachment.type,
-        data: attachment.payload,
-      };
-  }
+  return {
+    type: "file",
+    kind: attachment.type,
+    file: {
+      mime_type: IG_ATTACHMENT_MIME[attachment.type],
+      uri: url,
+      ...(attachment.payload.title && { name: attachment.payload.title }),
+      size: 0,
+    },
+  };
 }
 
 /**
@@ -424,8 +410,12 @@ function instagramMessageToContent(
 ): IncomingMessage | undefined {
   const base = {
     version: "1" as const,
+    // A reply targets a prior DM (mid) or a story. We store whichever id we get
+    // in re_message_id; for a story this is the story id, not a message id — a
+    // benign abuse, since there is no message row to thread to (it just marks
+    // the reply and lets the story media live on a `story_reply` file below).
     ...(msg.reply_to?.mid && { re_message_id: msg.reply_to.mid }),
-    ...(msg.reply_to?.story && { re_story: msg.reply_to.story }),
+    ...(msg.reply_to?.story?.id && { re_message_id: msg.reply_to.story.id }),
     ...(msg.referral && { referral: msg.referral }),
   };
 
@@ -435,6 +425,23 @@ function instagramMessageToContent(
       type: "data",
       kind: "unsupported",
       data: { type: "edit" }, // placeholder to satisfy the unsupported shape
+    };
+  }
+
+  // Story reply: the replied-to story media becomes a `story_reply` file so it
+  // is downloaded/persisted like any attachment (its CDN url is ephemeral); the
+  // user's text rides along as the caption. The story id is in re_message_id.
+  if (msg.reply_to?.story?.url) {
+    return {
+      ...base,
+      type: "file",
+      kind: "story_reply",
+      file: {
+        mime_type: "image/jpeg", // corrected from CDN Content-Type on download
+        uri: msg.reply_to.story.url,
+        size: 0,
+      },
+      ...(msg.text && { text: msg.text }),
     };
   }
 
