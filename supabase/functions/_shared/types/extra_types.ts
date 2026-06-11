@@ -40,7 +40,13 @@ export type WhatsAppOrganizationAddressExtra = {
 export type InstagramOrganizationAddressExtra = {
   ig_user_id?: string;
   username?: string;
-  access_token?: string; // Per-IG-account OAuth user token
+  name?: string;
+  profile_picture_url?: string;
+  access_token?: string; // Per-IG-account OAuth user token (long-lived, 60 days)
+  token_expires_at?: string; // ISO; when the long-lived token expires
+  token_refreshed_at?: string; // ISO; last successful refresh (or initial issue)
+  scopes?: string[]; // granted permissions
+  needs_reauth?: string; // ISO; set when a refresh failed and re-login is required
 };
 
 // Union — the column accepts either shape; consumers narrow via the row's

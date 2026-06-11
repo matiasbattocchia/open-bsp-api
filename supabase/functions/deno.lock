@@ -1,10 +1,11 @@
 {
   "version": "5",
   "specifiers": {
-    "jsr:@hono/hono@*": "4.11.6",
+    "jsr:@hono/hono@*": "4.12.24",
     "jsr:@std/csv@*": "1.0.6",
-    "jsr:@std/encoding@*": "1.0.5",
-    "jsr:@supabase/functions-js@*": "2.93.3",
+    "jsr:@std/encoding@*": "1.0.10",
+    "jsr:@std/encoding@1.0.10": "1.0.10",
+    "jsr:@supabase/functions-js@*": "2.108.1",
     "npm:@google/genai@*": "1.39.0_@modelcontextprotocol+sdk@1.25.3__zod@4.3.6__ajv@8.18.0__express@5.2.1_zod@4.3.6",
     "npm:@modelcontextprotocol/sdk@*": "1.27.1_zod@4.3.6_hono@4.12.11_ajv@8.18.0_express@5.2.1",
     "npm:@modelcontextprotocol/sdk@1.25.3": "1.25.3_zod@4.3.6_ajv@8.18.0_express@5.2.1",
@@ -21,14 +22,26 @@
     "@hono/hono@4.11.6": {
       "integrity": "e5833f86c819d564793f1f3548634ea53f4c94c0979b9ebdb51690becc9e1f11"
     },
+    "@hono/hono@4.12.24": {
+      "integrity": "a74a40f06ae6704ddd0e8e576f6da9d34666c3e1e0f5412a2c1ff800ffd092f4"
+    },
     "@std/csv@1.0.6": {
       "integrity": "52ef0e62799a0028d278fa04762f17f9bd263fad9a8e7f98c14fbd371d62d9fd"
     },
     "@std/encoding@1.0.5": {
       "integrity": "ecf363d4fc25bd85bd915ff6733a7e79b67e0e7806334af15f4645c569fefc04"
     },
+    "@std/encoding@1.0.10": {
+      "integrity": "8783c6384a2d13abd5e9e87a7ae0520a30e9f56aeeaa3bdf910a3eaaf5c811a1"
+    },
     "@supabase/functions-js@2.93.3": {
       "integrity": "83c73ae5e82508d0afa892d7f177b5ae037bd75f12be2631d41f8db6b8b7f29c",
+      "dependencies": [
+        "npm:openai@^4.52.5"
+      ]
+    },
+    "@supabase/functions-js@2.108.1": {
+      "integrity": "ac161d85d6696e77aebc78314e90e5a84df3e2eef045ad29c18d759478e9769b",
       "dependencies": [
         "npm:openai@^4.52.5"
       ]

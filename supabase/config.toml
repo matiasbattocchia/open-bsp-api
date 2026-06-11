@@ -21,6 +21,11 @@ verify_jwt = false
 import_map = "./functions/deno.json"
 entrypoint = "./functions/whatsapp-management/index.ts"
 
+[functions.instagram-management]
+verify_jwt = false
+import_map = "./functions/deno.json"
+entrypoint = "./functions/instagram-management/index.ts"
+
 [functions.media-preprocessor]
 verify_jwt = false
 import_map = "./functions/deno.json"
@@ -35,6 +40,11 @@ entrypoint = "./functions/agent-client/index.ts"
 verify_jwt = false
 import_map = "./functions/deno.json"
 entrypoint = "./functions/whatsapp-dispatcher/index.ts"
+
+[functions.instagram-dispatcher]
+verify_jwt = false
+import_map = "./functions/deno.json"
+entrypoint = "./functions/instagram-dispatcher/index.ts"
 
 [functions.mcp]
 verify_jwt = false
