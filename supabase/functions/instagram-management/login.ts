@@ -8,8 +8,11 @@ import type {
 } from "../_shared/supabase.ts";
 
 const API_VERSION = "v25.0";
-const APP_ID = Deno.env.get("META_APP_ID");
-const APP_SECRET = Deno.env.get("META_APP_SECRET");
+// Instagram Business Login uses the Instagram app's own ID/secret, which differ
+// from the Facebook app credentials (META_APP_*). They also sign the deauthorize
+// / data-deletion signed_request callbacks.
+const APP_ID = Deno.env.get("INSTAGRAM_APP_ID");
+const APP_SECRET = Deno.env.get("INSTAGRAM_APP_SECRET");
 
 // Messaging webhook fields we subscribe each connected account to. Comments /
 // content publishing are intentionally left out for now.
@@ -42,7 +45,8 @@ function resolveAppCredentials(
 ): { app_id: string; app_secret: string } {
   if (!APP_ID || !APP_SECRET) {
     throw new HTTPException(401, {
-      message: "META_APP_ID or META_APP_SECRET environment variable not set",
+      message:
+        "INSTAGRAM_APP_ID or INSTAGRAM_APP_SECRET environment variable not set",
     });
   }
 
@@ -52,7 +56,7 @@ function resolveAppCredentials(
   if (ids.length !== secrets.length) {
     throw new HTTPException(500, {
       message:
-        "META_APP_ID and META_APP_SECRET environment variables must have the same number of elements, separated by '|'",
+        "INSTAGRAM_APP_ID and INSTAGRAM_APP_SECRET environment variables must have the same number of elements, separated by '|'",
     });
   }
 
@@ -64,7 +68,7 @@ function resolveAppCredentials(
     if (idIndex === -1) {
       throw new HTTPException(500, {
         message:
-          `Could not find application id '${application_id}' in META_APP_ID environment variable`,
+          `Could not find application id '${application_id}' in INSTAGRAM_APP_ID environment variable`,
       });
     }
   }
@@ -540,7 +544,7 @@ export async function parseSignedRequest(
   signedRequest: string,
 ): Promise<SignedRequest | null> {
   if (!APP_SECRET) {
-    log.warn("META_APP_SECRET environment variable not set");
+    log.warn("INSTAGRAM_APP_SECRET environment variable not set");
     return null;
   }
 
