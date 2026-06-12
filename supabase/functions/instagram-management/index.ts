@@ -25,7 +25,11 @@ const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 // Routes that do not use the user/API-key auth middleware. Each has its own
 // auth: an onboarding token, the service-role key, or a signed_request HMAC.
+// `authorize-url` only composes the public OAuth URL (client_id + scopes + the
+// caller-supplied redirect_uri/state), so it is safe to leave open — the public
+// onboarding-link page needs it without a session.
 const PUBLIC_SUFFIXES = [
+  "/authorize-url",
   "/onboard",
   "/refresh-tokens",
   "/deauthorize",

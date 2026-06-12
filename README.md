@@ -216,10 +216,9 @@ Option A: deploy via Supabase GitHub Integration
 2. Under **GitHub Integration**, click **Authorize GitHub**
 3. On the GitHub authorization page, click **Authorize Supabase**
 4. Back on the Integrations page, choose your forked **open-bsp-api** repository
-5. Set the **Working directory** to `.` (the `supabase/` folder lives at the
-   repo root)
-6. Set the **Production branch** to `main`
-7. Configure the remaining options as needed
+5. Set the **Working directory** to `.`
+6. Enable **Deploy to production**
+7. Set the **Production branch** to `main`
 8. Click **Enable integration**
 
 ##### Vault secrets
@@ -522,6 +521,23 @@ insert into public.organizations_addresses (
 ```
 
 </details>
+
+## Instagram integration
+
+- **INSTAGRAM_APP_ID**
+- **INSTAGRAM_APP_SECRET**
+- **INSTAGRAM_VERIFY_TOKEN**
+
+Instagram OAuth callback (Redirect URL):
+
+- https://web.openbsp.dev/integrations/instagram/callback
+- https://web.openbsp.dev/onboard-instagram/callback
+
+Instagram Deauthorize callback URL:
+https://nheelwshzbgenpavwhcy.supabase.co/functions/v1/instagram-management/deauthorize
+
+Data deletion request URL:
+https://nheelwshzbgenpavwhcy.supabase.co/functions/v1/instagram-management/data-deletion
 
 ## Architecture
 
