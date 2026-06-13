@@ -556,11 +556,17 @@ async function processMessage(request: Request): Promise<Response> {
       log.info(`WhatsApp ${field} payload`, value);
 
       if (field === "account_update") {
+        // ACCOUNT_OFFBOARDED / ACCOUNT_RECONNECTED (coexistence) payloads carry
+        // only `event`, so fall back to entry.id (also the WABA ID) for lookup.
+        const waba_id =
+          ("waba_info" in value ? value.waba_info.waba_id : undefined) ??
+            entry.id;
+
         // Query directly since account_update events do not populate orgAddressMap
         const { data: address } = await client
           .from("organizations_addresses")
           .select()
-          .eq("extra->>waba_id", value.waba_info?.waba_id)
+          .eq("extra->>waba_id", waba_id)
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle()
@@ -577,7 +583,7 @@ async function processMessage(request: Request): Promise<Response> {
         log.info("Account update event", {
           organization_id: address.organization_id,
           event: value.event,
-          waba_id: value.waba_info?.waba_id,
+          waba_id,
         });
 
         await client
@@ -591,17 +597,27 @@ async function processMessage(request: Request): Promise<Response> {
           })
           .throwOnError();
 
-        if (value.event === "PARTNER_REMOVED") {
-          log.info(
-            "Partner removed, disconnecting organization address",
-            value,
-          );
+        // Coexistence lifecycle: PARTNER_REMOVED and ACCOUNT_OFFBOARDED
+        // disconnect the address; ACCOUNT_RECONNECTED re-enables it after the
+        // client re-onboards (device switch, reinstall, or re-registration).
+        const nextStatus = value.event === "PARTNER_REMOVED" ||
+            value.event === "ACCOUNT_OFFBOARDED"
+          ? "disconnected"
+          : value.event === "ACCOUNT_RECONNECTED"
+          ? "connected"
+          : null;
+
+        if (nextStatus) {
+          log.info(`Account ${value.event}, setting address status`, {
+            status: nextStatus,
+            waba_id,
+          });
 
           await client
             .from("organizations_addresses")
-            .update({ status: "disconnected" })
+            .update({ status: nextStatus })
             .eq("organization_id", address.organization_id)
-            .eq("extra->>waba_id", value.waba_info?.waba_id)
+            .eq("extra->>waba_id", waba_id)
             .throwOnError();
         }
       }

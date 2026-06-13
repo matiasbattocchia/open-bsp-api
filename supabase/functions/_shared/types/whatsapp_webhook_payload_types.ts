@@ -173,10 +173,17 @@ export type WebhookAccountUpdate_Partner = {
   };
 };
 
+// Coexistence lifecycle events. These payloads carry only `event` (no
+// waba_info); the WABA ID is found in entry.id instead.
+export type WebhookAccountUpdate_Coexistence = {
+  event: "ACCOUNT_OFFBOARDED" | "ACCOUNT_RECONNECTED";
+};
+
 export type WebhookAccountUpdateValue =
   | WebhookAccountUpdate_Account
   | WebhookAccountUpdate_PartnerApp
-  | WebhookAccountUpdate_Partner;
+  | WebhookAccountUpdate_Partner
+  | WebhookAccountUpdate_Coexistence;
 
 // Change object that discriminates based on field value
 export type WebhookChange =
