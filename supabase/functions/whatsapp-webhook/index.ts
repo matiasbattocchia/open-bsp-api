@@ -674,8 +674,8 @@ async function processMessage(request: Request): Promise<Response> {
             address: contact.wa_id ?? contact.user_id,
             service: "whatsapp",
             extra: {
-              name: contact.profile.name,
-              username: contact.profile.username,
+              name: contact.profile?.name,
+              username: contact.profile?.username,
               phone_number: contact.wa_id,
               bsuid: contact.user_id,
               address_type: contact.wa_id ? "phone" : "bsuid",
