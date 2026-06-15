@@ -437,6 +437,7 @@ Step 4: Configure the WhatsApp Business Account webhook
    - `history`
    - `smb_app_state_sync`
    - `smb_message_echoes`
+   - `user_id_update`
 
 > Optionally, test the configuration so far. In the `messages` subscription
 > section, click **Test**. You should see the request in Supabase > Project >
@@ -528,6 +529,12 @@ insert into public.organizations_addresses (
 - **INSTAGRAM_APP_SECRET**
 - **INSTAGRAM_VERIFY_TOKEN**
 
+#### Configure webhooks
+
+- https://nheelwshzbgenpavwhcy.supabase.co/functions/v1/instagram-webhook
+
+#### Set up Instagram business login
+
 Instagram OAuth callback (Redirect URL):
 
 - https://web.openbsp.dev/integrations/instagram/callback
@@ -538,6 +545,13 @@ https://nheelwshzbgenpavwhcy.supabase.co/functions/v1/instagram-management/deaut
 
 Data deletion request URL:
 https://nheelwshzbgenpavwhcy.supabase.co/functions/v1/instagram-management/data-deletion
+
+#### Complete app review
+
+Request advanced access for permissions
+
+- instagram_business_basic
+- instagram_business_manage_messages ​
 
 ## Architecture
 

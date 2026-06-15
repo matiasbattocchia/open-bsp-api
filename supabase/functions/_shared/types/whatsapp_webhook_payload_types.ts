@@ -47,10 +47,15 @@ export type WebhookMetadata = {
 
 // Contact profile information
 export type WebhookContact = {
-  profile?: {
+  profile: {
     name: string;
+    username?: string; // The user's WhatsApp username, when adopted.
   };
-  wa_id: string;
+  wa_id?: string; // Phone number. Omitted for username-only users outside the
+  // 30-day interaction window / not in the contact book (see BSUID migration).
+  user_id: string; // Business-scoped user ID (BSUID), e.g. "US.13491208...".
+  // Always present in webhooks since April 2026, even without a username.
+  parent_user_id?: string; // Parent BSUID; only if parent BSUIDs are enabled.
   identity_key_hash?: string; // only included if identity change check enabled
 };
 
@@ -73,17 +78,21 @@ export type WebhookValueMessagesError = {
 export type WebhookValueStatuses = {
   messaging_product: "whatsapp";
   metadata: WebhookMetadata;
+  contacts?: WebhookContact[]; // Included for sent/delivered/read; omitted for failed.
   statuses: WebhookStatus[];
 };
 
 export type WebhookEchoMessage = WebhookMessageBase & {
-  to: string;
+  to?: string; // Recipient phone number. May be omitted for username-only users.
+  to_user_id: string; // Recipient business-scoped user ID (BSUID).
+  to_parent_user_id?: string; // Recipient parent BSUID; only if enabled.
 };
 
 // Value type for SMB message echoes
 export type WebhookValueMessageEchoes = {
   messaging_product: "whatsapp";
   metadata: WebhookMetadata;
+  contacts?: WebhookContact[];
   message_echoes: WebhookEchoMessage[];
 };
 
@@ -95,7 +104,12 @@ export type WebhookHistoryMetadata = {
 };
 
 export type WebhookHistoryMessage = WebhookMessageBase & {
-  to?: string; // only included if SMB message echo,
+  // SMB message echoes only. The threaded-history docs show just `to`, but the
+  // BSUID identifiers are likely omitted there by mistake (every other echo
+  // webhook carries them), so we accept them defensively.
+  to?: string; // recipient phone number
+  to_user_id?: string; // recipient BSUID
+  to_parent_user_id?: string; // recipient parent BSUID
   history_context: {
     status: "DELIVERED" | "ERROR" | "PENDING" | "PLAYED" | "READ" | "SENT";
   };
@@ -103,7 +117,13 @@ export type WebhookHistoryMessage = WebhookMessageBase & {
 
 // History thread containing messages
 export type WebhookHistoryThread = {
-  id: string; // WhatsApp user phone number
+  id?: string; // User phone number; omitted for username users w/o available phone.
+  context: { // The contact this thread/conversation is with.
+    wa_id?: string; // User phone number, when available.
+    user_id: string; // Business-scoped user ID (BSUID).
+    parent_user_id?: string; // Only if parent BSUIDs are enabled.
+    username?: string; // Only if the user has adopted a username.
+  };
   messages: WebhookHistoryMessage[];
 };
 
@@ -125,11 +145,26 @@ export type WebhookValueHistoryError = {
   }>;
 };
 
+// History webhook variant describing individual media assets rather than full
+// threads. Shaped like a messages/smb_message_echoes payload: user → business
+// arrives in `messages`, business → user in `message_echoes`.
+export type WebhookValueHistoryMedia = {
+  messaging_product: "whatsapp";
+  metadata: WebhookMetadata;
+  contacts?: WebhookContact[];
+  messages?: WebhookIncomingMessage[];
+  message_echoes?: WebhookEchoMessage[];
+};
+
 // State sync types (contact sync)
 export type WebhookStateSyncContact = {
   full_name: string; // not included when removed
   first_name: string; // not included when removed
-  phone_number: string;
+  phone_number?: string; // Can be omitted for username users without an
+  // available phone number (see BSUID migration).
+  user_id: string; // Business-scoped user ID (BSUID).
+  parent_user_id?: string; // Only if parent BSUIDs are enabled.
+  username?: string; // Only if the user has enabled the username feature.
 };
 
 export type WebhookStateSyncItem = {
@@ -185,6 +220,28 @@ export type WebhookAccountUpdateValue =
   | WebhookAccountUpdate_Partner
   | WebhookAccountUpdate_Coexistence;
 
+// Value type for user_id_update webhooks (a user's BSUID changed).
+export type WebhookUserIdUpdate = {
+  wa_id?: string; // User phone number, when available.
+  detail: string; // Human-readable description of the update.
+  user_id: {
+    previous: string; // Old BSUID.
+    current: string; // New BSUID.
+  };
+  parent_user_id?: { // Only if parent BSUIDs are enabled.
+    previous: string;
+    current: string;
+  };
+  timestamp: string;
+};
+
+export type WebhookValueUserIdUpdate = {
+  messaging_product: "whatsapp";
+  metadata: WebhookMetadata;
+  contacts?: WebhookContact[];
+  user_id_update: WebhookUserIdUpdate[];
+};
+
 // Change object that discriminates based on field value
 export type WebhookChange =
   | {
@@ -200,7 +257,10 @@ export type WebhookChange =
   }
   | {
     field: "history";
-    value: WebhookValueHistory | WebhookValueHistoryError; // when history is declined
+    value:
+      | WebhookValueHistory
+      | WebhookValueHistoryError // when history is declined
+      | WebhookValueHistoryMedia; // flat media-asset history payload
   }
   | {
     field: "smb_app_state_sync";
@@ -209,6 +269,10 @@ export type WebhookChange =
   | {
     field: "account_update";
     value: WebhookAccountUpdateValue;
+  }
+  | {
+    field: "user_id_update";
+    value: WebhookValueUserIdUpdate;
   };
 
 // Entry object that contains one or more changes

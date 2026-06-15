@@ -274,11 +274,9 @@ async function downloadMediaItem({
   return message;
 }
 
-async function webhookMessageToIncomingMessage(
+function webhookMessageToIncomingMessage(
   message: WebhookIncomingMessage | WebhookEchoMessage | WebhookHistoryMessage,
-  organization_id: string,
-  client: SupabaseClient,
-): Promise<IncomingMessage | undefined> {
+): IncomingMessage | undefined {
   let re_message_id: string | undefined;
   let forwarded: boolean | undefined;
 
@@ -461,19 +459,12 @@ async function webhookMessageToIncomingMessage(
       };
 
     case "system": {
-      if (message.system.type === "user_changed_number") {
-        const old_phone_number = message.from;
-        const new_phone_number = message.system.wa_id;
-
-        await client.rpc("change_contact_address", {
-          p_organization_id: organization_id,
-          old_address: old_phone_number,
-          new_address: new_phone_number,
-        })
-          .throwOnError();
-      }
+      // System messages (user_changed_number / user_changed_user_id) announce a
+      // phone-number / BSUID change. No-op: we never re-key here. Identifier
+      // relinking is driven by the user_id_update webhook. Log for visibility.
+      log.info("System message (no-op)", message);
+      break;
     }
-    /* falls through */
 
     case "errors":
     default: {
@@ -550,18 +541,12 @@ async function processMessage(request: Request): Promise<Response> {
   const revokes: { original_message_id: string; timestamp: string }[] = [];
 
   for (const entry of payload.entry) {
-    const _waba_id = entry.id; // WhatsApp business account ID (WABA ID)
+    const waba_id = entry.id; // WhatsApp business account ID (WABA ID)
 
     for (const { value, field } of entry.changes) {
       log.info(`WhatsApp ${field} payload`, value);
 
       if (field === "account_update") {
-        // ACCOUNT_OFFBOARDED / ACCOUNT_RECONNECTED (coexistence) payloads carry
-        // only `event`, so fall back to entry.id (also the WABA ID) for lookup.
-        const waba_id =
-          ("waba_info" in value ? value.waba_info.waba_id : undefined) ??
-            entry.id;
-
         // Query directly since account_update events do not populate orgAddressMap
         const { data: address } = await client
           .from("organizations_addresses")
@@ -593,7 +578,7 @@ async function processMessage(request: Request): Promise<Response> {
             category: "account_update",
             level: "info",
             message: value.event.toLocaleLowerCase(),
-            metadata: value,
+            metadata: { waba_id, value },
           })
           .throwOnError();
 
@@ -622,6 +607,43 @@ async function processMessage(request: Request): Promise<Response> {
         }
       }
 
+      // A user's BSUID changed (previous → current), e.g. after a phone-number
+      // change. We never re-key an address: instead mark the old address(es)
+      // inactive and leave a `replaced_by_bsuid` trail. The new address is
+      // created naturally by the first message under the new identity (phone- or
+      // bsuid-keyed) and linked back to the same contact via that trail.
+      if (field === "user_id_update") {
+        const org = orgAddressMap.get(value.metadata.phone_number_id);
+
+        if (!org) {
+          log.warn("user_id_update: no organization for phone number", value);
+          continue;
+        }
+
+        for (const update of value.user_id_update) {
+          const { previous, current } = update.user_id;
+
+          const { count } = await client
+            .from("contacts_addresses")
+            .update({
+              status: "inactive",
+              extra: { replaced_by_bsuid: current },
+            }, { count: "exact" })
+            .eq("organization_id", org.organization_id)
+            .eq("status", "active")
+            .eq("extra->>bsuid", previous)
+            .throwOnError();
+
+          log.info("user_id_update: deactivated old addresses", {
+            organization_id: org.organization_id,
+            previous,
+            current,
+            count,
+          });
+        }
+        continue;
+      }
+
       if (!("metadata" in value)) {
         continue;
       }
@@ -640,14 +662,23 @@ async function processMessage(request: Request): Promise<Response> {
       const organization_id = orgAddressRow.organization_id;
       const organization_address = orgAddressRow.address;
 
-      if (field === "messages" && "contacts" in value) {
-        for (const contact of value.contacts) {
+      if (
+        (field === "messages" || field === "smb_message_echoes" ||
+          field === "history") && "contacts" in value
+      ) {
+        // Both incoming and status (sent/delivered/read) payloads carry contacts;
+        // status contacts is optional (omitted for failed), hence `?? []`.
+        for (const contact of value.contacts ?? []) {
           contacts_addresses.push({
             organization_id,
-            address: contact.wa_id,
+            address: contact.wa_id ?? contact.user_id,
             service: "whatsapp",
             extra: {
-              name: contact.profile?.name,
+              name: contact.profile.name,
+              username: contact.profile.username,
+              phone_number: contact.wa_id,
+              bsuid: contact.user_id,
+              address_type: contact.wa_id ? "phone" : "bsuid",
             },
           });
         }
@@ -656,8 +687,12 @@ async function processMessage(request: Request): Promise<Response> {
       if (
         (field === "messages" || field === "history") && "messages" in value
       ) {
-        for (const webhookMessage of value.messages) {
-          const contact_address = webhookMessage.from;
+        for (const webhookMessage of value.messages ?? []) {
+          // Payload-literal keying: prefer the phone number, fall back to the
+          // BSUID (present only-phone-less for username users). The conversation
+          // is created/looked up on this address and never re-keyed.
+          const contact_address = webhookMessage.from ??
+            webhookMessage.from_user_id;
 
           if (webhookMessage.type === "errors") {
             errors.push(...webhookMessage.errors);
@@ -697,11 +732,7 @@ async function processMessage(request: Request): Promise<Response> {
             continue;
           }
 
-          const content = await webhookMessageToIncomingMessage(
-            webhookMessage,
-            organization_id,
-            client,
-          );
+          const content = webhookMessageToIncomingMessage(webhookMessage);
 
           if (!content) {
             continue;
@@ -732,7 +763,7 @@ async function processMessage(request: Request): Promise<Response> {
             external_id: status.id,
             service: "whatsapp",
             organization_address,
-            contact_address: status.recipient_id,
+            contact_address: status.recipient_id ?? status.recipient_user_id,
             direction: "outgoing",
             content: {} as OutgoingMessage, // this will get merged (it won't overwrite)
             status: {
@@ -772,19 +803,49 @@ async function processMessage(request: Request): Promise<Response> {
         (field === "smb_message_echoes" || field === "history") &&
         "message_echoes" in value
       ) {
-        for (const webhookMessage of value.message_echoes) {
-          const contact_address = webhookMessage.to;
+        for (const webhookMessage of value.message_echoes ?? []) {
+          const contact_address = webhookMessage.to ??
+            webhookMessage.to_user_id;
 
           if (webhookMessage.type === "errors") {
             errors.push(...webhookMessage.errors);
             continue;
           }
 
-          const content = await webhookMessageToIncomingMessage(
-            webhookMessage,
-            organization_id,
-            client,
-          );
+          // ---- Revoke (deletion) by the business customer via the WhatsApp
+          // Business app: merge a `deleted` status onto the original row, same
+          // as an incoming revoke (applied below, keyed by external_id).
+          if (webhookMessage.type === "revoke") {
+            revokes.push({
+              original_message_id: webhookMessage.revoke.original_message_id,
+              timestamp: new Date(webhookMessage.timestamp * 1000)
+                .toISOString(),
+            });
+            continue;
+          }
+
+          // ---- Edit by the business customer via the WhatsApp Business app:
+          // replace the text/caption of the original row, same as an incoming
+          // edit (applied below, keyed by external_id).
+          if (webhookMessage.type === "edit") {
+            const text = extractEditedText(webhookMessage.edit.message);
+            if (text === undefined) {
+              log.warn(
+                "Unsupported edited message type",
+                webhookMessage.edit.message,
+              );
+              continue;
+            }
+            edits.push({
+              original_message_id: webhookMessage.edit.original_message_id,
+              text,
+              timestamp: new Date(webhookMessage.timestamp * 1000)
+                .toISOString(),
+            });
+            continue;
+          }
+
+          const content = webhookMessageToIncomingMessage(webhookMessage);
 
           if (!content) {
             continue;
@@ -840,23 +901,36 @@ async function processMessage(request: Request): Promise<Response> {
               .throwOnError();
 
             for (const thread of history.threads) {
-              for (const webhookMessage of thread.messages) {
-                const isEcho = "to" in webhookMessage;
+              // The thread's context identifies the contact for the whole
+              // conversation (phone preferred, BSUID fallback). Register the
+              // address and key every message in the thread to it.
+              const contact_address = thread.context.wa_id ??
+                thread.context.user_id;
 
-                const contact_address = isEcho
-                  ? webhookMessage.to!
-                  : webhookMessage.from;
+              contacts_addresses.push({
+                organization_id,
+                address: contact_address,
+                service: "whatsapp",
+                extra: {
+                  username: thread.context.username,
+                  phone_number: thread.context.wa_id,
+                  bsuid: thread.context.user_id,
+                  address_type: thread.context.wa_id ? "phone" : "bsuid",
+                },
+              });
+
+              for (const webhookMessage of thread.messages) {
+                // Echoes (business → user) carry a recipient; incoming messages
+                // (user → business) do not.
+                const isEcho = "to" in webhookMessage ||
+                  "to_user_id" in webhookMessage;
 
                 if (webhookMessage.type === "errors") {
                   errors.push(...webhookMessage.errors);
                   continue;
                 }
 
-                const content = await webhookMessageToIncomingMessage(
-                  webhookMessage,
-                  organization_id,
-                  client,
-                );
+                const content = webhookMessageToIncomingMessage(webhookMessage);
 
                 if (!content) {
                   continue;
@@ -952,9 +1026,14 @@ async function processMessage(request: Request): Promise<Response> {
           if (syncItem.type === "contact") {
             contacts_addresses.push({
               organization_id,
-              address: syncItem.contact.phone_number,
+              address: syncItem.contact.phone_number ??
+                syncItem.contact.user_id,
               service: "whatsapp" as const,
               extra: {
+                phone_number: syncItem.contact.phone_number,
+                bsuid: syncItem.contact.user_id,
+                address_type: syncItem.contact.phone_number ? "phone" : "bsuid",
+                username: syncItem.contact.username,
                 synced: {
                   name: syncItem.contact.full_name,
                   action: syncItem.action,

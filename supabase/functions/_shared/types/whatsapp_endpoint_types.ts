@@ -71,7 +71,8 @@ export type EndpointMessage =
     biz_opaque_callback_data?: string;
     messaging_product: "whatsapp";
     recipient_type?: "individual";
-    to: string;
+    to?: string; // phone number; omitted when messaging a BSUID only
+    recipient?: string; // BSUID (or parent BSUID); takes a back seat to `to`
   }
   & OutgoingContextInfo
   & (

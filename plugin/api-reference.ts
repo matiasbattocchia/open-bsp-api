@@ -210,7 +210,6 @@ Types: text, file, data. Kinds vary by type (text: text/reaction/caption; file: 
 | Path | Description |
 |------|-------------|
 | /rest/v1/rpc/get_authorized_orgs | Get organizations the current user has access to |
-| /rest/v1/rpc/change_contact_address | Change a contact's address (phone number migration) |
 
 ---
 

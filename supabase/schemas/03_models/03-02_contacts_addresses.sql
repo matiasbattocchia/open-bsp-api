@@ -79,3 +79,23 @@ when (
   and new.extra->'synced'->>'action' is distinct from 'add' -- Ignore active synced addresses
 )
 execute function public.cleanup_unlinked_address_if_empty();
+
+-- Supports the BSUID bridge lookup and phone-based search, mirroring the
+-- organizations_addresses phone_number index.
+create index contacts_addresses_phone_number_idx
+on public.contacts_addresses
+using btree ((extra->>'phone_number'))
+where service = 'whatsapp';
+
+-- Lookup by BSUID (e.g. the user_id_update handler matching extra.bsuid).
+create index contacts_addresses_bsuid_idx
+on public.contacts_addresses
+using btree ((extra->>'bsuid'))
+where service = 'whatsapp';
+
+-- Lookup by the replaced_by_bsuid trail when linking a new address back to the
+-- old contact after a BSUID change.
+create index contacts_addresses_replaced_by_bsuid_idx
+on public.contacts_addresses
+using btree ((extra->>'replaced_by_bsuid'))
+where service = 'whatsapp';

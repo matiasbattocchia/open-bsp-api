@@ -8,9 +8,14 @@ import type { WebhookStatus } from "./status_types.ts";
 export type SystemMessage = {
   type: "system";
   system: {
-    body: string; // Describes the change to the user's phone number.
-    type: "user_changed_number";
-    wa_id: string; // New WhatsApp ID for the user when their phone number is updated.
+    // e.g. "User <name> changed from <OLD_BSUID> to <NEW_BSUID>"
+    body: string;
+    // user_changed_user_id fires when the user's BSUID changes (phone change).
+    type: "user_changed_number" | "user_changed_user_id";
+    wa_id?: string; // New phone number. Omitted for username users when the
+    // phone number is unavailable (see BSUID migration).
+    user_id?: string; // New BSUID (set for user_changed_user_id).
+    parent_user_id?: string; // New parent BSUID; only if parent BSUIDs enabled.
   };
 };
 
@@ -277,7 +282,12 @@ export type RevokeMessage = {
 
 export type WebhookMessageBase =
   & {
-    from: string;
+    from?: string; // Sender phone number (wa_id). Omitted for username-only
+    // users outside the 30-day interaction window / not in the contact book.
+    from_user_id: string; // Sender business-scoped user ID (BSUID). Always
+    // present since April 2026, regardless of username adoption.
+    from_parent_user_id?: string; // Sender parent BSUID; only if parent BSUIDs
+    // are enabled.
     group_id?: string;
     id: string;
     timestamp: number;

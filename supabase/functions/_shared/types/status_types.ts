@@ -28,7 +28,12 @@ export type WebhookStatus = {
   id: string; // WhatsApp message ID
   status: "sent" | "delivered" | "read" | "failed";
   timestamp: string;
-  recipient_id: string; // User phone number or group ID
+  recipient_id?: string; // User phone number or group ID. Can be omitted when
+  // sent to a BSUID and the phone number is unavailable (see BSUID migration).
+  recipient_user_id?: string; // Recipient BSUID. Always set, except for failed
+  // status messages sent to a phone number.
+  recipient_parent_user_id?: string; // Recipient parent BSUID; only if parent
+  // BSUIDs are enabled.
   recipient_type?: "group"; // Only included if message sent to a group
   recipient_participant_id?: string; // Only included if message sent to a group
   recipient_identity_key_hash?: string; // Only included if identity change check enabled

@@ -5,6 +5,35 @@
 Open BSP API — a multi-tenant WhatsApp Business Platform integration built with
 Deno, Postgres, and Supabase Edge Functions. See README.md for full details.
 
+## Local checks must match CI (deno)
+
+CI (`.github/workflows/check.yml`) runs:
+
+```bash
+deno fmt --check
+cd supabase/functions && deno lint && deno check .
+cd plugin && deno lint && deno check .
+```
+
+**`deno check` only works from inside the package dir.** Run
+`cd supabase/functions && deno check .` — NOT `deno check <file>` from the repo
+root. The import map lives in `supabase/functions/deno.json` (there is no root
+`deno.json`), so checking a file from the root resolves no bare specifiers and
+prints **false** `Import "@supabase/supabase-js" not a dependency` /
+`"ky"`/`"zod"`/`"postgres"` errors. These are an artifact of the wrong CWD, not
+real errors — don't treat them as a pre-existing baseline.
+
+> The `.claude/settings.json` PostToolUse hook runs `deno check <file>` without
+> `cd` and swallows output with `|| true`, so it always "passes" for functions
+> files and verifies nothing there. Run the CI command yourself to actually
+> verify.
+
+**`deno fmt` output is deno-version-dependent.** The repo pins fmt _config_
+(lineWidth 80, semicolons, double quotes) but not the deno _binary_ (CI uses
+`v2.x`). A different local deno can report spurious diffs on generated files
+(e.g. `_shared/db_types.ts`). Only format files you actually changed; never
+reformat the whole tree to chase a version-difference diff.
+
 ## Debugging production edge functions
 
 ### Timestamps

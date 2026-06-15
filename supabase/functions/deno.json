@@ -4,7 +4,8 @@
     "indentWidth": 2,
     "semiColons": true,
     "singleQuote": false,
-    "proseWrap": "preserve"
+    "proseWrap": "preserve",
+    "exclude": ["_shared/db_types.ts"]
   },
   "lint": {
     "rules": {

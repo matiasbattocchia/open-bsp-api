@@ -20,6 +20,16 @@ const DEFAULT_ACCESS_TOKEN = Deno.env.get("META_SYSTEM_USER_ACCESS_TOKEN") ||
   "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+// A business-scoped user ID (BSUID) is the user's ISO 3166 alpha-2 country code,
+// a period, then alphanumerics (e.g. US.13491208655302741918; parent BSUIDs add
+// an ENT segment: US.ENT.118...). A phone number is bare digits, so the leading
+// "<CC>." reliably distinguishes a BSUID from a phone number.
+function isBsuid(address: string): boolean {
+  const BSUID_PATTERN = /^[A-Z]{2}\.[A-Za-z0-9.]+$/;
+
+  return BSUID_PATTERN.test(address);
+}
+
 class WhatsAppError extends Error {
   constructor(
     message: string,
@@ -56,6 +66,9 @@ class WhatsAppError extends Error {
  *   131021, 131026, 131037, 131042, 131047 — undeliverable
  *   131049, 131050 — Meta chose not to deliver / user opted out
  *   131051, 131052, 131053 — media errors
+ *   131062 — BSUID recipient not supported for this message (e.g. one-tap/
+ *           zero-tap/copy-code auth templates require a phone number); never
+ *           retry — a BSUID-only contact has no phone to fall back to
  *   132xxx — template errors
  *   368, 130497, 131031 — policy/integrity
  */
@@ -206,14 +219,20 @@ async function uploadMediaItem({
 function outgoingMessageToEndpointMessage({
   content,
   to,
+  recipient,
 }: {
   content: OutgoingMessage;
-  to: string;
+  to?: string;
+  recipient?: string;
 }): EndpointMessage {
   const baseMessage = {
     messaging_product: "whatsapp" as const,
     recipient_type: "individual" as const,
+    // Send both identifiers; whichever is undefined is dropped by JSON.stringify.
+    // If both are present, WhatsApp uses `to` (the phone number) and ignores
+    // `recipient` (the BSUID).
     to,
+    recipient,
     ...(content.kind !== "reaction" && // From the docs: You cannot send a reaction message as a contextual reply.
         content.re_message_id &&
         !content.forwarded
@@ -412,6 +431,27 @@ Deno.serve(async (req) => {
 
   const access_token = account.access_token || DEFAULT_ACCESS_TOKEN;
 
+  let to: string | undefined;
+  let recipient: string | undefined;
+
+  // Resolve the recipient identifiers. The contact_address is either a BSUID or
+  // a phone number; the stored contact may also carry a phone in extra.
+  // TODO: deprecate when phone numbers are not used anymore as contact addresses
+  if (isBsuid(message.contact_address)) {
+    const { data: contactAddress } = await client
+      .from("contacts_addresses")
+      .select("phone_number:extra->>phone_number")
+      .eq("organization_id", message.organization_id)
+      .eq("address", message.contact_address)
+      .single()
+      .throwOnError();
+
+    to = contactAddress.phone_number;
+    recipient = message.contact_address;
+  } else {
+    to = message.contact_address;
+  }
+
   if (message.direction === "outgoing") {
     try {
       const patchedMessage = await uploadMediaItem({
@@ -422,7 +462,8 @@ Deno.serve(async (req) => {
 
       const payload = await outgoingMessageToEndpointMessage({
         content: patchedMessage.content as OutgoingMessage,
-        to: message.contact_address,
+        to,
+        recipient,
       });
 
       const response = await postPayloadToWhatsAppEndpoint({

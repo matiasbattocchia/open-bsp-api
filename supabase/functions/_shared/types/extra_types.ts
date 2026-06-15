@@ -77,6 +77,10 @@ export type ContactExtra = Record<PropertyKey, never>;
 
 export type WhatsAppContactAddressExtra = {
   name?: string;
+  username?: string;
+  phone_number?: string;
+  bsuid?: string;
+  address_type?: "phone" | "bsuid";
   synced?: { // if the contact address was synced from WhatsApp
     name: string;
     action: "add" | "remove";
