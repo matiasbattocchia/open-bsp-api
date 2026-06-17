@@ -99,12 +99,10 @@ export const MediaTypes = [
   "sticker",
   "file", // Instagram native attachment type (e.g. pdf)
   "media", // Instagram generic media attachment
-  // Instagram "native" attachments. They all carry a downloadable CDN url, so
-  // they are modeled as files (downloaded/persisted) while keeping their native
-  // kind so consumers can tell a shared reel from a plain video.
-  "ig_post",
-  "ig_reel",
-  "reel",
+  // Instagram story attachments carry a real, downloadable CDN url, so they are
+  // modeled as files (downloaded/persisted) while keeping their native kind.
+  // Shared posts/reels (ig_post/ig_reel/reel) are NOT here: their url is a web
+  // permalink, not media, so they are modeled as a `share` data part instead.
   "story",
   "ig_story",
   "story_mention",
@@ -169,12 +167,25 @@ type UnsupportedPart = DataPart<
 // Synthetic content for messaging_referral events (no message attached).
 type ReferralPart = DataPart<"referral", InstagramReferral>;
 
+// Shared Instagram post/reel (attachment types ig_post, ig_reel, reel). Unlike
+// real media, the attachment `payload.url` is a public instagram.com permalink
+// (an HTML page, not a downloadable CDN file), so these are modeled as data — a
+// link card — and skipped by media download. `data.type` keeps the original
+// attachment type so consumers can label it (post vs reel); `url` is the
+// permalink and `title` the shared item's caption when provided.
+export type SharePart = DataPart<"share", {
+  type: "ig_post" | "ig_reel" | "reel";
+  url: string;
+  title?: string;
+}>;
+
 // Multi-part messages
 
 export type Part =
   | TextPart
   | DataPart
-  | FilePart;
+  | FilePart
+  | SharePart;
 
 // Parts type is not used yet. It is a proof of concept.
 export type Parts = {
@@ -218,6 +229,7 @@ export type IncomingMessage =
     | MediaPlaceholderPart
     | UnsupportedPart
     | ReferralPart
+    | SharePart
     | Parts
   );
 

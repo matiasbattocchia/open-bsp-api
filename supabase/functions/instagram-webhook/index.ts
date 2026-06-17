@@ -384,6 +384,27 @@ function attachmentToPart(attachment: InstagramAttachment): Part | undefined {
   const url = attachment.payload?.url;
   if (!url) return undefined;
 
+  // Shared posts/reels are links, not media: `payload.url` is a public
+  // instagram.com permalink (an HTML page), not a downloadable CDN file. Model
+  // them as a `share` data part (a link card) so media download skips them
+  // (downloadMediaItem only processes `type === "file"`). Stories and story
+  // mentions, by contrast, do carry a real CDN media url and stay files.
+  if (
+    attachment.type === "ig_post" ||
+    attachment.type === "ig_reel" ||
+    attachment.type === "reel"
+  ) {
+    return {
+      type: "data",
+      kind: "share",
+      data: {
+        type: attachment.type,
+        url,
+        ...(attachment.payload.title && { title: attachment.payload.title }),
+      },
+    };
+  }
+
   return {
     type: "file",
     kind: attachment.type,
