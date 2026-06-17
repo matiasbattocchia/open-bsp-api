@@ -26,8 +26,8 @@ import {
 
 const API_VERSION = "v25.0";
 const VERIFY_TOKEN = Deno.env.get("INSTAGRAM_VERIFY_TOKEN");
-const APP_ID = Deno.env.get("META_APP_ID");
-const APP_SECRET = Deno.env.get("META_APP_SECRET");
+const APP_ID = Deno.env.get("INSTAGRAM_APP_ID");
+const APP_SECRET = Deno.env.get("INSTAGRAM_APP_SECRET");
 
 // 24 hours. Profile is refreshed when older than this; tunable via constant.
 const PROFILE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -154,18 +154,21 @@ function verifyToken(request: Request): Response {
 }
 
 /**
- * Validates the Instagram webhook signature to ensure the request comes from Meta.
- * Mirrors whatsapp-webhook's validation, including the multi-app
- * META_APP_ID|secret1|secret2 splitting and `app_id` query-param routing —
- * the same Meta app may host both WA and IG products, but multiple apps may
- * also be configured.
+ * Validates the Instagram webhook signature to ensure the request comes from
+ * Meta. Mirrors whatsapp-webhook's validation, including the multi-app
+ * INSTAGRAM_APP_ID|secret1|secret2 splitting and `app_id` query-param routing.
+ * Instagram Login is its own Meta app (separate from the WhatsApp app in
+ * META_APP_*), so it has its own id/secret; multiple IG apps may still be
+ * configured.
  */
 async function validateWebhookSignature(
   request: Request,
   body: string,
 ): Promise<boolean> {
   if (!APP_ID || !APP_SECRET) {
-    log.warn("META_APP_ID or META_APP_SECRET environment variable not set");
+    log.warn(
+      "INSTAGRAM_APP_ID or INSTAGRAM_APP_SECRET environment variable not set",
+    );
     return false;
   }
 
@@ -174,7 +177,7 @@ async function validateWebhookSignature(
 
   if (ids.length !== secrets.length) {
     log.warn(
-      "META_APP_ID and META_APP_SECRET environment variables must have the same number of elements, separated by '|'",
+      "INSTAGRAM_APP_ID and INSTAGRAM_APP_SECRET environment variables must have the same number of elements, separated by '|'",
     );
     return false;
   }
@@ -189,7 +192,7 @@ async function validateWebhookSignature(
 
     if (idIndex === -1) {
       log.warn(
-        `Could not find app_id '${appId}' in META_APP_ID environment variable`,
+        `Could not find app_id '${appId}' in INSTAGRAM_APP_ID environment variable`,
       );
       return false;
     }

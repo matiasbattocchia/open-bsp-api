@@ -56,7 +56,10 @@ app.use("*", cors());
 app.onError((err, c) => {
   if (err instanceof HTTPException) {
     log.error(err.message, err.cause);
-    return c.json({ message: err.message, cause: err.cause as Json }, err.status);
+    return c.json(
+      { message: err.message, cause: err.cause as Json },
+      err.status,
+    );
   }
 
   log.error("Unhandled error", err);
