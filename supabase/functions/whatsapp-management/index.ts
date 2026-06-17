@@ -45,6 +45,19 @@ const app = new Hono<AppEnv>();
 // CORS middleware
 app.use("*", cors());
 
+// Surface thrown errors (and their `cause`) to the client and logs. Hono's
+// default handler only serializes an HTTPException's `message`, discarding the
+// `cause` where upstream details (e.g. the Graph API error) live.
+app.onError((err, c) => {
+  if (err instanceof HTTPException) {
+    log.error(err.message, err.cause);
+    return c.json({ message: err.message, cause: err.cause as Json }, err.status);
+  }
+
+  log.error("Unhandled error", err);
+  return c.json({ message: "Internal Server Error" }, 500);
+});
+
 // Validate user or key (skip for public onboard routes)
 app.use("*", async (c, next) => {
   if (c.req.path.endsWith("/onboard")) {
