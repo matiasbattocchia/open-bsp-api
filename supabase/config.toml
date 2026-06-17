@@ -50,3 +50,8 @@ entrypoint = "./functions/instagram-dispatcher/index.ts"
 verify_jwt = false
 import_map = "./functions/deno.json"
 entrypoint = "./functions/mcp/index.ts"
+
+[functions.storage-gc]
+verify_jwt = false
+import_map = "./functions/deno.json"
+entrypoint = "./functions/storage-gc/index.ts"

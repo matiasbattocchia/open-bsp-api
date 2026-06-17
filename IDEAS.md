@@ -183,28 +183,6 @@ The self-hosted owner has DB credentials. Procedure:
   (`POST /{app-id}/subscriptions`) or done manually per app in Meta > WhatsApp >
   Configuration.
 
-## Storage Cleanup on Organization Deletion
-
-### Problem
-
-`storage.objects` has no FK to `organizations` — the org ID is embedded in the
-file path (`organizations/<org_id>/attachments/<file_id>`), so
-`ON DELETE CASCADE` can't help. Supabase's `storage.delete()` SQL function only
-removes the metadata row, not the physical file from S3. The Storage HTTP API is
-the only way to delete both.
-
-### Options
-
-1. **Edge Function cleanup** — `AFTER DELETE` trigger on `organizations` fires
-   `net.http_post` (pg_net) to a small Edge Function that calls
-   `supabase.storage.from('media').list(...)` then `.remove(paths)`. Real-time
-   but requires an HTTP hop outside the Postgres transaction.
-2. **Cron job** — a scheduled function that finds org IDs in storage paths that
-   no longer exist in `organizations` and cleans them up. Decoupled but delayed.
-3. **Accept orphans** — if org deletion is rare, let files sit. Storage cost is
-   low and orphaned files are inaccessible anyway (RLS blocks reads for
-   non-existent orgs).
-
 ## 100% AI Agent Users
 
 ### Problem

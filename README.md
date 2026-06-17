@@ -169,6 +169,17 @@ Your data is yours. You can export your organization's data from the hosted
 instance and load it into a self-hosted deployment — both run the same schema,
 and all data is scoped by organization with no cross-org dependencies.
 
+### Data deletion
+
+Deleting an organization is immediate and irreversible: all of its database rows
+(contacts, conversations, messages, agents, addresses, billing) are removed in a
+single cascading delete. Media files in Storage have no foreign key to the
+organization, so they are not deleted in that transaction — instead an hourly
+background sweep (`storage-gc`) removes the files of any organization that no
+longer exists. Expect attachments to linger for up to an hour after deletion;
+they are inaccessible in the meantime (Storage RLS denies reads for orgs you
+don't belong to).
+
 ## Migrating from another platform
 
 If you're moving an existing WhatsApp integration to OpenBSP, two guides cover
