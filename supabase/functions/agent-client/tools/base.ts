@@ -20,5 +20,9 @@ export type ToolDefinition<
       context: RequestContext,
       supabaseClient: SupabaseClient,
     ) => Promise<z.infer<OutputSchema>>
-    : (input: z.infer<InputSchema>) => Promise<z.infer<OutputSchema>>;
+    : (
+      input: z.infer<InputSchema>,
+      context: RequestContext,
+      supabaseClient: SupabaseClient,
+    ) => Promise<z.infer<OutputSchema>>;
 };

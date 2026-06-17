@@ -718,7 +718,11 @@ Deno.serve(async (req) => {
           switch (toolInfo.type) {
             case "custom":
             case "function": {
-              const result = await agentTool.implementation(args);
+              const result = await agentTool.implementation(
+                args,
+                context,
+                client,
+              );
 
               parts = [
                 {

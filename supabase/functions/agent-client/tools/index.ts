@@ -26,9 +26,11 @@
 import { HTTPTools } from "./http.ts";
 import { SQLTools } from "./sql.ts";
 import { CalculatorTool } from "./calculator.ts";
+import { TransferToHumanAgentTool } from "./handoff.ts";
 
 const FunctionTools = [
   CalculatorTool,
+  TransferToHumanAgentTool,
 ];
 const CustomTools: unknown[] = [];
 

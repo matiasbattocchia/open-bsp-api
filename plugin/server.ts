@@ -109,6 +109,17 @@ function formatMessageContent(
   }
 }
 
+function formatHandoffContent(conversation: ConversationRow): string | null {
+  const handoff = conversation.extra?.handoff;
+
+  if (!handoff || handoff.status !== "requested") {
+    return null;
+  }
+
+  const reason = handoff.reason ? ` Reason: ${handoff.reason}` : "";
+  return `Human handoff requested.${reason}`;
+}
+
 // ── Resolve org and WhatsApp account ────────────────────────────────────
 
 type Org = {
@@ -290,6 +301,7 @@ let supabase: SupabaseClient;
 let org: Org;
 let whatsAppAccount: WhatsAppAccount | null = null;
 let realtimeActive = false;
+const notifiedHandoffs = new Set<string>();
 
 const mcp = new Server(
   { name: "openbsp", version: "0.1.0" },
@@ -482,7 +494,7 @@ function subscribeToRealtime() {
     .on(
       "postgres_changes",
       {
-        event: "*",
+        event: "INSERT",
         schema: "public",
         table: "messages",
         filter: `organization_id=eq.${org.orgId}`,
@@ -528,7 +540,7 @@ function subscribeToRealtime() {
     .on(
       "postgres_changes",
       {
-        event: "INSERT",
+        event: "*",
         schema: "public",
         table: "conversations",
         filter: `organization_id=eq.${org.orgId}`,
@@ -538,6 +550,7 @@ function subscribeToRealtime() {
         if (!conv) return;
 
         const contactAddress = conv.contact_address;
+        if (!contactAddress) return;
         if (!isAllowed(contactAddress)) return;
 
         const contactName = await resolveContactName(
@@ -546,24 +559,44 @@ function subscribeToRealtime() {
           contactAddress,
         );
 
-        mcp
-          .notification({
-            method: "notifications/claude/channel",
-            params: {
-              content: `New conversation started with ${contactName}`,
-              meta: {
-                event: "new_conversation",
-                contact_phone: contactAddress,
-                contact_name: contactName,
-                service: conv.service,
+        const eventType = payload.eventType;
+        const handoffContent = formatHandoffContent(conv);
+        const handoff = conv.extra?.handoff;
+        const handoffKey = handoff
+          ? `${conv.id}:${handoff.requested_at}`
+          : null;
+        const isNewHandoff = handoffKey
+          ? !notifiedHandoffs.has(handoffKey)
+          : false;
+
+        if (handoffKey && isNewHandoff) {
+          notifiedHandoffs.add(handoffKey);
+        }
+
+        if (eventType === "INSERT" || (handoffContent && isNewHandoff)) {
+          mcp
+            .notification({
+              method: "notifications/claude/channel",
+              params: {
+                content: handoffContent ||
+                  `New conversation started with ${contactName}`,
+                meta: {
+                  event: handoffContent
+                    ? "human_handoff_requested"
+                    : "new_conversation",
+                  contact_phone: contactAddress,
+                  contact_name: contactName,
+                  service: conv.service,
+                  ...(conv.extra?.handoff && { handoff: conv.extra.handoff }),
+                },
               },
-            },
-          })
-          .catch((err) => {
-            console.error(
-              `openbsp: failed to deliver conversation event to Claude: ${err}`,
-            );
-          });
+            })
+            .catch((err) => {
+              console.error(
+                `openbsp: failed to deliver conversation event to Claude: ${err}`,
+              );
+            });
+        }
       },
     )
     .subscribe((status) => {
