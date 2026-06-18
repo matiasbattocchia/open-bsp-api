@@ -625,6 +625,13 @@ Configure the Instagram app
 whatsapp_business_management
 </summary>
 
+#### Description
+
+We request this permission to read and/or manage WhatsApp business assets we own
+or have been granted access to by other businesses.
+
+#### Screen recording
+
 https://github.com/user-attachments/assets/dd064fd6-b06c-4fff-986e-578269fdf6d2
 
 </details>
@@ -633,7 +640,12 @@ https://github.com/user-attachments/assets/dd064fd6-b06c-4fff-986e-578269fdf6d2
 <summary>
 whatsapp_business_messaging
 </summary>
+
+#### Description
+
 We request this permission to view, manage and respond to messages.
+
+#### Screen recording
 
 https://github.com/user-attachments/assets/7e0394c8-0d08-4048-8a02-ca215c365a49
 
@@ -643,7 +655,13 @@ https://github.com/user-attachments/assets/7e0394c8-0d08-4048-8a02-ca215c365a49
 <summary>
 instagram_business_basic
 </summary>
-We request this permission to read and/or manage WhatsApp business assets we own or have been granted access to by other businesses.
+
+#### Description
+
+We are requesting instagram_business_basic permission as a dependent permission
+for instagram_business_manage_messages.
+
+#### Screen recording
 
 https://github.com/user-attachments/assets/bc7a0ac7-7522-4c29-abc4-fe638fe7dc38
 
@@ -653,7 +671,12 @@ https://github.com/user-attachments/assets/bc7a0ac7-7522-4c29-abc4-fe638fe7dc38
 <summary>
 instagram_business_manage_messages
 </summary>
+
+#### Description
+
 We request this permission to view, manage and respond to messages.
+
+#### Screen recording
 
 https://github.com/user-attachments/assets/d86cf719-250d-4e3d-8c15-873daa6707d6
 
