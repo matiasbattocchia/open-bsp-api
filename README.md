@@ -622,14 +622,40 @@ Configure the Instagram app
 
 <details>
 <summary>
-`whatsapp_business_management`
+whatsapp_business_management
 </summary>
 
-- Why it's neccesary: because yes
+https://github.com/user-attachments/assets/dd064fd6-b06c-4fff-986e-578269fdf6d2
 
-- [Screen recording](app-review/whatsapp_business_management.mp4)
+</details>
 
-https://github.com/user-attachments/assets/1ef30dde-9de1-4f5a-856a-db34ca2e3063
+<details>
+<summary>
+whatsapp_business_messaging
+</summary>
+We request this permission to view, manage and respond to messages.
+
+https://github.com/user-attachments/assets/7e0394c8-0d08-4048-8a02-ca215c365a49
+
+</details>
+
+<details>
+<summary>
+instagram_business_basic
+</summary>
+We request this permission to read and/or manage WhatsApp business assets we own or have been granted access to by other businesses.
+
+https://github.com/user-attachments/assets/bc7a0ac7-7522-4c29-abc4-fe638fe7dc38
+
+</details>
+
+<details>
+<summary>
+instagram_business_manage_messages
+</summary>
+We request this permission to view, manage and respond to messages.
+
+https://github.com/user-attachments/assets/d86cf719-250d-4e3d-8c15-873daa6707d6
 
 </details>
 
