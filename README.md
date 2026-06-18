@@ -1,6 +1,6 @@
 <h1 align="center">OpenBSP API</h1>
 <p align="center">
-  <strong>Open-source WhatsApp Business Platform</strong>
+  <strong>Open-source WhatsApp and Instagram Business Platform</strong>
 </p>
 <p align="center">
   Self-hostable, multi-tenant, AI-agent ready. Built with Deno 🦕 and Postgres 🐘, powered by Supabase ⚡
@@ -14,11 +14,15 @@
   <a href="https://chat.whatsapp.com/Ch6AwZizSDt5quzHodcYh5"><img src="https://img.shields.io/badge/Community-25D366?logo=whatsapp&logoColor=white" alt="Community"></a>
 </p>
 
+<p align="center">
+  <a href="https://www.producthunt.com/products/openbsp?launch=openbsp&utm_source=badge-follow&utm_medium=badge" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/follow.svg?product_id=1245331&theme=light" alt="OpenBSP | Product Hunt" width="250" height="54" /></a>
+</p>
+
 OpenBSP is designed for both individual businesses and service providers. You
-can use it to manage your own WhatsApp messaging, or leverage its features to
-become a
+can use it to manage your own WhatsApp and Instagram messaging, or leverage its
+features to become a
 [Meta Business Partner](https://developers.facebook.com/docs/whatsapp/solution-providers)
-and offer WhatsApp messaging services to other organizations.
+and offer WhatsApp and Instagram messaging services to other organizations.
 
 ## User Interface
 
@@ -33,7 +37,8 @@ https://github.com/user-attachments/assets/1ef30dde-9de1-4f5a-856a-db34ca2e3063
 ## Description
 
 OpenBSP API is a multi-tenant platform that connects to the official WhatsApp
-API to receive and send messages, storing them in a Supabase-backed database.
+and Instagram APIs to receive and send messages, storing them in a
+Supabase-backed database.
 
 ### Core features
 

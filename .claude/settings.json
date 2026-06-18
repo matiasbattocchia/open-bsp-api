@@ -6,15 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "jq -r '.tool_input.file_path // empty' | grep -E '\\.(ts|tsx|js|jsx|json|jsonc|md)$' | xargs -r deno fmt 2>/dev/null || true"
-          },
-          {
-            "type": "command",
-            "command": "jq -r '.tool_input.file_path // empty' | grep -E '\\.(ts|tsx|js|jsx)$' | xargs -r deno lint 2>/dev/null || true"
-          },
-          {
-            "type": "command",
-            "command": "jq -r '.tool_input.file_path // empty' | grep -E '\\.(ts|tsx)$' | xargs -r -n1 deno check 2>/dev/null || true"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/check-edited.sh",
+            "timeout": 120
           }
         ]
       }
