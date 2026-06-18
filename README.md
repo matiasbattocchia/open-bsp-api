@@ -541,33 +541,97 @@ insert into public.organizations_addresses (
 
 ## Instagram integration
 
+To connect your OpenBSP project to the Instagram API, you'll need to setup a
+Meta App with the Instagram product and configure the following Edge Functions
+secrets.
+
+Please go through the WhatsApp integration step 1 if you haven't got a Meta App
+yet.
+
+> [!IMPORTANT]
+> There are two official ways of integrating Instagram:
+>
+> 1. Instagram login
+> 2. Facebook login OpenBSP uses **Instagram login**.
+
+#### Secrets
+
 - **INSTAGRAM_APP_ID**
 - **INSTAGRAM_APP_SECRET**
 - **INSTAGRAM_VERIFY_TOKEN**
 
-#### Configure webhooks
+<details>
+<summary>
+Configure the Instagram app
+</summary>
 
-- https://nheelwshzbgenpavwhcy.supabase.co/functions/v1/instagram-webhook
+1. Within the App Dashboard
+2. Go to Instagram > API setup with Instagram login
+3. Copy the following values:
+   - **Instagram app ID** → **INSTAGRAM_APP_ID**
+   - **Instagram app secret** → **INSTAGRAM_APP_SECRET**
 
-#### Set up Instagram business login
+### Configure webhooks
 
-Instagram OAuth callback (Redirect URL):
+4. Set the **Callback URL** to:
+   `https://{SUPABASE_PROJECT_ID}.supabase.co/functions/v1/instagram-webhook`
+5. Choose a secure token for **INSTAGRAM_VERIFY_TOKEN** → Set it as the **Verify
+   token**, but **do not** click **Verify and save** yet!
+6. Ensure your Edge Functions environment variables are up-to-date
+   - If you configured secrets directly in your Supabase dashboard, no further
+     action is needed at this point
+   - If you set secrets via GitHub Actions, re-run the _Release_ action now to
+     deploy them to your Edge Functions
+7. Click **Verify and save**
 
-- https://web.openbsp.dev/integrations/instagram/callback
-- https://web.openbsp.dev/onboard-instagram/callback
+### Set up Instagram business login
 
-Instagram Deauthorize callback URL:
-https://nheelwshzbgenpavwhcy.supabase.co/functions/v1/instagram-management/deauthorize
+8. Click **Business login settings**
+9. Set the following fields:
+   - OAuth redirect URIs: `{PUBLIC_URL}/oauth/instagram` and
+     `{PUBLIC_URL}/onboard-instagram/callback`
+   - Deauthorize callback URL:
+     `https://{SUPABASE_PROJECT_ID}.supabase.co/functions/v1/instagram-management/deauthorize`
+   - Data deletion request URL:
+     `https://{SUPABASE_PROJECT_ID}.supabase.co/functions/v1/instagram-management/data-deletion`
+10. Click **Save**
 
-Data deletion request URL:
-https://nheelwshzbgenpavwhcy.supabase.co/functions/v1/instagram-management/data-deletion
+> Note that `PUBLIC_URL` is _your_ app/UI public domain. For example, mine is
+> https://web.openbsp.dev.
 
-#### Complete app review
+</details>
 
-Request advanced access for permissions
+## App review
 
-- instagram_business_basic
-- instagram_business_manage_messages ​
+> [!NOTE]
+> You can skip this step if you're a direct developer who only builds for your
+> own WhatsApp/Instagram businesses and don't plan to create solutions for
+> clients.
+
+1. App review > Permissions and Features
+2. Request advanced access for permissions
+   - **WhatsApp**
+     - `whatsapp_business_management`
+     - `whatsapp_business_messaging`
+   - **Instagram**
+     - `instagram_business_basic`
+     - `instagram_business_manage_messages`
+3. App review > Requests > Click **Next**
+
+### Allowed usage
+
+<details>
+<summary>
+`whatsapp_business_management`
+</summary>
+
+- Why it's neccesary: because yes
+
+- [Screen recording](app-review/whatsapp_business_management.mp4)
+
+https://github.com/user-attachments/assets/1ef30dde-9de1-4f5a-856a-db34ca2e3063
+
+</details>
 
 ## Architecture
 
