@@ -22,7 +22,7 @@ OpenBSP is designed for both individual businesses and service providers. You
 can use it to manage your own WhatsApp and Instagram messaging, or leverage its
 features to become a
 [Meta Business Partner](https://developers.facebook.com/docs/whatsapp/solution-providers)
-and offer WhatsApp and Instagram messaging services to other organizations.
+and offer messaging services to other organizations.
 
 ## User Interface
 
