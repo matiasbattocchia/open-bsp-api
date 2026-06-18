@@ -665,13 +665,12 @@ async function processMessage(request: Request): Promise<Response> {
 
   for (const entry of payload.entry) {
     for (const event of extractEvents(entry)) {
-      // Skip dev-mode test messages sent to the org's own account.
-      if (event.message?.is_self) {
-        log.info("Skipping is_self test message", { mid: event.message.mid });
-        continue;
-      }
-
       const isEcho = !!event.message?.is_echo;
+      // Self-messages arrive as echoes (the business messaging its own account)
+      // but should surface as incoming so they're handled like a normal inbound
+      // DM. Keep echo-style address resolution (org = sender = the business) and
+      // only flip the direction below.
+      const isSelf = !!event.message?.is_self;
       const organization_address = isEcho
         ? event.sender.id
         : event.recipient.id;
@@ -807,7 +806,7 @@ async function processMessage(request: Request): Promise<Response> {
         // Deletion — update the original row in place via the status merge trigger.
         if (msg.is_deleted) {
           statuses.push(
-            isEcho
+            isEcho && !isSelf
               ? {
                 organization_id,
                 external_id: msg.mid,
@@ -835,7 +834,7 @@ async function processMessage(request: Request): Promise<Response> {
         const content = instagramMessageToContent(msg);
         if (!content) continue;
 
-        if (isEcho) {
+        if (isEcho && !isSelf) {
           messages.push({
             organization_id,
             external_id: msg.mid,

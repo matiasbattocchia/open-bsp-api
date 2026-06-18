@@ -154,6 +154,12 @@ on public.messages
 for each row
 execute function public.notify_webhook();
 
+create trigger preserve_direction
+before update
+on public.messages
+for each row
+execute function public.preserve_message_direction();
+
 create trigger set_message
 before update
 on public.messages

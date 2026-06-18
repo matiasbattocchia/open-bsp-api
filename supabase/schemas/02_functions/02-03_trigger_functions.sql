@@ -180,6 +180,21 @@ begin
 end;
 $$;
 
+-- BEFORE UPDATE: direction is set once at insert and never changes. Upserts
+-- (onConflict external_id) carry a direction in the incoming row, so without
+-- this an echo/status row could flip an existing message's direction — e.g. an
+-- Instagram self-message echo (which we record as incoming) landing on the
+-- outgoing row we already sent. Keep the original direction; updates only ever
+-- merge content/status.
+create function public.preserve_message_direction() returns trigger
+language plpgsql
+as $$
+begin
+  new.direction := old.direction;
+  return new;
+end;
+$$;
+
 -- BEFORE trigger: creates contact on ADD, unlinks on REMOVE.
 -- Must stay BEFORE to modify new.contact_id.
 create function public.manage_contact_on_address_sync() returns trigger
