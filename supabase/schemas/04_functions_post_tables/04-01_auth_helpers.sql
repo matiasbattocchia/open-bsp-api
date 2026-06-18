@@ -43,7 +43,7 @@ begin
 
   -- Fallback to API key authentication
   api_key := current_setting('request.headers', true)::json->>'api-key';
-  
+
   if api_key is not null then
     select a.organization_id into org_id
     from public.api_keys a
