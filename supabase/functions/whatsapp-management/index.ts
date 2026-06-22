@@ -363,6 +363,7 @@ app.get("/whatsapp-management/onboard", async (c) => {
     .from("onboarding_tokens")
     .select("id, organization_id, organizations(name)")
     .eq("id", token)
+    .eq("service", "whatsapp")
     .eq("status", "active")
     .gt("expires_at", new Date().toISOString())
     .maybeSingle();
@@ -401,6 +402,7 @@ app.post("/whatsapp-management/onboard", async (c) => {
     .from("onboarding_tokens")
     .update({ status: "used", used_at: new Date().toISOString() })
     .eq("id", body.token)
+    .eq("service", "whatsapp")
     .eq("status", "active")
     .gt("expires_at", new Date().toISOString())
     .select("organization_id")

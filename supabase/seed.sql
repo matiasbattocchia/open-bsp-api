@@ -149,10 +149,10 @@ insert into public.api_keys (organization_id, key, role, name) values
 ;
 
 -- Onboarding Tokens (for Mountain Peaks - created by Goat)
-insert into public.onboarding_tokens (name, organization_id, created_by, expires_at, status, used_at) values
-  ('Villager Trading Co', '3a182d8d-d6d8-44bd-b021-029915476b8c', '185f2f83-d63a-4c9b-b4a0-7e4a885799e2', now() + interval '7 days', 'active', null),
-  ('Old Nether Portal', '3a182d8d-d6d8-44bd-b021-029915476b8c', '185f2f83-d63a-4c9b-b4a0-7e4a885799e2', now() - interval '1 day', 'expired', null),
-  ('Witch Hut Supply', '3a182d8d-d6d8-44bd-b021-029915476b8c', '185f2f83-d63a-4c9b-b4a0-7e4a885799e2', now() + interval '30 days', 'used', now() - interval '2 days')
+insert into public.onboarding_tokens (name, organization_id, created_by, expires_at, status, used_at, service) values
+  ('Villager Trading Co', '3a182d8d-d6d8-44bd-b021-029915476b8c', '185f2f83-d63a-4c9b-b4a0-7e4a885799e2', now() + interval '7 days', 'active', null, 'whatsapp'),
+  ('Old Nether Portal', '3a182d8d-d6d8-44bd-b021-029915476b8c', '185f2f83-d63a-4c9b-b4a0-7e4a885799e2', now() - interval '1 day', 'expired', null, 'whatsapp'),
+  ('Witch Hut Supply', '3a182d8d-d6d8-44bd-b021-029915476b8c', '185f2f83-d63a-4c9b-b4a0-7e4a885799e2', now() + interval '30 days', 'used', now() - interval '2 days', 'whatsapp')
 ;
 
 -- AI Agents (for Mountain Peaks)

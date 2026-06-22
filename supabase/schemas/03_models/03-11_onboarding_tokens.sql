@@ -7,6 +7,7 @@ create table public.onboarding_tokens (
   expires_at timestamp with time zone not null,
   used_at timestamp with time zone,
   status text default 'active'::text not null,
+  service public.service not null,
   constraint onboarding_tokens_status_check check (status in ('active', 'used', 'expired'))
 );
 

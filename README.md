@@ -549,10 +549,8 @@ Please go through the WhatsApp integration step 1 if you haven't got a Meta App
 yet.
 
 > [!IMPORTANT]
-> There are two official ways of integrating Instagram:
->
-> 1. Instagram login
-> 2. Facebook login OpenBSP uses **Instagram login**.
+> OpenBSP integrates with Instagram using **Instagram login** (not Facebook
+> login).
 
 #### Secrets
 

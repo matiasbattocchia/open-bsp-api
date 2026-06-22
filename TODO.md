@@ -24,6 +24,8 @@ Monetization (medium-term)
 
 ## General
 
+- [ ] Improve routing of organization accounts and members
+
 - [ ] Data export / DB dump
 
 - [ ] Langfuse integration
