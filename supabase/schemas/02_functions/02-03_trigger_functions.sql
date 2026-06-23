@@ -350,6 +350,57 @@ begin
 end;
 $$;
 
+-- Webhook dispatcher for conversation_labels.
+-- Extends the existing notify_webhook pattern to support DELETE events,
+-- using OLD record when the operation is a removal.
+create function public.notify_labels_webhook() returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  webhook_record record;
+  headers        jsonb;
+  record_data    jsonb;
+begin
+  record_data := case tg_op
+    when 'DELETE' then to_jsonb(old)
+    else to_jsonb(new)
+  end;
+
+  for webhook_record in
+    select w.url, w.token
+    from public.webhooks w
+    where (record_data->>'organization_id')::uuid = w.organization_id
+      and w.table_name = 'conversation_labels'::public.webhook_table
+      and lower(tg_op)::public.webhook_operation = any(w.operations)
+    limit 3
+  loop
+    headers := case
+      when webhook_record.token is not null then
+        jsonb_build_object(
+          'content-type', 'application/json',
+          'authorization', 'Bearer ' || webhook_record.token
+        )
+      else
+        jsonb_build_object('content-type', 'application/json')
+    end;
+
+    perform net.http_post(
+      url    := webhook_record.url,
+      body   := jsonb_build_object(
+        'data',   record_data,
+        'entity', tg_table_name,
+        'action', lower(tg_op)
+      ),
+      headers := headers
+    );
+  end loop;
+
+  return coalesce(new, old);
+end;
+$$;
+
 create function public.notify_webhook() returns trigger
 language plpgsql
 security definer
