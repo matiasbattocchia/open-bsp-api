@@ -319,21 +319,40 @@ export async function performEmbeddedSignup(
     });
   }
 
-  // App data sync is a coexistence only feature
+  // App data sync (historical contacts + message-history import) is a
+  // coexistence-only, best-effort step: Meta only allows it within 24h of the
+  // WABA's onboarding (error 135000 otherwise). A sync failure must NOT fail the
+  // signup — the number is already connected and persisted above — so log and
+  // continue. The two syncs are independent, so one failing must not skip the
+  // other.
   if (payload.flow_type === "existing_phone_number") {
-    log.info("Step 4: Initiating contacts sync");
-    await postInitDataSync(
-      business_access_token,
-      payload.phone_number_id,
-      "contacts",
-    );
+    try {
+      log.info("Step 4: Initiating contacts sync");
+      await postInitDataSync(
+        business_access_token,
+        payload.phone_number_id,
+        "contacts",
+      );
+    } catch (error) {
+      log.warn(
+        "Contacts sync failed (non-fatal): number connected, but historical contacts were not imported",
+        error instanceof HTTPException ? error.cause : error,
+      );
+    }
 
-    log.info("Step 5: Initiating messages sync");
-    await postInitDataSync(
-      business_access_token,
-      payload.phone_number_id,
-      "messages",
-    );
+    try {
+      log.info("Step 5: Initiating messages sync");
+      await postInitDataSync(
+        business_access_token,
+        payload.phone_number_id,
+        "messages",
+      );
+    } catch (error) {
+      log.warn(
+        "Messages sync failed (non-fatal): number connected, but historical messages were not imported",
+        error instanceof HTTPException ? error.cause : error,
+      );
+    }
   }
 
   return data;

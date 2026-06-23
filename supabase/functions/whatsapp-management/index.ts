@@ -50,14 +50,17 @@ app.use("*", cors());
 // `cause` where upstream details (e.g. the Graph API error) live.
 app.onError((err, c) => {
   if (err instanceof HTTPException) {
-    log.error(err.message, err.cause);
+    log.error(
+      `${c.req.method} ${c.req.path} → ${err.status}: ${err.message}`,
+      err.cause,
+    );
     return c.json(
       { message: err.message, cause: err.cause as Json },
       err.status,
     );
   }
 
-  log.error("Unhandled error", err);
+  log.error(`Unhandled error on ${c.req.method} ${c.req.path}`, err);
   return c.json({ message: "Internal Server Error" }, 500);
 });
 
@@ -397,22 +400,44 @@ app.post("/whatsapp-management/onboard", async (c) => {
 
   const client = createUnsecureClient();
 
-  // Atomically validate and mark token as used
+  // Read the token once and validate it in code — don't consume it; the link is
+  // marked used only after the account connects (below). A single read also lets
+  // us log exactly why a token was rejected when an onboard link "was used" but
+  // nothing happened on our side.
   const { data: tokenData, error: tokenError } = await client
     .from("onboarding_tokens")
-    .update({ status: "used", used_at: new Date().toISOString() })
+    .select("status, service, expires_at, organization_id")
     .eq("id", body.token)
-    .eq("service", "whatsapp")
-    .eq("status", "active")
-    .gt("expires_at", new Date().toISOString())
-    .select("organization_id")
     .maybeSingle();
 
-  if (tokenError || !tokenData) {
+  const reason = tokenError
+    ? `db error: ${tokenError.message}`
+    : !tokenData
+    ? "token not found"
+    : tokenData.service !== "whatsapp"
+    ? `service mismatch (token is '${tokenData.service}')`
+    : tokenData.status !== "active"
+    ? `not active (status '${tokenData.status}')`
+    : new Date(tokenData.expires_at) <= new Date()
+    ? `expired at ${tokenData.expires_at}`
+    : null;
+
+  if (reason || !tokenData) {
+    log.warn("Onboard token rejected", {
+      token: body.token,
+      reason,
+      organization_id: tokenData?.organization_id,
+    });
+
     throw new HTTPException(400, {
       message: "Invalid or expired onboarding token",
     });
   }
+
+  log.info("Onboard token validated", {
+    token: body.token,
+    organization_id: tokenData.organization_id,
+  });
 
   const payload: SignupPayload = {
     code: body.code,
@@ -424,36 +449,26 @@ app.post("/whatsapp-management/onboard", async (c) => {
     flow_type: body.flow_type,
   };
 
-  try {
-    const address = await performEmbeddedSignup(client, payload);
+  // Connect the account. If this throws, the token stays active so the user can
+  // retry; app.onError logs the failure (with the Meta cause) to stdout.
+  const address = await performEmbeddedSignup(client, payload);
 
-    return c.json(address);
-  } catch (error) {
-    // Revert token status on failure
-    await client
-      .from("onboarding_tokens")
-      .update({ status: "active", used_at: null })
-      .eq("id", body.token);
+  // Connected — mark the link used. This is the function's authoritative status
+  // write, derived from the actual onboarding outcome. The status guard keeps it
+  // idempotent under a double submit.
+  await client
+    .from("onboarding_tokens")
+    .update({ status: "used", used_at: new Date().toISOString() })
+    .eq("id", body.token)
+    .eq("status", "active");
 
-    if (error instanceof HTTPException) {
-      log.error(error.message, error);
+  log.info("Onboard completed", {
+    token: body.token,
+    organization_id: tokenData.organization_id,
+    address: address.address,
+  });
 
-      await client
-        .from("logs")
-        .insert({
-          organization_id: tokenData.organization_id,
-          category: "signup",
-          level: "error",
-          message: error.message,
-          metadata: error.cause as Json,
-        })
-        .throwOnError();
-    } else {
-      log.error("Public onboard signup failed", error);
-    }
-
-    throw error;
-  }
+  return c.json(address);
 });
 
 Deno.serve(app.fetch);
