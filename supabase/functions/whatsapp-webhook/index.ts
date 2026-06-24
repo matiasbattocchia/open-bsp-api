@@ -930,6 +930,39 @@ async function processMessage(request: Request): Promise<Response> {
                   continue;
                 }
 
+                // Edits/revokes can appear in history too (coexistence). Merge
+                // them onto the original row by external_id, same as the live
+                // and echo paths — otherwise they hit webhookMessageToIncoming-
+                // Message's default branch and get dropped with a warning.
+                if (webhookMessage.type === "revoke") {
+                  revokes.push({
+                    original_message_id:
+                      webhookMessage.revoke.original_message_id,
+                    timestamp: new Date(webhookMessage.timestamp * 1000)
+                      .toISOString(),
+                  });
+                  continue;
+                }
+
+                if (webhookMessage.type === "edit") {
+                  const text = extractEditedText(webhookMessage.edit.message);
+                  if (text === undefined) {
+                    log.warn(
+                      "Unsupported edited message type",
+                      webhookMessage.edit.message,
+                    );
+                    continue;
+                  }
+                  edits.push({
+                    original_message_id:
+                      webhookMessage.edit.original_message_id,
+                    text,
+                    timestamp: new Date(webhookMessage.timestamp * 1000)
+                      .toISOString(),
+                  });
+                  continue;
+                }
+
                 const content = webhookMessageToIncomingMessage(webhookMessage);
 
                 if (!content) {
