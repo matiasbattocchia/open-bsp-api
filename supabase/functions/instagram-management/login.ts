@@ -448,6 +448,7 @@ export async function refreshTokens(client: Client) {
           organization_id: row.organization_id,
           organization_address: row.address,
           category: "instagram_token_refresh",
+          service: "instagram",
           level: "error",
           message,
         });

@@ -6,6 +6,7 @@ create table public.logs (
   organization_address text,
   level public.log_level not null,
   category text not null,
+  service public.service,
   message text not null,
   metadata jsonb,
   created_at timestamp with time zone not null default now()
@@ -28,3 +29,9 @@ using btree (organization_id, organization_address);
 create index idx_logs_created_at
 on public.logs
 using btree (created_at desc);
+
+create trigger z_notify_webhook_logs
+after insert
+on public.logs
+for each row
+execute function public.notify_webhook();

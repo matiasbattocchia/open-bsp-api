@@ -60,7 +60,7 @@ on public.conversations
 for each row
 execute function public.before_insert_on_conversations();
 
-create trigger notify_webhook_conversations
+create trigger z_notify_webhook_conversations
 after insert or update
 on public.conversations
 for each row

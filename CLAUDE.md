@@ -93,6 +93,19 @@ ORDER BY created_at DESC;
 - Migrations are **generated** from schema diffs, not manually written: edit the
   schema files under `supabase/schemas/`, then run
   `npx supabase db diff -f <migration_name>`.
+- **Never hand-create or hand-edit a migration** except for a few exceptional
+  cases that `db diff` can't produce:
+  - **Trim spurious `revoke` noise** — `db diff` emits ~144
+    `revoke ... from
+    anon|authenticated|service_role` lines every run (a
+    migra/Supabase default-privilege artifact). Delete them; keep only your real
+    changes.
+  - **DML / data backfills** — `db diff` emits schema DDL only. Hand-write data
+    updates (e.g. backfilling a new column on existing rows).
+  - **Imperative bits db diff can't model** — e.g. `cron.schedule(...)` /
+    pg_cron jobs (see `*_cron.sql` migrations). Everything else (columns,
+    types/enums, policies, triggers, functions) must come from editing
+    `supabase/schemas/` and re-running `db diff` — don't append DDL by hand.
 - Migrations apply automatically via CI: pushing to `origin/develop` deploys to
   DEV, pushing to `origin/main` deploys to PROD. Never apply migrations manually
   or execute DDL directly on production.

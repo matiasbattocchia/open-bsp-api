@@ -156,7 +156,7 @@ when (
 )
 execute function public.edge_function('/media-preprocessor', 'post');
 
-create trigger notify_webhook_messages
+create trigger z_notify_webhook_messages
 after insert or update
 on public.messages
 for each row

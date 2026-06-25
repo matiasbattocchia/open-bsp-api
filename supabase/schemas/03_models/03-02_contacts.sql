@@ -37,4 +37,10 @@ on public.contacts
 for each row
 execute function public.moddatetime('updated_at');
 
+create trigger z_notify_webhook_contacts
+after insert or update
+on public.contacts
+for each row
+execute function public.notify_webhook();
+
 

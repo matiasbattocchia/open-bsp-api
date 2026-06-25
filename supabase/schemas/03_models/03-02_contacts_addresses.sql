@@ -47,6 +47,12 @@ on public.contacts_addresses
 for each row
 execute function public.moddatetime('updated_at');
 
+create trigger z_notify_webhook_contacts_addresses
+after insert or update
+on public.contacts_addresses
+for each row
+execute function public.notify_webhook();
+
 create trigger manage_contact_on_address_sync -- Should execute before merge_update
 before insert or update
 on public.contacts_addresses

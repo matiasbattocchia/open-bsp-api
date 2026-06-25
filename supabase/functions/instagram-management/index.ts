@@ -220,7 +220,8 @@ app.post(
           .from("logs")
           .insert({
             organization_id: payload.organization_id,
-            category: "instagram_login",
+            category: "login",
+            service: "instagram",
             level: "error",
             message: error.message,
             metadata: error.cause as Json,

@@ -576,6 +576,7 @@ async function processMessage(request: Request): Promise<Response> {
           .insert({
             organization_id: address.organization_id,
             category: "account_update",
+            service: "whatsapp",
             level: "info",
             message: value.event.toLocaleLowerCase(),
             metadata: { waba_id, value },
@@ -791,6 +792,7 @@ async function processMessage(request: Request): Promise<Response> {
               organization_id,
               organization_address,
               category: "messages",
+              service: "whatsapp",
               level: "error",
               message: error.message,
               metadata: error,
@@ -893,6 +895,7 @@ async function processMessage(request: Request): Promise<Response> {
                 organization_id,
                 organization_address,
                 category: "history",
+                service: "whatsapp",
                 level: "info",
                 message:
                   `Syncing ${convCount} conversations and ${msgCount} messages`,
@@ -1044,6 +1047,7 @@ async function processMessage(request: Request): Promise<Response> {
                   organization_id,
                   organization_address,
                   category: "history",
+                  service: "whatsapp",
                   level: "error",
                   message: error.message,
                   metadata: error,
@@ -1110,6 +1114,7 @@ async function processMessage(request: Request): Promise<Response> {
               organization_id,
               organization_address,
               category: field,
+              service: "whatsapp",
               level: "error",
               message:
                 `Received ${count} error messages with code ${error.code}`,

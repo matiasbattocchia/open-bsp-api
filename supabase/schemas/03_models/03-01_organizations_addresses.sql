@@ -33,6 +33,12 @@ on public.organizations_addresses
 for each row
 execute function public.moddatetime('updated_at');
 
+create trigger z_notify_webhook_organizations_addresses
+after insert or update
+on public.organizations_addresses
+for each row
+execute function public.notify_webhook();
+
 create index organizations_addresses_waba_id_idx
 on public.organizations_addresses
 using btree ((extra->>'waba_id'))

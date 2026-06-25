@@ -821,6 +821,7 @@ export type Database = {
           metadata: Json | null
           organization_address: string | null
           organization_id: string
+          service: Database["public"]["Enums"]["service"] | null
         }
         Insert: {
           category: string
@@ -831,6 +832,7 @@ export type Database = {
           metadata?: Json | null
           organization_address?: string | null
           organization_id: string
+          service?: Database["public"]["Enums"]["service"] | null
         }
         Update: {
           category?: string
@@ -841,6 +843,7 @@ export type Database = {
           metadata?: Json | null
           organization_address?: string | null
           organization_id?: string
+          service?: Database["public"]["Enums"]["service"] | null
         }
         Relationships: [
           {
@@ -937,8 +940,8 @@ export type Database = {
       }
       onboarding_tokens: {
         Row: {
+          callback_url: string | null
           created_at: string
-          created_by: string
           expires_at: string
           id: string
           name: string
@@ -946,10 +949,11 @@ export type Database = {
           service: Database["public"]["Enums"]["service"]
           status: string
           used_at: string | null
+          verify_token: string | null
         }
         Insert: {
+          callback_url?: string | null
           created_at?: string
-          created_by: string
           expires_at: string
           id?: string
           name: string
@@ -957,10 +961,11 @@ export type Database = {
           service: Database["public"]["Enums"]["service"]
           status?: string
           used_at?: string | null
+          verify_token?: string | null
         }
         Update: {
+          callback_url?: string | null
           created_at?: string
-          created_by?: string
           expires_at?: string
           id?: string
           name?: string
@@ -968,6 +973,7 @@ export type Database = {
           service?: Database["public"]["Enums"]["service"]
           status?: string
           used_at?: string | null
+          verify_token?: string | null
         }
         Relationships: [
           {
@@ -1181,7 +1187,13 @@ export type Database = {
       role: "owner" | "admin" | "member"
       service: "whatsapp" | "instagram" | "local"
       webhook_operation: "insert" | "update"
-      webhook_table: "messages" | "conversations"
+      webhook_table:
+        | "messages"
+        | "conversations"
+        | "organizations_addresses"
+        | "contacts"
+        | "contacts_addresses"
+        | "logs"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1862,7 +1874,14 @@ export const Constants = {
       role: ["owner", "admin", "member"],
       service: ["whatsapp", "instagram", "local"],
       webhook_operation: ["insert", "update"],
-      webhook_table: ["messages", "conversations"],
+      webhook_table: [
+        "messages",
+        "conversations",
+        "organizations_addresses",
+        "contacts",
+        "contacts_addresses",
+        "logs",
+      ],
     },
   },
   storage: {

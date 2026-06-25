@@ -314,6 +314,7 @@ app.post("/whatsapp-management/signup", requireRoles(["owner"]), async (c) => {
         .insert({
           organization_id: payload.organization_id,
           category: "signup",
+          service: "whatsapp",
           level: "error",
           message: error.message,
           metadata: error.cause as Json,
@@ -406,7 +407,9 @@ app.post("/whatsapp-management/onboard", async (c) => {
   // nothing happened on our side.
   const { data: tokenData, error: tokenError } = await client
     .from("onboarding_tokens")
-    .select("status, service, expires_at, organization_id")
+    .select(
+      "status, service, expires_at, organization_id, callback_url, verify_token",
+    )
     .eq("id", body.token)
     .maybeSingle();
 
@@ -447,6 +450,8 @@ app.post("/whatsapp-management/onboard", async (c) => {
     waba_id: body.waba_id,
     business_id: body.business_id,
     flow_type: body.flow_type,
+    callback_url: tokenData.callback_url ?? undefined,
+    verify_token: tokenData.verify_token ?? undefined,
   };
 
   // Connect the account. If this throws, the token stays active so the user can
