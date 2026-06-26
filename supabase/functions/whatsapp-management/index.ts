@@ -304,6 +304,11 @@ app.post("/whatsapp-management/signup", requireRoles(["owner"]), async (c) => {
   try {
     const address = await performEmbeddedSignup(unsecureClient, payload);
 
+    log.info("Signup completed", {
+      organization_id: payload.organization_id,
+      address: address.address,
+    });
+
     return c.json(address);
   } catch (error) {
     if (error instanceof HTTPException) {
@@ -397,7 +402,7 @@ app.post("/whatsapp-management/onboard", async (c) => {
     throw new HTTPException(400, { message: "Missing 'token' body param" });
   }
 
-  log.info("Public onboard payload", { ...body, code: "***" });
+  log.info("Public onboard payload", body);
 
   const client = createUnsecureClient();
 
@@ -454,26 +459,50 @@ app.post("/whatsapp-management/onboard", async (c) => {
     verify_token: tokenData.verify_token ?? undefined,
   };
 
-  // Connect the account. If this throws, the token stays active so the user can
-  // retry; app.onError logs the failure (with the Meta cause) to stdout.
-  const address = await performEmbeddedSignup(client, payload);
+  // Connect the account, then mark the link used on success. Same try/catch as
+  // the authenticated /signup route: on failure record it (with the Meta cause)
+  // to public.logs so the org's tech-provider can self-debug a bad
+  // callback_url/verify_token — not just OpenBSP operators reading stdout. The
+  // token stays active on failure, so the customer can retry.
+  try {
+    const address = await performEmbeddedSignup(client, payload);
 
-  // Connected — mark the link used. This is the function's authoritative status
-  // write, derived from the actual onboarding outcome. The status guard keeps it
-  // idempotent under a double submit.
-  await client
-    .from("onboarding_tokens")
-    .update({ status: "used", used_at: new Date().toISOString() })
-    .eq("id", body.token)
-    .eq("status", "active");
+    // Connected — mark the link used. This is the function's authoritative
+    // status write, derived from the actual onboarding outcome. The status guard
+    // keeps it idempotent under a double submit.
+    await client
+      .from("onboarding_tokens")
+      .update({ status: "used", used_at: new Date().toISOString() })
+      .eq("id", body.token)
+      .eq("status", "active");
 
-  log.info("Onboard completed", {
-    token: body.token,
-    organization_id: tokenData.organization_id,
-    address: address.address,
-  });
+    log.info("Onboard completed", {
+      token: body.token,
+      organization_id: tokenData.organization_id,
+      address: address.address,
+    });
 
-  return c.json(address);
+    return c.json(address);
+  } catch (error) {
+    if (error instanceof HTTPException) {
+      log.error(error.message, error);
+      await client
+        .from("logs")
+        .insert({
+          organization_id: tokenData.organization_id,
+          category: "signup",
+          service: "whatsapp",
+          level: "error",
+          message: error.message,
+          metadata: error.cause as Json,
+        })
+        .throwOnError();
+    } else {
+      log.error("Embedded signup failed", error);
+    }
+
+    throw error;
+  }
 });
 
 Deno.serve(app.fetch);

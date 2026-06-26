@@ -1,4 +1,5 @@
 import * as log from "../_shared/logger.ts";
+import { Json } from "../_shared/db_types.ts";
 import { HTTPException } from "jsr:@hono/hono/http-exception";
 import type {
   createClient,
@@ -257,14 +258,22 @@ export async function performEmbeddedSignup(
   const app_id = ids[idIndex];
   const app_secret = secrets[idIndex];
 
-  log.info("Step 1: Exchange the token code for a business token");
+  // Attached to every step log so concurrent onboardings can be told apart in
+  // stdout.
+  const ctx = {
+    organization_id: payload.organization_id,
+    phone_number_id: payload.phone_number_id,
+    waba_id: payload.waba_id,
+  };
+
+  log.info("Step 1: Exchange the token code for a business token", ctx);
   const business_access_token = await getBusinessAccessToken(
     app_id,
     app_secret,
     payload.code,
   );
 
-  log.info("Step 2: Subscribe to webhooks on the customer's WABA");
+  log.info("Step 2: Subscribe to webhooks on the customer's WABA", ctx);
   await postSubscribeToWebhooks(
     business_access_token,
     payload.waba_id,
@@ -273,9 +282,9 @@ export async function performEmbeddedSignup(
   );
 
   if (payload.flow_type === "existing_phone_number") {
-    log.info("Coexistence flow: Skipping step 3");
+    log.info("Coexistence flow: Skipping step 3", ctx);
   } else {
-    log.info("Step 3: Register the customer's phone number");
+    log.info("Step 3: Register the customer's phone number", ctx);
     const pin = "123456";
     await postRegisterPhoneNumber(
       business_access_token,
@@ -284,13 +293,13 @@ export async function performEmbeddedSignup(
     );
   }
 
-  log.info("Getting phone number data");
+  log.info("Getting phone number data", ctx);
   const phone_number = await getPhoneNumber(
     business_access_token,
     payload.phone_number_id,
   );
 
-  log.info("Persisting phone number data");
+  log.info("Persisting phone number data", ctx);
   const { data, error } = await client
     .from("organizations_addresses")
     .upsert({
@@ -319,6 +328,19 @@ export async function performEmbeddedSignup(
     });
   }
 
+  log.info("Account connected", ctx);
+
+  // Record the connection to public.logs (best-effort) so the org's
+  // tech-provider sees good events too, not just failures.
+  await client.from("logs").insert({
+    organization_id: payload.organization_id,
+    organization_address: data.address,
+    category: "signup",
+    service: "whatsapp",
+    level: "info",
+    message: "WhatsApp account connected",
+  });
+
   // App data sync (historical contacts + message-history import) is a
   // coexistence-only, best-effort step: Meta only allows it within 24h of the
   // WABA's onboarding (error 135000 otherwise). A sync failure must NOT fail the
@@ -327,31 +349,51 @@ export async function performEmbeddedSignup(
   // other.
   if (payload.flow_type === "existing_phone_number") {
     try {
-      log.info("Step 4: Initiating contacts sync");
+      log.info("Step 4: Initiating contacts sync", ctx);
       await postInitDataSync(
         business_access_token,
         payload.phone_number_id,
         "contacts",
       );
     } catch (error) {
+      const cause = error instanceof HTTPException ? error.cause : error;
       log.warn(
         "Contacts sync failed (non-fatal): number connected, but historical contacts were not imported",
-        error instanceof HTTPException ? error.cause : error,
+        { ...ctx, cause },
       );
+      await client.from("logs").insert({
+        organization_id: payload.organization_id,
+        organization_address: payload.phone_number_id,
+        category: "signup",
+        service: "whatsapp",
+        level: "warning",
+        message: "Historical contacts were not imported (sync did not run)",
+        metadata: cause as Json,
+      });
     }
 
     try {
-      log.info("Step 5: Initiating messages sync");
+      log.info("Step 5: Initiating messages sync", ctx);
       await postInitDataSync(
         business_access_token,
         payload.phone_number_id,
         "messages",
       );
     } catch (error) {
+      const cause = error instanceof HTTPException ? error.cause : error;
       log.warn(
         "Messages sync failed (non-fatal): number connected, but historical messages were not imported",
-        error instanceof HTTPException ? error.cause : error,
+        { ...ctx, cause },
       );
+      await client.from("logs").insert({
+        organization_id: payload.organization_id,
+        organization_address: payload.phone_number_id,
+        category: "signup",
+        service: "whatsapp",
+        level: "warning",
+        message: "Historical messages were not imported (sync did not run)",
+        metadata: cause as Json,
+      });
     }
   }
 

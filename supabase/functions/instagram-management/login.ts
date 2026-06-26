@@ -310,7 +310,11 @@ export async function performInstagramLogin(
 
   const { app_id, app_secret } = resolveAppCredentials(payload.application_id);
 
-  log.info("Step 1: Exchange the code for a short-lived token");
+  // Attached to every step log so concurrent onboardings can be told apart in
+  // stdout.
+  const ctx = { organization_id: payload.organization_id };
+
+  log.info("Step 1: Exchange the code for a short-lived token", ctx);
   const shortLived = await exchangeCodeForShortLivedToken(
     app_id,
     app_secret,
@@ -318,16 +322,19 @@ export async function performInstagramLogin(
     payload.redirect_uri,
   );
 
-  log.info("Step 2: Exchange the short-lived token for a long-lived token");
+  log.info(
+    "Step 2: Exchange the short-lived token for a long-lived token",
+    ctx,
+  );
   const longLived = await exchangeForLongLivedToken(
     app_secret,
     shortLived.access_token,
   );
 
-  log.info("Step 3: Fetch the connected account's profile");
+  log.info("Step 3: Fetch the connected account's profile", ctx);
   const account = await getInstagramAccount(longLived.access_token);
 
-  log.info("Step 4: Subscribe the account to webhooks");
+  log.info("Step 4: Subscribe the account to webhooks", ctx);
   await subscribeToWebhooks(longLived.access_token);
 
   const ig_user_id = account.user_id || String(shortLived.user_id);
@@ -345,7 +352,7 @@ export async function performInstagramLogin(
     scopes: normalizePermissions(shortLived.permissions),
   };
 
-  log.info("Persisting Instagram account data");
+  log.info("Persisting Instagram account data", ctx);
   const { data, error } = await client
     .from("organizations_addresses")
     .upsert({
@@ -364,6 +371,19 @@ export async function performInstagramLogin(
       cause: error,
     });
   }
+
+  log.info("Account connected", ctx);
+
+  // Record the connection to public.logs (best-effort) so the org's
+  // tech-provider sees good events too, not just failures.
+  await client.from("logs").insert({
+    organization_id: payload.organization_id,
+    organization_address: data.address,
+    category: "login",
+    service: "instagram",
+    level: "info",
+    message: "Instagram account connected",
+  });
 
   return data;
 }
