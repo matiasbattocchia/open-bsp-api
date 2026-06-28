@@ -24,7 +24,7 @@ features to become a
 [Meta Business Partner](https://developers.facebook.com/docs/whatsapp/solution-providers)
 and offer messaging services to other organizations.
 
-## User Interface
+## User interface
 
 For a complete web-based interface to manage conversations check out the
 companion project:
@@ -33,6 +33,22 @@ companion project:
 responsive web interface built with React and Tailwind.
 
 https://github.com/user-attachments/assets/1ef30dde-9de1-4f5a-856a-db34ca2e3063
+
+## n8n
+
+Trigger on incoming messages and delivery-status changes.
+
+Every event can carry the **full conversation context**, so your AI node replies
+with history.
+
+Send text, media, templates, locations, and contacts; read conversations,
+contacts, and templates.
+
+**🔌
+[OpenBSP n8n nodes](https://github.com/matiasbattocchia/n8n-nodes-openbsp)** —
+The official n8n community node package for OpenBSP.
+
+[![Echo bot workflow built with the OpenBSP n8n nodes](https://raw.githubusercontent.com/matiasbattocchia/n8n-nodes-openbsp/main/images/04-echo-bot-workflow.png)](https://github.com/matiasbattocchia/n8n-nodes-openbsp)
 
 ## Description
 
