@@ -103,9 +103,20 @@ ORDER BY created_at DESC;
   - **DML / data backfills** — `db diff` emits schema DDL only. Hand-write data
     updates (e.g. backfilling a new column on existing rows).
   - **Imperative bits db diff can't model** — e.g. `cron.schedule(...)` /
-    pg_cron jobs (see `*_cron.sql` migrations). Everything else (columns,
-    types/enums, policies, triggers, functions) must come from editing
-    `supabase/schemas/` and re-running `db diff` — don't append DDL by hand.
+    pg_cron jobs (see `*_cron.sql` migrations).
+  - **Enum value additions** — for an enum used by a column that an RLS policy
+    (or other dependent) references, `db diff`'s rename/recreate/recast fails to
+    apply: _"cannot alter type of a column used in a policy definition"_. Still
+    add the value to the enum in `supabase/schemas/01_types.sql`, but replace
+    the generated recast with hand-written
+    `alter type public.<enum> add value if not
+    exists '<v>';` (appends in
+    place, touches no columns/policies). The recast is only safe when nothing
+    references the column (e.g. `webhook_table`).
+
+  Everything else (columns, policies, triggers, functions) must come from
+  editing `supabase/schemas/` and re-running `db diff` — don't append DDL by
+  hand.
 - Migrations apply automatically via CI: pushing to `origin/develop` deploys to
   DEV, pushing to `origin/main` deploys to PROD. Never apply migrations manually
   or execute DDL directly on production.

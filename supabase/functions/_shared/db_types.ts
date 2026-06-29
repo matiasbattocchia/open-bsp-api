@@ -877,6 +877,7 @@ export type Database = {
           organization_id: string
           service: Database["public"]["Enums"]["service"]
           status: Json
+          thread_id: string | null
           timestamp: string
           updated_at: string
         }
@@ -894,6 +895,7 @@ export type Database = {
           organization_id: string
           service: Database["public"]["Enums"]["service"]
           status?: Json
+          thread_id?: string | null
           timestamp?: string
           updated_at?: string
         }
@@ -911,6 +913,7 @@ export type Database = {
           organization_id?: string
           service?: Database["public"]["Enums"]["service"]
           status?: Json
+          thread_id?: string | null
           timestamp?: string
           updated_at?: string
         }
@@ -1185,7 +1188,13 @@ export type Database = {
       direction: "incoming" | "outgoing" | "internal"
       log_level: "info" | "warning" | "error"
       role: "owner" | "admin" | "member"
-      service: "whatsapp" | "instagram" | "local"
+      service:
+        | "whatsapp"
+        | "instagram"
+        | "local"
+        | "slack"
+        | "discord"
+        | "teams"
       webhook_operation: "insert" | "update"
       webhook_table:
         | "messages"
@@ -1872,7 +1881,7 @@ export const Constants = {
       direction: ["incoming", "outgoing", "internal"],
       log_level: ["info", "warning", "error"],
       role: ["owner", "admin", "member"],
-      service: ["whatsapp", "instagram", "local"],
+      service: ["whatsapp", "instagram", "local", "slack", "discord", "teams"],
       webhook_operation: ["insert", "update"],
       webhook_table: [
         "messages",

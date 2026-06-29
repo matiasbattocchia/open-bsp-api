@@ -12,6 +12,12 @@ create table public.messages (
   service public.service not null,
   organization_address text not null,
   group_address text,
+  -- Logical partition of a conversation (Slack/Discord-style threads): the
+  -- external_id of the thread's root message, shared by the root (which points
+  -- to itself) and all of its replies. null = top-level / main channel
+  -- timeline. Soft reference like content.re_message_id — not a FK, so it
+  -- tolerates out-of-order arrival and out-of-window roots.
+  thread_id text,
   ----
   content jsonb not null,
   status jsonb default jsonb_build_object('pending', now()) not null,
