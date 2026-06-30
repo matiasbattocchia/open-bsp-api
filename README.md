@@ -36,10 +36,8 @@ https://github.com/user-attachments/assets/1ef30dde-9de1-4f5a-856a-db34ca2e3063
 
 ## n8n
 
-Trigger on incoming messages and delivery-status changes.
-
-Every event can carry the **full conversation context**, so your AI node replies
-with history.
+Trigger on incoming messages and delivery-status changes. Every event can carry
+the **full conversation context**, so your AI node replies with history.
 
 Send text, media, templates, locations, and contacts; read conversations,
 contacts, and templates.
@@ -48,7 +46,32 @@ contacts, and templates.
 [OpenBSP n8n nodes](https://github.com/matiasbattocchia/n8n-nodes-openbsp)** —
 The official n8n community node package for OpenBSP.
 
-[![Echo bot workflow built with the OpenBSP n8n nodes](https://raw.githubusercontent.com/matiasbattocchia/n8n-nodes-openbsp/main/images/04-echo-bot-workflow.png)](https://github.com/matiasbattocchia/n8n-nodes-openbsp)
+<img src="https://raw.githubusercontent.com/matiasbattocchia/n8n-nodes-openbsp/main/images/04-echo-bot-workflow.png" alt="Echo bot workflow built with the OpenBSP n8n nodes" width="600">
+
+## Claude Code plugin
+
+The OpenBSP plugin gives Claude Code full API access and optionally bridges
+WhatsApp messages in real-time. Claude can query contacts, conversations,
+templates, and more via the `query` tool, and reply to WhatsApp messages via the
+`reply` tool.
+
+Install the plugin:
+
+```
+/plugin marketplace add matiasbattocchia/open-bsp-api
+/plugin install openbsp@matiasbattocchia-open-bsp-api
+```
+
+On first run, a browser opens for Google sign-in (same account as the web UI).
+Then configure allowed contacts for the WhatsApp channel:
+
+```
+/openbsp:config contacts add 5491155551234
+```
+
+No contacts are forwarded until explicitly added (secure by default). API access
+works regardless of channel configuration. See
+[`plugin/README.md`](plugin/README.md) for full documentation.
 
 ## Description
 
@@ -93,31 +116,6 @@ Interpret and extract information from media and document files, including:
 - Video
 - PDF
 - Other text-based documents (CSV, HTML, TXT, etc.)
-
-### Claude Code plugin
-
-The OpenBSP plugin gives Claude Code full API access and optionally bridges
-WhatsApp messages in real-time. Claude can query contacts, conversations,
-templates, and more via the `query` tool, and reply to WhatsApp messages via the
-`reply` tool.
-
-Install the plugin:
-
-```
-/plugin marketplace add matiasbattocchia/open-bsp-api
-/plugin install openbsp@matiasbattocchia-open-bsp-api
-```
-
-On first run, a browser opens for Google sign-in (same account as the web UI).
-Then configure allowed contacts for the WhatsApp channel:
-
-```
-/openbsp:config contacts add 5491155551234
-```
-
-No contacts are forwarded until explicitly added (secure by default). API access
-works regardless of channel configuration. See
-[`plugin/README.md`](plugin/README.md) for full documentation.
 
 ### MCP server
 
