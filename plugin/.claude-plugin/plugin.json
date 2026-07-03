@@ -2,6 +2,10 @@
   "name": "openbsp",
   "description": "OpenBSP plugin for Claude Code — WhatsApp channel and API access.",
   "version": "0.1.0",
+  "author": {
+    "name": "Matías Battocchia",
+    "url": "https://github.com/matiasbattocchia"
+  },
   "keywords": [
     "whatsapp",
     "messaging",

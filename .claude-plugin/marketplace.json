@@ -1,8 +1,15 @@
 {
+  "name": "openbsp",
+  "description": "OpenBSP marketplace — WhatsApp channel and API access plugins for Claude Code.",
+  "owner": {
+    "name": "Matías Battocchia",
+    "url": "https://github.com/matiasbattocchia"
+  },
   "plugins": [
     {
       "name": "openbsp",
-      "path": "plugin"
+      "source": "./plugin",
+      "description": "OpenBSP plugin for Claude Code — WhatsApp channel and API access."
     }
   ]
 }
