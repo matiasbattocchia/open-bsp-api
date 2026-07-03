@@ -1,15 +1,15 @@
 /**
  * OAuth loopback flow for Supabase Auth (Google SSO).
  *
- * On first run, opens a browser for Google OAuth, gets a Supabase JWT,
- * and persists the session. Subsequent runs load from disk and refresh
- * automatically.
+ * Split into non-interactive session restore (used at boot) and an
+ * interactive login that the server triggers on demand (login tool /
+ * elicitation), so the browser never pops without the user asking.
  *
  * Pattern follows open-bsp-ui's login.tsx and client.ts.
  */
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { loadConfig, SESSION_FILE, STATE_DIR } from "./config.ts";
 
 type SavedSession = {
@@ -37,14 +37,89 @@ function saveSession(session: SavedSession): void {
   Deno.renameSync(tmp, SESSION_FILE);
 }
 
+export function clearSavedSession(): void {
+  try {
+    rmSync(SESSION_FILE);
+  } catch {
+    // already gone
+  }
+}
+
 /**
- * Start a local HTTP server, open the browser for Google OAuth,
- * and wait for the callback with tokens.
+ * Build the Supabase client. Persists refreshed tokens to disk but never
+ * starts an interactive flow.
  */
-async function oauthLoopback(
+export function createSupabaseClient(): SupabaseClient {
+  const config = loadConfig();
+  const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey, {
+    auth: {
+      flowType: "pkce",
+      detectSessionInUrl: false,
+      autoRefreshToken: true,
+      persistSession: false, // we manage persistence ourselves
+    },
+  });
+
+  // Reconnect strategy (from open-bsp-ui)
+  supabase.realtime.reconnectAfterMs = (attempt: number) => {
+    return Math.min(10 * 1000, attempt * 1000);
+  };
+
+  // Persist refreshed tokens
+  supabase.auth.onAuthStateChange((_event, session) => {
+    if (session) {
+      saveSession({
+        access_token: session.access_token,
+        refresh_token: session.refresh_token,
+      });
+    }
+  });
+
+  return supabase;
+}
+
+/**
+ * Try to restore the saved session. Returns the signed-in user's
+ * email/id, or null if there is no usable session. Never interactive.
+ */
+export async function restoreSession(
   supabase: SupabaseClient,
-): Promise<SavedSession> {
-  // Use Deno.serve with port 0 to get a free port
+): Promise<string | null> {
+  const saved = loadSavedSession();
+  if (!saved) return null;
+
+  const { error } = await supabase.auth.setSession({
+    access_token: saved.access_token,
+    refresh_token: saved.refresh_token,
+  });
+  if (error) return null;
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  return user.email ?? user.id;
+}
+
+export type PendingLogin = {
+  /** The Google sign-in URL to show the user. */
+  url: string;
+  /** Resolves when the OAuth callback lands (session is set + saved). */
+  session: Promise<string>;
+  /** Abort the flow and free the loopback port. */
+  cancel: (reason?: string) => void;
+};
+
+/**
+ * Start an interactive login: spin up the loopback server, build the
+ * OAuth URL, and try to open a browser. Returns immediately so the
+ * caller can surface the URL (elicitation / tool result); `session`
+ * resolves with the signed-in user's email/id once the callback lands.
+ */
+export async function startLogin(
+  supabase: SupabaseClient,
+): Promise<PendingLogin> {
   let resolveSession: (s: SavedSession) => void;
   let rejectSession: (e: Error) => void;
   const sessionPromise = new Promise<SavedSession>((resolve, reject) => {
@@ -145,10 +220,7 @@ async function oauthLoopback(
     throw new Error(`Failed to get OAuth URL: ${error?.message ?? "no url"}`);
   }
 
-  console.error(`openbsp: opening browser for Google sign-in...`);
-  console.error(`  If the browser doesn't open, visit: ${data.url}`);
-
-  // Open browser
+  // Best-effort browser open — the caller also surfaces the URL in the TUI.
   const openCmd = Deno.build.os === "darwin"
     ? "open"
     : Deno.build.os === "windows"
@@ -161,97 +233,37 @@ async function oauthLoopback(
     // Browser open failed — user can visit the URL manually
   }
 
-  // Timeout after 5 minutes
+  // Backstop timeout — the loopback must not linger forever.
   const timeout = setTimeout(() => {
     if (!settled) {
       settled = true;
-      rejectSession(new Error("OAuth callback timed out after 5 minutes"));
+      rejectSession(new Error("Sign-in timed out after 10 minutes"));
     }
-  }, 5 * 60 * 1000);
+  }, 10 * 60 * 1000);
 
-  try {
-    const session = await sessionPromise;
-    clearTimeout(timeout);
-    await server.shutdown();
-    return session;
-  } catch (err) {
-    clearTimeout(timeout);
-    await server.shutdown();
-    throw err;
-  }
-}
-
-/**
- * Authenticate and return a ready-to-use Supabase client.
- * Tries saved session first, falls back to OAuth loopback.
- */
-export async function authenticate(): Promise<SupabaseClient> {
-  const config = loadConfig();
-  const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey, {
-    auth: {
-      flowType: "pkce",
-      detectSessionInUrl: false,
-      autoRefreshToken: true,
-      persistSession: false, // we manage persistence ourselves
-    },
-  });
-
-  // Reconnect strategy (from open-bsp-ui)
-  supabase.realtime.reconnectAfterMs = (attempt: number) => {
-    return Math.min(10 * 1000, attempt * 1000);
+  const cancel = (reason = "Sign-in cancelled") => {
+    if (!settled) {
+      settled = true;
+      rejectSession(new Error(reason));
+    }
   };
 
-  // Persist refreshed tokens
-  supabase.auth.onAuthStateChange((_event, session) => {
-    if (session) {
-      saveSession({
-        access_token: session.access_token,
-        refresh_token: session.refresh_token,
+  const session = sessionPromise
+    .then(async (s) => {
+      saveSession(s);
+      await supabase.auth.setSession({
+        access_token: s.access_token,
+        refresh_token: s.refresh_token,
       });
-    }
-  });
-
-  // Try saved session
-  const saved = loadSavedSession();
-  if (saved) {
-    const { error } = await supabase.auth.setSession({
-      access_token: saved.access_token,
-      refresh_token: saved.refresh_token,
-    });
-
-    if (!error) {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (user) {
-        console.error(
-          `openbsp: authenticated as ${user.email ?? user.id}`,
-        );
-        return supabase;
-      }
-    }
+      return user?.email ?? user?.id ?? "unknown";
+    })
+    .finally(() => {
+      clearTimeout(timeout);
+      server.shutdown().catch(() => {});
+    });
 
-    console.error(
-      `openbsp: saved session expired or invalid, re-authenticating...`,
-    );
-  }
-
-  // OAuth loopback
-  const session = await oauthLoopback(supabase);
-  saveSession(session);
-
-  // Set the session we just got
-  await supabase.auth.setSession({
-    access_token: session.access_token,
-    refresh_token: session.refresh_token,
-  });
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  console.error(
-    `openbsp: authenticated as ${user?.email ?? user?.id ?? "unknown"}`,
-  );
-
-  return supabase;
+  return { url: data.url, session, cancel };
 }

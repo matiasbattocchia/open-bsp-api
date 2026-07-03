@@ -37,8 +37,8 @@ Read `~/.claude/channels/openbsp/config.json` (missing = defaults) and
 1. **Supabase** — URL in use. If it matches the hardcoded default, say
    "production (default)". If custom, show the URL.
 2. **Auth** — whether session.json exists. If yes, "authenticated (required for
-   both API access and channel)". If no, "not authenticated — will prompt on
-   next plugin start".
+   both API access and channel)". If no, "not authenticated — run
+   `/openbsp:config login` or call the openbsp `login` tool".
 3. **Organization** — configured org ID, or "auto-detect (uses first available)"
    if not set.
 4. **WhatsApp account** — configured phone, or "auto-detect (uses first
@@ -55,7 +55,7 @@ Read `~/.claude/channels/openbsp/config.json` (missing = defaults) and
 
 End with a concrete next step based on state:
 
-- Not authenticated → _"Start the plugin to authenticate via Google SSO."_
+- Not authenticated → _"Run `/openbsp:config login` to sign in with Google."_
 - Authenticated, no contacts → _"No contacts are allowed yet — all channel
   messages are blocked. Add contacts with
   `/openbsp:config contacts add
@@ -72,11 +72,23 @@ status with no contacts, actively prompt:
 3. Once added: _"Only these contacts will be forwarded. All others are silently
    dropped."_
 
-### `login` — force re-authentication
+### `login` — sign in (or switch accounts)
+
+1. Call the openbsp MCP `login` tool (it is exposed by this plugin's MCP
+   server). If the user wants to switch Google accounts, or the tool says
+   "already signed in", call it with `force: true`.
+2. The tool drives the whole flow: it opens the browser and shows the sign-in
+   URL in a dialog. Relay its result — on success it reports the signed-in user,
+   organization, and channel status. No plugin restart is needed.
+3. If the MCP server itself is not running/connected, fall back to: delete
+   `~/.claude/channels/openbsp/session.json` and tell the user to restart Claude
+   Code, then run `/openbsp:config login` again.
+
+### `logout` — clear the saved session
 
 1. Delete `~/.claude/channels/openbsp/session.json` if it exists.
-2. Confirm: _"Session cleared. The plugin will prompt for Google sign-in on next
-   start."_
+2. Confirm: _"Session cleared. Run `/openbsp:config login` to sign in again (the
+   running server keeps its in-memory session until restart)."_
 
 ### `organization <org_id>` — set organization ID
 

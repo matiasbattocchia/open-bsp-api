@@ -71,6 +71,32 @@ export function createApiClient(req: Request) {
   );
 }
 
+// API-key-scoped client from a raw key (no request needed): forwards the org
+// API key in the `api-key` header so RLS resolves the org via the api-key
+// path. auth.uid() stays null; the key's role bounds access.
+export function createApiClientFromKey(apiKey: string) {
+  if (!Deno.env.get("SUPABASE_URL")) {
+    throw new Error("Undefined SUPABASE_URL env var.");
+  }
+
+  if (!Deno.env.get("SUPABASE_ANON_KEY")) {
+    throw new Error("Undefined SUPABASE_ANON_KEY env var.");
+  }
+
+  return createClientBase<Database>(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_ANON_KEY")!,
+    {
+      auth: { persistSession: false },
+      global: {
+        headers: {
+          "api-key": apiKey,
+        },
+      },
+    },
+  );
+}
+
 export function createUnsecureClient() {
   if (!Deno.env.get("SUPABASE_URL")) {
     throw new Error("Undefined SUPABASE_URL env var.");

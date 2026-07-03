@@ -63,6 +63,25 @@ No `apikey` header needed. The middleware in each function (e.g.
    `SUPABASE_ANON_KEY` for PostgREST and sets the OpenBSP token as the `api-key`
    custom header for RLS
 
+### The `mcp` function
+
+The MCP server accepts three credential forms:
+
+| Credential                    | Path                                                                   |
+| ----------------------------- | ---------------------------------------------------------------------- |
+| `api-key: <OPENBSP_API_KEY>`  | API-key path (preferred header for servers/bots)                       |
+| `Authorization: Bearer <key>` | API-key path (legacy; token is not JWT-shaped)                         |
+| `Authorization: Bearer <jwt>` | OAuth path — Supabase session JWT, org resolved via the `agents` table |
+
+Humans get the JWT via MCP OAuth: a 401 response carries a `WWW-Authenticate`
+challenge pointing at `/mcp/.well-known/oauth-protected-resource`, which names
+Supabase Auth's native OAuth 2.1 server (dynamic client registration on) as the
+authorization server. Consent UI: `/oauth/consent` in open-bsp-ui.
+
+Optional `Allowed-Contacts` / `Allowed-Accounts` headers (comma-separated phone
+numbers) restrict which contacts/accounts the caller can touch; empty or absent
+means unrestricted (RLS still applies).
+
 ## Supabase JS Client
 
 ```typescript

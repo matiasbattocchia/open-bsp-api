@@ -10,17 +10,21 @@ your session in real-time via Supabase Realtime.
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  Claude Code                                            │
+│    ├─ login tool ──► Google OAuth → Supabase session    │
 │    ├─ query tool ──► PostgREST / Edge Functions (API)   │
 │    ├─ reply tool ──► messages table → WhatsApp dispatch  │
 │    └─ channel ◄──── Supabase Realtime (WhatsApp inbox)  │
 └─────────────────────────────────────────────────────────┘
 ```
 
-1. **API access (always available):** The `query` tool makes authenticated HTTP
-   requests to PostgREST and Edge Functions. Claude reads the
-   `openbsp://api-reference` resource for schema and syntax, then queries
-   freely.
-2. **WhatsApp channel (optional):** If a connected WhatsApp account is found,
+1. **Sign-in (on demand):** The `login` tool runs the Google OAuth flow. It
+   opens your browser and shows the sign-in link in a Claude Code dialog (MCP
+   elicitation) — nothing pops up unprompted at startup. Sessions persist and
+   refresh automatically.
+2. **API access:** The `query` tool makes authenticated HTTP requests to
+   PostgREST and Edge Functions. Claude reads the `openbsp://api-reference`
+   resource for schema and syntax, then queries freely.
+3. **WhatsApp channel (optional):** If a connected WhatsApp account is found,
    the plugin subscribes to Supabase Realtime. Incoming messages appear as
    `<channel>` notifications. Claude replies using the `reply` tool.
 
@@ -42,8 +46,9 @@ Just authenticate with Google and go.
 claude --plugin-dir ./plugin
 ```
 
-The plugin opens your browser for Google sign-in on first run. After that,
-sessions are refreshed automatically.
+Sign in with `/openbsp:config login` — or just start using the plugin and Claude
+will prompt you to sign in when needed. After that, sessions are refreshed
+automatically.
 
 **Self-hosted users:** Point to your own Supabase instance:
 
@@ -138,10 +143,11 @@ or API-only), and allowed contacts.
 /openbsp:config account <phone-digits>
 ```
 
-### Force re-authentication
+### Sign in / switch accounts
 
 ```
-/openbsp:config login
+/openbsp:config login    # sign in (Google), or switch accounts
+/openbsp:config logout   # clear the saved session
 ```
 
 ### Advanced: environment variables
@@ -179,11 +185,16 @@ channel messages (secure by default).
 The plugin uses Google SSO (same as the OpenBSP UI). No API keys or service role
 keys needed.
 
-**First run:** opens your browser for Google sign-in. The session is saved to
-`~/.claude/channels/openbsp/session.json` (0600 permissions).
+**Sign-in is on demand** — the server starts signed-out and never opens a
+browser unprompted. Run `/openbsp:config login`, or let Claude call the `login`
+tool when another tool reports "not signed in". The tool opens your browser and
+shows the sign-in link in a Claude Code dialog (works in headless/SSH setups —
+copy the URL manually). Use `force: true` (or ask to switch accounts) to
+re-authenticate as someone else.
 
-**Subsequent runs:** the saved session is loaded and refreshed automatically. If
-the refresh token is expired, the browser opens again.
+The session is saved to `~/.claude/channels/openbsp/session.json` (0600
+permissions) and is restored and refreshed automatically on subsequent runs. If
+it expires, tools report it and `login` gets you back in — no restart needed.
 
 ## File structure
 
@@ -204,8 +215,9 @@ plugin/
 
 ## Troubleshooting
 
-**Browser doesn't open for sign-in** The URL is printed to stderr. Copy and
-paste it manually. This can happen in headless/SSH environments.
+**Browser doesn't open for sign-in** The URL is shown in the sign-in dialog (and
+in the `login` tool result). Copy and paste it manually. This can happen in
+headless/SSH environments.
 
 **"No organization found for this user"** Your Google account isn't associated
 with any OpenBSP organization. Sign in to the UI app first to verify your

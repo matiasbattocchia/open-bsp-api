@@ -62,7 +62,13 @@ Install the plugin:
 /plugin install openbsp@matiasbattocchia-open-bsp-api
 ```
 
-On first run, a browser opens for Google sign-in (same account as the web UI).
+Sign in with Google (same account as the web UI) — Claude walks you through it
+in the terminal:
+
+```
+/openbsp:config login
+```
+
 Then configure allowed contacts for the WhatsApp channel:
 
 ```
@@ -120,8 +126,8 @@ Interpret and extract information from media and document files, including:
 ### MCP server
 
 The `mcp` Edge Function exposes an [MCP](https://modelcontextprotocol.io) server
-over SSE, giving agentic access to the WhatsApp API from clients like Claude
-Desktop or other agent platforms.
+over Streamable HTTP, giving agentic access to the WhatsApp API from clients
+like Claude Code, Claude Desktop, ChatGPT, or other agent platforms.
 
 For the hosted version at [web.openbsp.dev](https://web.openbsp.dev), the MCP
 server URL is:
@@ -130,13 +136,26 @@ server URL is:
 https://nheelwshzbgenpavwhcy.supabase.co/functions/v1/mcp
 ```
 
-Authentication uses the `Authorization: Bearer <API_KEY>` header. Get it from
-OpenBSP > Settings > API Keys.
+Two authentication methods:
 
-Optionally, `Allowed-Contacts` and `Allowed-Accounts` headers restrict which
-phone numbers the key can access.
+- **OAuth (humans, recommended)** — just add the server URL; the MCP client
+  discovers Supabase Auth's OAuth 2.1 server (dynamic client registration),
+  opens the browser, and you sign in with your OpenBSP account and approve on
+  the consent page. Access is scoped to your user via RLS.
+- **API key (servers and bots)** — send an `api-key: <API_KEY>` header
+  (`Authorization: Bearer <API_KEY>` also works). Get it from OpenBSP > Settings
+  > API Keys. Optionally, `Allowed-Contacts` and `Allowed-Accounts` headers
+  > restrict which phone numbers the key can access.
 
-Claude Desktop configuration (`claude_desktop_config.json`):
+Claude Code (then authenticate from the `/mcp` panel):
+
+```bash
+claude mcp add --transport http openbsp https://nheelwshzbgenpavwhcy.supabase.co/functions/v1/mcp
+```
+
+In Claude Desktop or ChatGPT, add it as a custom connector with the same URL —
+OAuth kicks in automatically. For headless clients, use an API key instead
+(`claude_desktop_config.json` shown as an example):
 
 ```json
 {
@@ -144,7 +163,7 @@ Claude Desktop configuration (`claude_desktop_config.json`):
     "openbsp": {
       "url": "https://nheelwshzbgenpavwhcy.supabase.co/functions/v1/mcp",
       "headers": {
-        "Authorization": "Bearer <API_KEY>"
+        "api-key": "<API_KEY>"
       }
     }
   }

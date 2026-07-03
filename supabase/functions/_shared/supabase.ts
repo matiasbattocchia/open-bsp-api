@@ -2,6 +2,7 @@
 
 export {
   createApiClient,
+  createApiClientFromKey,
   createClient,
   createUnsecureClient,
 } from "./supabase_client.ts";

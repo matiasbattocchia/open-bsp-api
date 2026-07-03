@@ -1,9 +1,21 @@
+// Remote MCP server (Streamable HTTP). Two auth paths, both RLS-scoped:
+//  • Humans (Claude Code/Desktop, ChatGPT): OAuth 2.1 via Supabase Auth's
+//    native OAuth server (<SUPABASE_URL>/auth/v1) with dynamic client
+//    registration — the bearer is a Supabase JWT, discovered through the
+//    RFC 9728 protected-resource metadata below.
+//  • Servers/chatbots: an org API key, in the `api-key` header or (legacy)
+//    as the Authorization bearer token.
 import { Hono } from "@hono/hono";
 import { cors } from "jsr:@hono/hono/cors";
 import { McpServer } from "npm:@modelcontextprotocol/sdk@1.25.3/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "npm:@modelcontextprotocol/sdk@1.25.3/server/webStandardStreamableHttp.js";
 import { z } from "zod";
-import { createApiClient, type Database } from "../_shared/supabase.ts";
+import {
+  createApiClientFromKey,
+  createClient,
+  type Database,
+} from "../_shared/supabase.ts";
+import { authBaseUrl, functionsBaseUrl } from "../_shared/urls.ts";
 import * as log from "../_shared/logger.ts";
 import * as tools from "./tools.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -16,34 +28,90 @@ type Variables = {
   supabase: SupabaseClient<Database>;
 };
 
+const RESOURCE = () => `${functionsBaseUrl()}/mcp`;
+const RESOURCE_METADATA = () =>
+  `${functionsBaseUrl()}/mcp/.well-known/oauth-protected-resource`;
+
 const app = new Hono<{ Variables: Variables }>();
 
 app.use("*", cors());
 
-// Auth middleware - validates API key and sets context variables
+// OAuth Protected Resource Metadata (RFC 9728) — public; points MCP clients
+// at the authorization server (Supabase Auth's native OAuth 2.1 server, which
+// supports dynamic client registration). Registered BEFORE the auth
+// middleware so it stays unauthenticated.
+app.get("/mcp/.well-known/oauth-protected-resource", (c) =>
+  c.json({
+    resource: RESOURCE(),
+    authorization_servers: [authBaseUrl()],
+    scopes_supported: ["openid", "email", "profile"],
+    bearer_methods_supported: ["header"],
+    resource_name: "OpenBSP MCP",
+  }));
+
+// Auth middleware — resolves the caller to an org-scoped Supabase client.
+// A 401 carries the WWW-Authenticate challenge so an MCP connector can
+// discover the authorization server and start the OAuth flow.
 app.use("*", async (c, next) => {
+  const unauthorized = (message: string, err?: unknown) => {
+    log.error(message, err);
+    c.header(
+      "WWW-Authenticate",
+      `Bearer resource_metadata="${RESOURCE_METADATA()}"`,
+    );
+    return c.json({ error: message }, 401);
+  };
+
   try {
-    const supabase = createApiClient(c.req.raw);
+    const bearer = (c.req.header("Authorization") ?? "").replace(
+      /^Bearer\s+/i,
+      "",
+    );
+    const looksLikeJwt = bearer.split(".").length === 3;
+    // API key: `api-key` header, or (legacy) a non-JWT Authorization bearer.
+    const apiKey = c.req.header("api-key") ??
+      (bearer && !looksLikeJwt ? bearer : "");
 
-    c.set("supabase", supabase);
+    if (apiKey) {
+      const supabase = createApiClientFromKey(apiKey);
 
-    const token = c.req.header("Authorization")!.replace("Bearer ", "");
+      const { data: key, error: apiKeyError } = await supabase
+        .from("api_keys")
+        .select("organization_id")
+        .eq("key", apiKey)
+        .maybeSingle();
 
-    const { data: apiKey, error: apiKeyError } = await supabase
-      .from("api_keys")
-      .select("organization_id")
-      .eq("key", token)
-      .maybeSingle();
+      if (apiKeyError || !key) {
+        return unauthorized("API key not authorized", apiKeyError);
+      }
 
-    if (apiKeyError || !apiKey) {
-      const message = `API key ${token} not authorized`;
+      c.set("supabase", supabase);
+      c.set("orgId", key.organization_id);
+    } else if (looksLikeJwt) {
+      // Human via OAuth (or a plain Supabase session JWT).
+      const supabase = createClient(c.req.raw);
+      const { data, error } = await supabase.auth.getUser(bearer);
 
-      log.error(message, apiKeyError);
+      if (error || !data.user) {
+        return unauthorized("Invalid token", error);
+      }
 
-      return c.json({ error: message }, 403);
+      // Org-scope the session: first org the user belongs to (RLS applies).
+      const { data: agents, error: agentsError } = await supabase
+        .from("agents")
+        .select("organization_id")
+        .eq("user_id", data.user.id)
+        .limit(1);
+
+      if (agentsError || !agents?.length) {
+        return unauthorized("No organization for this user", agentsError);
+      }
+
+      c.set("supabase", supabase);
+      c.set("orgId", agents[0].organization_id);
+    } else {
+      return unauthorized("Missing credentials");
     }
-
-    c.set("orgId", apiKey.organization_id);
 
     // Parse allowed headers
     const allowedContactsHeader = c.req.header("Allowed-Contacts");
@@ -65,9 +133,7 @@ app.use("*", async (c, next) => {
       ? err.message
       : "Authentication failed";
 
-    log.error(message, err);
-
-    return c.json({ error: message }, 401);
+    return unauthorized(message, err);
   }
 });
 
@@ -83,7 +149,7 @@ function createMcpServer(
 ) {
   const server = new McpServer({
     name: "open-bsp-mcp",
-    version: "1.1.0",
+    version: "1.2.0",
   });
 
   server.registerTool(

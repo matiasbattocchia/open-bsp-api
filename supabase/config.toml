@@ -6,6 +6,24 @@ project_id = "open-bsp-api"
 [api]
 schemas = ["public", "storage", "billing"]
 
+# Auth. site_url is the frontend origin; it + the OAuth authorization path form
+# the consent UI URL the native OAuth server redirects to. In prod, Site URL is
+# set in the dashboard (Authentication > URL Configuration).
+[auth]
+site_url = "http://localhost:5173"
+
+# Native OAuth 2.1 server (Supabase Auth as the authorization server) — lets
+# MCP clients (Claude Code/Desktop, ChatGPT) authenticate against the `mcp`
+# edge function via OAuth with dynamic client registration. The consent UI
+# lives in open-bsp-ui at site_url + authorization_url_path. NOTE: CI deploys
+# functions but not this config — enable the OAuth server in PROD via the
+# dashboard (Authentication > OAuth Server) or a one-time `supabase config
+# push`.
+[auth.oauth_server]
+enabled = true
+authorization_url_path = "/oauth/consent"
+allow_dynamic_registration = true
+
 [functions.whatsapp-webhook]
 verify_jwt = false
 import_map = "./functions/deno.json"
