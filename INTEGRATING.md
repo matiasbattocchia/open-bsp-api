@@ -108,6 +108,7 @@ curl -X POST 'https://nheelwshzbgenpavwhcy.supabase.co/rest/v1/onboarding_tokens
   -H 'Content-Type: application/json' -H 'Prefer: return=representation' \
   -d '{
     "name": "Acme Corp",
+    "organization_id": "<YOUR_ORG_ID>",
     "service": "whatsapp",
     "expires_at": "2026-07-01T00:00:00Z",
     "callback_url": "https://your-app.com/acme/whatsapp",
@@ -115,8 +116,11 @@ curl -X POST 'https://nheelwshzbgenpavwhcy.supabase.co/rest/v1/onboarding_tokens
   }'
 ```
 
-Minting requires an **owner** API key. The response `id` is the link token; hand
-the customer:
+Minting requires an **owner** API key, and `organization_id` is required — it
+must be the organization your API key belongs to (row-level security rejects the
+insert otherwise, with a 42501 error). Find it in the dashboard URL or via
+`GET /rest/v1/organizations?select=id,name`. The response `id` is the link
+token; hand the customer:
 
 ```
 https://web.openbsp.dev/onboard/whatsapp/<id>
@@ -137,6 +141,42 @@ developer setup needed). On success:
 
 You learn about it via your `organizations_addresses` webhook (step 4) or by
 polling (step 8).
+
+### Capturing the credentials
+
+A common pitfall: the `callback_url` you set on the token is registered **with
+Meta** — Meta sends message traffic there, and its payloads carry only the
+`phone_number_id`, **never credentials**. The `waba_id` / `access_token` /
+`phone_number` your app needs to call the Cloud API arrive on the **OpenBSP
+plane**: the `organizations_addresses` webhook (step 4). Its payload is the full
+row:
+
+```jsonc
+{
+  "entity": "organizations_addresses",
+  "action": "insert", // or "update"
+  "data": {
+    "organization_id": "…",
+    "service": "whatsapp",
+    "address": "883…", // = phone_number_id
+    "status": "connected",
+    "extra": {
+      "waba_id": "…",
+      "access_token": "EAAG…",
+      "phone_number": "54911…",
+      "verified_name": "…",
+      "flow_type": "existing_phone_number",
+      "callback_url": "https://your-app.com/tenant-42/whatsapp",
+      "verify_token": "…"
+    }
+  }
+}
+```
+
+**Mapping the row to your tenant:** the onboarding token id is not in the row —
+correlate with `extra.callback_url` or `extra.verify_token` instead: you chose
+those values when you minted the link, so mint each tenant's link with a unique
+one (e.g. `…/tenant-42/whatsapp`) and match on it when the webhook arrives.
 
 ## 7. Receive messages and send
 
