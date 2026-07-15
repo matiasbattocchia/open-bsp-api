@@ -713,6 +713,60 @@ https://github.com/user-attachments/assets/d86cf719-250d-4e3d-8c15-873daa6707d6
 
 </details>
 
+## WhatsApp Web (unofficial channel)
+
+If you don't want to go through Meta (app review, business verification, Cloud
+API pricing), OpenBSP also supports plain WhatsApp accounts over the **WhatsApp
+Web multidevice protocol** as the `whatsapp-web` service, via a companion bridge
+service:
+[open-bsp-whatsmeow](https://github.com/matiasbattocchia/open-bsp-whatsmeow) (a
+thin, stateless Go wrapper around
+[whatsmeow](https://github.com/tulir/whatsmeow)).
+
+> [!WARNING]
+> This is an unofficial channel: you pair a regular WhatsApp account by QR code
+> or pairing code, the phone must stay registered, there are no templates and no
+> business features, and the ban risk is on you.
+
+### Self-hosting the bridge
+
+1. Run the bridge next to your OpenBSP stack (build from source, no published
+   image yet):
+
+   ```yaml
+   # docker-compose excerpt
+   services:
+     whatsmeow-bridge:
+       build: https://github.com/matiasbattocchia/open-bsp-whatsmeow.git
+       environment:
+         DATABASE_URL: postgres://postgres:postgres@db:5432/postgres
+         OPENBSP_URL: http://kong:8000/functions/v1
+         BRIDGE_TOKEN: <generate a long random secret>
+       ports: ["8081:8081"]
+   ```
+
+   `DATABASE_URL` can point at the same Postgres as OpenBSP (the bridge keeps to
+   its own `whatsmeow` schema) or a separate one. On hosted Supabase use the
+   Supavisor pooler (port 6543).
+
+2. Tell the edge functions where the bridge is (`supabase/functions/.env`
+   locally, or `supabase secrets set` on hosted):
+
+   ```bash
+   WHATSAPP_WEB_URL=http://whatsmeow-bridge:8081
+   WHATSAPP_WEB_TOKEN=<the same secret>
+   ```
+
+3. Pair a number: `POST /whatsapp-web-management/sessions` with
+   `{organization_id}` returns a QR code string (add `phone_number` to get a
+   pairing code instead); poll
+   `GET /whatsapp-web-management/sessions/pending/:session_id` while the user
+   scans/types it. Once paired, the number appears as a `whatsapp-web` address
+   and conversations flow like any other service.
+
+One bridge instance serves many organizations/numbers, but runs as a single
+replica by design (a WhatsApp session is one WebSocket).
+
 ## Architecture
 
 New to Supabase? In one sentence: it's a hosted Postgres platform that
