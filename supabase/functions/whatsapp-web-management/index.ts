@@ -160,6 +160,23 @@ app.post(
   },
 );
 
+// Poll an in-progress pairing: QR codes rotate every ~20s, so the UI polls
+// this (every 3-5s) for the latest code and for completion
+// (status: pending | paired | error).
+app.get(
+  "/whatsapp-web-management/sessions/pending/:id",
+  requireRoles(["owner"]),
+  async (c) => {
+    const id = c.req.param("id") ?? "";
+    const result = await callBridge(
+      "GET",
+      `/sessions/pending/${encodeURIComponent(id)}`,
+    );
+
+    return Response.json(result);
+  },
+);
+
 // Pairing/connection status for channel health.
 app.get(
   "/whatsapp-web-management/sessions/:address",
