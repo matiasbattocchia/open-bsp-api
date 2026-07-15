@@ -27,6 +27,7 @@
 //     statuses?:  [{ external_id, contact_address?, group_address?, status }],
 //                                       // delivery receipts
 //     contacts?:  [{ address, extra? }],// names, avatars
+//     groups?:    [{ address, name? }], // group subject → conversation name
 //     edits?:     [{ original_message_id, text, timestamp }],
 //     revokes?:   [{ original_message_id, timestamp }],
 //   }
@@ -167,6 +168,10 @@ Deno.serve(async (req) => {
       address: string;
       extra?: Record<string, Json>;
     }>;
+    groups?: Array<{
+      address: string;
+      name?: string;
+    }>;
     edits?: Array<{
       original_message_id: string;
       text: string;
@@ -278,6 +283,21 @@ Deno.serve(async (req) => {
   // column default ({pending: now()}).
   await upsertBatch("live messages", messages.filter((m) => !m.status));
   await upsertBatch("stamped messages", messages.filter((m) => m.status));
+
+  // Group subjects land on the conversation name. Runs after the message
+  // upserts so a conversation auto-created by this batch already exists; a
+  // standalone rename for an unknown group matches no rows, which is fine.
+  for (const group of batch.groups ?? []) {
+    if (!group.name) continue;
+
+    await client
+      .from("conversations")
+      .update({ name: group.name })
+      .eq("organization_id", organization_id)
+      .eq("service", service)
+      .eq("group_address", group.address)
+      .throwOnError();
+  }
 
   // Edits and revokes are in-place updates keyed by the ORIGINAL external
   // id, after the upserts so an original delivered in the same batch exists.
