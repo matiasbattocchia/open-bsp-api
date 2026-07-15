@@ -713,15 +713,12 @@ https://github.com/user-attachments/assets/d86cf719-250d-4e3d-8c15-873daa6707d6
 
 </details>
 
-## WhatsApp Web (unofficial channel)
+## WhatsApp Web (unofficial API)
 
 If you don't want to go through Meta (app review, business verification, Cloud
 API pricing), OpenBSP also supports plain WhatsApp accounts over the **WhatsApp
-Web multidevice protocol** as the `whatsapp-web` service, via a companion bridge
-service:
-[open-bsp-whatsmeow](https://github.com/matiasbattocchia/open-bsp-whatsmeow) (a
-thin, stateless Go wrapper around
-[whatsmeow](https://github.com/tulir/whatsmeow)).
+Web multidevice protocol** via a companion bridge service:
+[open-bsp-whatsmeow](https://github.com/matiasbattocchia/open-bsp-whatsmeow).
 
 > [!WARNING]
 > This is an unofficial channel: you pair a regular WhatsApp account by QR code
@@ -730,8 +727,7 @@ thin, stateless Go wrapper around
 
 ### Self-hosting the bridge
 
-1. Run the bridge next to your OpenBSP stack (build from source, no published
-   image yet):
+1. Run the bridge next to your OpenBSP stack:
 
    ```yaml
    # docker-compose excerpt
