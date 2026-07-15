@@ -790,10 +790,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "conversations_contact_address_fkey"
-            columns: ["organization_id", "contact_address"]
+            columns: ["organization_id", "service", "contact_address"]
             isOneToOne: false
             referencedRelation: "contacts_addresses"
-            referencedColumns: ["organization_id", "address"]
+            referencedColumns: ["organization_id", "service", "address"]
           },
           {
             foreignKeyName: "conversations_organization_address_fkey"
@@ -1195,6 +1195,7 @@ export type Database = {
         | "slack"
         | "discord"
         | "teams"
+        | "whatsapp-web"
       webhook_operation: "insert" | "update"
       webhook_table:
         | "messages"
@@ -1881,7 +1882,15 @@ export const Constants = {
       direction: ["incoming", "outgoing", "internal"],
       log_level: ["info", "warning", "error"],
       role: ["owner", "admin", "member"],
-      service: ["whatsapp", "instagram", "local", "slack", "discord", "teams"],
+      service: [
+        "whatsapp",
+        "instagram",
+        "local",
+        "slack",
+        "discord",
+        "teams",
+        "whatsapp-web",
+      ],
       webhook_operation: ["insert", "update"],
       webhook_table: [
         "messages",

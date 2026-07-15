@@ -30,8 +30,8 @@ on delete no action;
 
 alter table only public.conversations
 add constraint conversations_contact_address_fkey
-foreign key (organization_id, contact_address)
-references public.contacts_addresses(organization_id, address)
+foreign key (organization_id, service, contact_address)
+references public.contacts_addresses(organization_id, service, address)
 on delete no action;
 
 create index conversations_organization_id_idx

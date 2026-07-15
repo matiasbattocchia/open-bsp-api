@@ -13,9 +13,12 @@ create table public.contacts_addresses (
   updated_at timestamp with time zone default now() not null
 );
 
+-- service is part of the PK: the same canonical address (e.g. bare phone
+-- digits shared by 'whatsapp' and 'whatsapp-web') is a separate row per
+-- service. Cross-service identity lives at the contacts level via contact_id.
 alter table only public.contacts_addresses
 add constraint contacts_addresses_pkey
-primary key (organization_id, address);
+primary key (organization_id, service, address);
 
 alter table only public.contacts_addresses
 add constraint contacts_addresses_organization_id_fkey

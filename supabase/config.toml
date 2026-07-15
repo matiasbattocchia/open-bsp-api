@@ -59,6 +59,24 @@ verify_jwt = false
 import_map = "./functions/deno.json"
 entrypoint = "./functions/whatsapp-dispatcher/index.ts"
 
+# Connector services deploy the generic webhook/dispatcher under their own
+# slug (the dispatcher trigger routes by `/{service}-dispatcher`); the
+# generic code derives the service from the slug.
+[functions.whatsapp-web-webhook]
+verify_jwt = false
+import_map = "./functions/deno.json"
+entrypoint = "./functions/generic-webhook/index.ts"
+
+[functions.whatsapp-web-dispatcher]
+verify_jwt = false
+import_map = "./functions/deno.json"
+entrypoint = "./functions/generic-dispatcher/index.ts"
+
+[functions.whatsapp-web-management]
+verify_jwt = false
+import_map = "./functions/deno.json"
+entrypoint = "./functions/whatsapp-web-management/index.ts"
+
 [functions.instagram-dispatcher]
 verify_jwt = false
 import_map = "./functions/deno.json"

@@ -154,6 +154,7 @@ begin
   where organization_address = new.organization_address
     and contact_address is not distinct from new.contact_address
     and group_address is not distinct from new.group_address
+    and service = new.service
     and status = 'active'
   order by created_at desc
   limit 1;
@@ -270,12 +271,14 @@ begin
   if new.contact_id is null and old.contact_id is not null then
     -- If no conversations, delete the address
     if not exists (
-      select 1 from public.conversations c 
-      where c.organization_id = new.organization_id 
+      select 1 from public.conversations c
+      where c.organization_id = new.organization_id
+        and c.service = new.service
         and c.contact_address = new.address
     ) then
       delete from public.contacts_addresses
       where organization_id = new.organization_id
+        and service = new.service
         and address = new.address;
     end if;
   end if;
@@ -303,6 +306,7 @@ begin
   select address into _existing_address
   from public.contacts_addresses
   where organization_id = new.organization_id
+    and service = new.service
     and address = new.contact_address
   order by created_at desc
   limit 1;
