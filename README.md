@@ -243,8 +243,9 @@ Supabase-backed database.
 ### AI agents
 
 Create lightweight agents or connect to external, more advanced agents using
-different protocols like `a2a` and `chat-completions`. Lightweight agents can
-use built-in tools:
+different protocols like `chat-completions` and
+[`responses`](https://openresponses.org). Lightweight agents can use built-in
+tools:
 
 - MCP client
 - SQL client
@@ -963,7 +964,7 @@ This event-driven flow ensures that each component is decoupled and scalable.
 - `agent-client`: Orchestrates agent interactions, builds conversation context,
   and communicates with external agent APIs over
   [Chat Completions](https://platform.openai.com/docs/api-reference/chat) or
-  [A2A](https://github.com/google/A2A) protocols.
+  [Open Responses](https://openresponses.org) protocols.
 
 ### Database models
 
@@ -1035,7 +1036,7 @@ export type AgentExtra = {
   api_key?: string; // default: provider env var, i.e. OPENAI_API_KEY
   model?: string; // default: gpt-5-mini
   // TODO: Add responses (openai), messages (anthropic), generate-content (gemini).
-  protocol?: "chat_completions" | "a2a"; // default: chat_completions
+  protocol?: "chat_completions" | "responses"; // default: chat_completions
   assistant_id?: string;
   max_messages?: number;
   temperature?: number;

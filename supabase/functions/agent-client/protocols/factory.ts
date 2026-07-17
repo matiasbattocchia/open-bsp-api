@@ -1,6 +1,6 @@
 import type { AgentProtocolHandler, RequestContext } from "./base.ts";
 import { ChatCompletionsHandler } from "./chat-completions.ts";
-import { A2AHandler } from "./a2a.ts";
+import { ResponsesHandler } from "./responses.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AgentTool } from "../index.ts";
 
@@ -15,8 +15,8 @@ export class ProtocolFactory {
     switch (protocol) {
       case "chat_completions":
         return new ChatCompletionsHandler(tools, context, client);
-      case "a2a":
-        return new A2AHandler(context, client);
+      case "responses":
+        return new ResponsesHandler(tools, context, client);
       default:
         throw new Error(`Unsupported protocol: ${protocol}`);
     }

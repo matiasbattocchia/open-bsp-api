@@ -1,4 +1,3 @@
-import type { TaskState } from "../a2a_types.ts";
 import type { Json } from "../db_types.ts";
 import type {
   ButtonMessage,
@@ -15,6 +14,17 @@ import type { InstagramReferral } from "./instagram_webhook_payload_types.ts";
 //===================================
 // Agent Protocol Types
 //===================================
+
+// Lifecycle state of a task. Retained for historical rows; current handlers set
+// only task.id.
+export type TaskState =
+  | "submitted"
+  | "working"
+  | "input-required"
+  | "completed"
+  | "canceled"
+  | "failed"
+  | "unknown";
 
 // The same message can be a task request and a task response.
 // A user message is a task request. The message produced by an agent is a task response.
