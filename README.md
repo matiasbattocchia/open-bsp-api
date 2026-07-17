@@ -24,6 +24,28 @@ features to become a
 [Meta Business Partner](https://developers.facebook.com/docs/whatsapp/solution-providers)
 and offer messaging services to other organizations.
 
+## Table of contents
+
+- [User interface](#user-interface)
+- [n8n](#n8n)
+- [Claude Code plugin](#claude-code-plugin)
+- [Description](#description) — core features, AI agents, media processing, MCP
+  server
+- [Hosted version](#hosted-version) — quotas, data portability, data deletion
+- [Migrating from another platform](#migrating-from-another-platform)
+- [Self-host deployment](#self-host-deployment)
+- [WhatsApp integration](#whatsapp-integration)
+- [Instagram integration](#instagram-integration)
+- [App review](#app-review)
+- [WhatsApp Web (unofficial API)](#whatsapp-web-unofficial-api)
+- [Architecture](#architecture) — edge functions, database models
+- [Configuration](#configuration) — organizations, agents
+- [Local development](#local-development) — database, edge functions, REST API
+  docs
+- [Related open-source projects](#related-open-source-projects)
+- [Acknowledgments](#acknowledgments)
+- [Community](#community)
+
 ## User interface
 
 For a complete web-based interface to manage conversations check out the
@@ -182,11 +204,15 @@ Available tools:
 | `list_templates`     | List available WhatsApp templates                             |
 | `fetch_template`     | Fetch details of a specific template                          |
 
-## Demo
+## Hosted version
 
 A managed instance is available at
 **[web.openbsp.dev](https://web.openbsp.dev)** — same codebase as this repo,
 running on Supabase. Sign up with a Google or GitHub account.
+
+<img src="meta-tech-provider.png" alt="Meta Tech Provider" width="200">
+
+The hosted instance is operated by a registered **Meta Tech Provider**.
 
 ### Quotas
 
@@ -950,9 +976,10 @@ Connect through Meta's official WhatsApp Business Cloud API. Compliant with
 WhatsApp Business policies, production-ready, requires Meta verification.
 
 - [EvolutionAPI/evolution-api](https://github.com/EvolutionAPI/evolution-api) —
-  REST API for WhatsApp integration, supports Cloud API.
+  open-source WhatsApp integration API.
 - [shridarpatil/whatomate](https://github.com/shridarpatil/whatomate) —
-  open-source WhatsApp integration on Cloud API.
+  open-source WhatsApp integration that runs on pure Postgres — a great
+  alternative to OpenBSP if you don't want to use Supabase.
 
 ### Unofficial (WhatsApp Web)
 
@@ -960,18 +987,18 @@ Reverse-engineered WhatsApp Web protocols. Work without Meta approval and
 support personal accounts, but at risk of bans and not suited for high-volume
 production.
 
-- [wwebjs/whatsapp-web.js](https://github.com/wwebjs/whatsapp-web.js) — Node.js
-  client library using Puppeteer.
+- [wwebjs/whatsapp-web.js](https://github.com/wwebjs/whatsapp-web.js) — NodeJS
+  client library that connects through the WhatsApp Web browser app.
 - [WhiskeySockets/Baileys](https://github.com/WhiskeySockets/Baileys) —
-  TypeScript/JavaScript socket-based library.
-- [rmyndharis/OpenWA](https://github.com/rmyndharis/OpenWA) — self-hosted
+  socket-based TS/JavaScript API.
+- [rmyndharis/OpenWA](https://github.com/rmyndharis/OpenWA) — free, self-hosted
   WhatsApp API gateway.
-- [devlikeapro/waha](https://github.com/devlikeapro/waha) — HTTP/REST API with
-  three engines (Web, Node, Go).
+- [devlikeapro/waha](https://github.com/devlikeapro/waha) — WhatsApp HTTP API
+  with three engines: browser, NodeJS websocket, Go websocket.
 - [tulir/whatsmeow](https://github.com/tulir/whatsmeow) — Go library for the
   WhatsApp Web multidevice API.
 - [open-wa/wa-automate-nodejs](https://github.com/open-wa/wa-automate-nodejs) —
-  Node.js chatbot toolkit.
+  NodeJS tool for chatbots with advanced features.
 
 OpenBSP is in the first category. If you need to talk to personal accounts, work
 without Meta verification, or prefer a library/SDK to a platform, the projects
