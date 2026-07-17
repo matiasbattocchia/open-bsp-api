@@ -26,25 +26,146 @@ and offer messaging services to other organizations.
 
 ## Table of contents
 
+- [Quickstart](#quickstart)
 - [User interface](#user-interface)
 - [n8n](#n8n)
 - [Claude Code plugin](#claude-code-plugin)
-- [Description](#description) — core features, AI agents, media processing, MCP
-  server
-- [Hosted version](#hosted-version) — quotas, data portability, data deletion
+- [Description](#description)
+
+#### Platforms
+
+- [Hosted version](#hosted-version)
 - [Migrating from another platform](#migrating-from-another-platform)
 - [Self-host deployment](#self-host-deployment)
+
+#### Channels
+
 - [WhatsApp integration](#whatsapp-integration)
 - [Instagram integration](#instagram-integration)
 - [App review](#app-review)
-- [WhatsApp Web (unofficial API)](#whatsapp-web-unofficial-api)
-- [Architecture](#architecture) — edge functions, database models
-- [Configuration](#configuration) — organizations, agents
-- [Local development](#local-development) — database, edge functions, REST API
-  docs
+- [WhatsApp Web integration (unofficial API)](#whatsapp-web-integration-unofficial-api)
+
+#### Development
+
+- [Architecture](#architecture)
+- [Configuration](#configuration)
+- [Local development](#local-development)
+
+#### Community
+
 - [Related open-source projects](#related-open-source-projects)
 - [Acknowledgments](#acknowledgments)
 - [Community](#community)
+
+## Quickstart
+
+Receive and send WhatsApp messages in two steps. Before you start (once): sign
+up at [web.openbsp.dev](https://web.openbsp.dev), connect your WhatsApp number
+(Integrations → WhatsApp), and create an API key (Settings → API Keys). Every
+call below sends two headers: `apikey` (the public Supabase key) and `api-key`
+(your secret key).
+
+The API is [PostgREST](https://postgrest.org) over the database, every table is
+an endpoint, so you can use plain REST or any
+[Supabase SDK](https://supabase.com/docs/reference) (JS, Python, Dart, …).
+
+**1. Receive messages** — register a webhook; OpenBSP POSTs every new message to
+your URL:
+
+```bash
+curl -X POST 'https://nheelwshzbgenpavwhcy.supabase.co/rest/v1/webhooks' \
+  -H 'apikey: <PUBLISHABLE_KEY>' -H 'api-key: <API_KEY>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "organization_id": "<ORG_ID>",
+    "table_name": "messages",
+    "operations": ["insert"],
+    "url": "https://your-app.com/webhook"
+  }'
+```
+
+Your endpoint receives the **`messages` table row as is**, wrapped in a thin
+envelope:
+
+```jsonc
+{
+  "entity": "messages",
+  "action": "insert",
+  "data": {
+    // the row, exactly as stored
+    "id": "9b2d…",
+    "organization_id": "…",
+    "conversation_id": "…",
+    "external_id": "wamid.…",
+    "direction": "incoming",
+    "service": "whatsapp",
+    "organization_address": "<PHONE_NUMBER_ID>",
+    "contact_address": "5491155551234",
+    "content": {
+      "version": "1",
+      "type": "text",
+      "kind": "text",
+      "text": "Hi!"
+    },
+    "status": { "delivered": "2026-07-17T12:00:00Z" },
+    "timestamp": "2026-07-17T12:00:00Z"
+  }
+}
+```
+
+Reply when `data.direction` is `"incoming"` — the webhook also fires for your
+own outgoing rows (and, with `"update"`, for status changes).
+
+**2. Send a message** — insert a row; OpenBSP dispatches it to WhatsApp:
+
+```bash
+curl -X POST 'https://nheelwshzbgenpavwhcy.supabase.co/rest/v1/messages' \
+  -H 'apikey: <PUBLISHABLE_KEY>' -H 'api-key: <API_KEY>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "organization_id": "<ORG_ID>",
+    "organization_address": "<PHONE_NUMBER_ID>",
+    "contact_address": "5491155551234",
+    "service": "whatsapp",
+    "direction": "outgoing",
+    "content": {
+      "version": "1",
+      "type": "text",
+      "kind": "text",
+      "text": "Hello from OpenBSP!"
+    }
+  }'
+```
+
+The same insert through the Supabase JS SDK:
+
+```js
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  "https://nheelwshzbgenpavwhcy.supabase.co",
+  "<PUBLISHABLE_KEY>",
+  { global: { headers: { "api-key": "<API_KEY>" } } },
+);
+
+await supabase.from("messages").insert({
+  organization_id: "<ORG_ID>",
+  organization_address: "<PHONE_NUMBER_ID>",
+  contact_address: "5491155551234",
+  service: "whatsapp",
+  direction: "outgoing",
+  content: {
+    version: "1",
+    type: "text",
+    kind: "text",
+    text: "Hello from OpenBSP!",
+  },
+});
+```
+
+That's it. Media, templates, locations and the full message schema are covered
+in [MIGRATING_FROM_TWILIO.md](MIGRATING_FROM_TWILIO.md); third-party onboarding
+and credential capture in [INTEGRATING.md](INTEGRATING.md).
 
 ## User interface
 
@@ -739,7 +860,7 @@ https://github.com/user-attachments/assets/d86cf719-250d-4e3d-8c15-873daa6707d6
 
 </details>
 
-## WhatsApp Web (unofficial API)
+## WhatsApp Web integration (unofficial API)
 
 If you don't want to go through Meta (app review, business verification, Cloud
 API pricing), OpenBSP also supports plain WhatsApp accounts over the **WhatsApp
