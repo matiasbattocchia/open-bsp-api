@@ -14,7 +14,7 @@
   },
   "imports": {
     "@google/genai": "npm:@google/genai",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.54",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.54.0",
     "ky": "https://esm.sh/ky@1.7",
     "@libsql/client": "https://esm.sh/@libsql/client@0.15/web",
     "mathjs": "npm:mathjs@^11.10.0",
