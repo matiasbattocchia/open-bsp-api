@@ -649,12 +649,18 @@ async function onMessage(
             ...caption,
           } as IncomingMessage
           // Download failed/oversized/no token: keep the message with a
-          // placeholder so the timeline stays complete.
+          // placeholder so the timeline stays complete. Slack still told us
+          // what the file was, so that much travels with it.
           : {
             version: "1",
             type: "data",
             kind: "media_placeholder",
             data: {},
+            file: {
+              mime_type: file.mimetype ?? "application/octet-stream",
+              name: file.name,
+              size: file.size ?? 0,
+            },
             ...caption,
           } as IncomingMessage,
       });

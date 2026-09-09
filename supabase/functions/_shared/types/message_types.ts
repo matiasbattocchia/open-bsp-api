@@ -182,10 +182,18 @@ type ButtonPart = DataPart<"button", ButtonMessage["button"]>;
 
 type TemplatePart = DataPart<"template", Template>;
 
-type MediaPlaceholderPart = DataPart<
-  "media_placeholder",
-  Record<PropertyKey, never>
->;
+/**
+ * A medium that arrived without its bytes: the Cloud API sends this when it
+ * cannot hand the media over, and whatsapp-web sends it for media it did not
+ * store (a history import, a failed download, a storage cap).
+ *
+ * `data` stays empty, as the Cloud API leaves it. Whatever IS known about the
+ * medium goes in `file` — the field a reader already consults for a FilePart,
+ * minus the `uri` that is the entire thing missing here.
+ */
+type MediaPlaceholderPart =
+  & DataPart<"media_placeholder", Record<PropertyKey, never>>
+  & { file?: Omit<FilePart["file"], "uri"> };
 
 type UnsupportedPart = DataPart<
   "unsupported",
