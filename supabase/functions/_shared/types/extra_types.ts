@@ -10,7 +10,13 @@ export type Memory = {
 
 export type PreprocessingConfig = {
   mode?: "active" | "inactive";
-  model?: "gemini-2.5-pro" | "gemini-2.5-flash";
+  /**
+   * An org billed on our key is charged from `billing.costs`, which is keyed by
+   * the exact string sent to Google — so a model belongs here only once it has
+   * a cost row, and a floating alias (`gemini-flash-latest`) never can: it
+   * would price whatever Google resolved it to today at yesterday's rate.
+   */
+  model?: "gemini-2.5-flash" | "gemini-3-flash-preview";
   api_key?: string;
   language?: string;
   extra_prompt?: string;
