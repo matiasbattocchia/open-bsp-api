@@ -16,7 +16,11 @@ export type PreprocessingConfig = {
    * a cost row, and a floating alias (`gemini-flash-latest`) never can: it
    * would price whatever Google resolved it to today at yesterday's rate.
    */
-  model?: "gemini-2.5-flash" | "gemini-3-flash-preview" | "gemini-3.8-flash";
+  model?:
+    | "gemini-2.5-flash"
+    | "gemini-3-flash-preview"
+    | "gemini-3.8-flash"
+    | "gemini-3.1-pro-preview";
   api_key?: string;
   language?: string;
   extra_prompt?: string;

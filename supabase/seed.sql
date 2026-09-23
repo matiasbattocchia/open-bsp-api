@@ -83,6 +83,22 @@ insert into billing.costs (provider, product, effective_at, quantity, unit, pric
   ('google', 'gemini-3.8-flash', '2026-01-01T00:00:00Z', 1000000, 'tokens', '{"input": 0.75, "output": 3.75, "cache_read": 0.075}'),
   ('google', 'gemini-3.8-flash', '2027-01-01T00:00:00Z', 1000000, 'tokens', '{"input": 1.50, "output": 7.50, "cache_read": 0.15}');
 
+-- Anthropic: cache_read is 0.1x input and cache_write (5m) 1.25x on these models.
+-- Google: Gemini 3.1 Pro bills >200k-token prompts at 2x; a cost row has no
+-- tiers, so it carries the <=200k rate. Neither it nor 3.5 Flash-Lite prices
+-- audio separately. OpenAI: gpt-5.2-chat-latest is priced as gpt-5.2.
+insert into billing.costs (provider, product, quantity, unit, pricing) values
+  ('anthropic', 'claude-haiku-4-5',       1000000, 'tokens', '{"input": 1.00, "output": 5.00, "cache_read": 0.10, "cache_write": 1.25}'),
+  ('anthropic', 'claude-sonnet-5',        1000000, 'tokens', '{"input": 2.00, "output": 10.00, "cache_read": 0.20, "cache_write": 2.50}'),
+  ('anthropic', 'claude-opus-5',          1000000, 'tokens', '{"input": 5.00, "output": 25.00, "cache_read": 0.50, "cache_write": 6.25}'),
+  ('google',    'gemini-3.5-flash-lite',  1000000, 'tokens', '{"input": 0.30, "output": 2.50, "cache_read": 0.03}'),
+  ('google',    'gemini-3.1-pro-preview', 1000000, 'tokens', '{"input": 2.00, "output": 12.00, "cache_read": 0.20}'),
+  ('openai',    'gpt-5.4-nano',           1000000, 'tokens', '{"input": 0.20, "output": 1.25, "cache_read": 0.02}'),
+  ('openai',    'gpt-5.4-mini',           1000000, 'tokens', '{"input": 0.75, "output": 4.50, "cache_read": 0.075}'),
+  ('openai',    'gpt-5.4',                1000000, 'tokens', '{"input": 2.50, "output": 15.00, "cache_read": 0.25}'),
+  ('openai',    'gpt-5.5',                1000000, 'tokens', '{"input": 5.00, "output": 30.00, "cache_read": 0.50}'),
+  ('openai',    'gpt-5.2-chat-latest',    1000000, 'tokens', '{"input": 1.75, "output": 14.00, "cache_read": 0.175}');
+
 -- ============================================================================
 -- SEED DATA - Minecraft Creature-Themed Organizations & Users
 -- ============================================================================
