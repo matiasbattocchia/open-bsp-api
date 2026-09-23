@@ -77,6 +77,12 @@ insert into billing.costs (provider, product, quantity, unit, pricing) values
   ('whatsapp',  'utility/ar',            1, 'templates',       '{"price": 0.026}'),
   ('whatsapp',  'authentication/ar',     1, 'templates',       '{"price": 0.026}');
 
+-- Google: Gemini 3.8 Flash has one rate for every modality, so no audio_* keys —
+-- audio falls back to input/cache_read. Google doubles it on 2027-01-01.
+insert into billing.costs (provider, product, effective_at, quantity, unit, pricing) values
+  ('google', 'gemini-3.8-flash', '2026-01-01T00:00:00Z', 1000000, 'tokens', '{"input": 0.75, "output": 3.75, "cache_read": 0.075}'),
+  ('google', 'gemini-3.8-flash', '2027-01-01T00:00:00Z', 1000000, 'tokens', '{"input": 1.50, "output": 7.50, "cache_read": 0.15}');
+
 -- ============================================================================
 -- SEED DATA - Minecraft Creature-Themed Organizations & Users
 -- ============================================================================
