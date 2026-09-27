@@ -261,12 +261,20 @@ function lunaButtonTapFromContent(
 
 function lunaOutgoingButtonsText(data: ButtonsMessageData): string {
   const body = data.body?.trim() ?? "";
-  const titles = (data.buttons ?? [])
-    .map((button) => button.title?.trim())
+  const labels = (data.buttons ?? [])
+    .map((button) => {
+      if (button.type === "website") {
+        const title = button.title?.trim() ?? "";
+        const url = button.url?.trim() ?? "";
+        if (!title && !url) return "";
+        return url ? `${title || "Link"} (${url})` : title;
+      }
+      return button.title?.trim() ?? "";
+    })
     .filter((title): title is string => Boolean(title));
-  if (titles.length === 0) return body;
-  const labels = `[${titles.join(" / ")}]`;
-  return body ? `${body}\n${labels}` : labels;
+  if (labels.length === 0) return body;
+  const suffix = `[${labels.join(" / ")}]`;
+  return body ? `${body}\n${suffix}` : suffix;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {

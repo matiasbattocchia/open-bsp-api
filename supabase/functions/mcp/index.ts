@@ -315,11 +315,11 @@ function createMcpServer(
     "send_message",
     {
       description:
-        "Send a text, template, flow, or reply-buttons message. Enforces 24h service window except for templates.",
+        "Send a text, template, flow, or buttons message (quick reply or website link). Enforces 24h service window except for templates.",
       inputSchema: {
         contact_phone: z.string().describe("Contact's phone number"),
         content: z.any().describe(
-          "Message content (text, template, flow, or reply-buttons object)",
+          "Message content (text, template, flow, or buttons with reply and/or website type)",
         ),
         account_phone: z.string().optional().describe(
           "Account phone (required if >1 account)",

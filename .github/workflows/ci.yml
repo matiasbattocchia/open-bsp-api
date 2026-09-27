@@ -17,5 +17,5 @@ jobs:
           deno-version: v2.x
       - run: deno fmt --check
       - run: cd supabase/functions && deno lint && deno check .
-      - run: cd supabase/functions && deno test --allow-env _shared/luna-whatsapp-batch_test.ts
+      - run: cd supabase/functions && deno test --allow-env _shared/luna-whatsapp-batch_test.ts _shared/whatsapp-interactive-buttons_test.ts
       - run: cd plugin && deno lint && deno check .
