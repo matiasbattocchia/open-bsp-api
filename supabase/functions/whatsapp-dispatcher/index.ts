@@ -14,6 +14,7 @@ import { downloadFromStorage } from "../_shared/media.ts";
 import { commitDispatchedMessage } from "../_shared/dispatch.ts";
 import { Json } from "../_shared/db_types.ts";
 import { markdownToWhatsApp } from "../_shared/markdown.ts";
+import { buildOutgoingButtonsMessage } from "../_shared/whatsapp-interactive-buttons.ts";
 
 const API_VERSION = "v24.0";
 const DEFAULT_ACCESS_TOKEN = Deno.env.get("META_SYSTEM_USER_ACCESS_TOKEN") ||
@@ -401,64 +402,9 @@ function outgoingMessageToEndpointMessage({
       };
     }
     case "buttons": {
-      const data = content.data;
-      const body = data.body?.trim();
-      if (!body) {
-        throw new Error("Reply-button message requires body");
-      }
-
-      const header = data.header?.trim();
-      const footer = data.footer?.trim();
-      if (header && header.length > 60) {
-        throw new Error("Reply-button header cannot exceed 60 characters");
-      }
-      if (footer && footer.length > 60) {
-        throw new Error("Reply-button footer cannot exceed 60 characters");
-      }
-
-      const buttons = (data.buttons ?? []).map((button) => ({
-        id: button.id?.trim() ?? "",
-        title: button.title?.trim() ?? "",
-      }));
-      if (buttons.length < 1 || buttons.length > 3) {
-        throw new Error("Reply-button message requires 1–3 buttons");
-      }
-      if (buttons.some((button) => !button.id || !button.title)) {
-        throw new Error("Each reply button requires id and title");
-      }
-      if (buttons.some((button) => button.title.length > 20)) {
-        throw new Error("Reply button title cannot exceed 20 characters");
-      }
-      if (buttons.some((button) => button.id.length > 256)) {
-        throw new Error("Reply button id cannot exceed 256 characters");
-      }
-      const ids = buttons.map((button) => button.id);
-      if (new Set(ids).size !== ids.length) {
-        throw new Error("Reply button ids must be unique");
-      }
-
-      const bodyText = markdownToWhatsApp(body);
-      if (bodyText.length > 1024) {
-        throw new Error("Reply-button body cannot exceed 1024 characters");
-      }
-
       return {
         ...baseMessage,
-        type: "interactive",
-        interactive: {
-          type: "button",
-          ...(header
-            ? { header: { type: "text" as const, text: header } }
-            : {}),
-          body: { text: bodyText },
-          ...(footer ? { footer: { text: footer } } : {}),
-          action: {
-            buttons: buttons.map((button) => ({
-              type: "reply" as const,
-              reply: { id: button.id, title: button.title },
-            })),
-          },
-        },
+        ...buildOutgoingButtonsMessage(content.data),
       };
     }
     default: {

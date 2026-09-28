@@ -102,6 +102,23 @@ export type OutgoingReplyButtons = {
   };
 };
 
+export type OutgoingCtaUrl = {
+  type: "interactive";
+  interactive: {
+    type: "cta_url";
+    header?: { type: "text"; text: string };
+    body: { text: string };
+    footer?: { text: string };
+    action: {
+      name: "cta_url";
+      parameters: {
+        display_text: string;
+        url: string;
+      };
+    };
+  };
+};
+
 //===================================
 // Endpoint message, as sent to the WhatsApp endpoint
 //===================================
@@ -130,6 +147,7 @@ export type EndpointMessage =
     | OutgoingVideo
     | OutgoingFlow
     | OutgoingReplyButtons
+    | OutgoingCtaUrl
   );
 
 export type EndpointMessageResponse = {

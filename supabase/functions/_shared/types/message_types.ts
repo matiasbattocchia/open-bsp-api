@@ -183,11 +183,18 @@ export type FlowMessageData = {
 
 type FlowPart = DataPart<"flow", FlowMessageData>;
 
-/** Session reply buttons (WhatsApp interactive type `button`, 1–3 replies). */
-export type ReplyButton = {
-  id: string;
-  title: string;
-};
+/** Session buttons: quick replies or a single website link (WhatsApp `cta_url`). */
+export type ReplyButton =
+  | {
+    type?: "reply";
+    id: string;
+    title: string;
+  }
+  | {
+    type: "website";
+    title: string;
+    url: string;
+  };
 
 export type ButtonsMessageData = {
   body: string;
