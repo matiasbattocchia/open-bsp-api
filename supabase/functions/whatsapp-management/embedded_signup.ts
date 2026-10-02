@@ -148,6 +148,41 @@ async function getPhoneNumber(
   return await response.json();
 }
 
+/**
+ * The number on a WABA, for an Embedded Signup v4 coexistence finish that
+ * names only the WABA. The flow onboards one app number, so anything but
+ * exactly one is a WABA we cannot read the choice from.
+ */
+async function getWabaPhoneNumberId(
+  business_access_token: string,
+  waba_id: string,
+): Promise<string> {
+  const response = await fetch(
+    `https://graph.facebook.com/${API_VERSION}/${waba_id}/phone_numbers?fields=id`,
+    {
+      headers: { Authorization: `Bearer ${business_access_token}` },
+    },
+  );
+
+  if (!response.ok) {
+    throw new HTTPException(response.status as ContentfulStatusCode, {
+      message: "Could not list the WABA's phone numbers",
+      cause: await response.json().catch(() => ({})),
+    });
+  }
+
+  const { data } = (await response.json()) as { data: { id: string }[] };
+
+  if (data.length !== 1) {
+    throw new HTTPException(422, {
+      message:
+        `Expected one phone number on WABA ${waba_id}, found ${data.length}`,
+    });
+  }
+
+  return data[0].id;
+}
+
 async function postInitDataSync(
   business_access_token: string,
   phone_number_id: string,
@@ -226,7 +261,9 @@ export async function performEmbeddedSignup(
     });
   }
 
-  if (!payload.phone_number_id) {
+  if (
+    !payload.phone_number_id && payload.flow_type !== "existing_phone_number"
+  ) {
     throw new HTTPException(400, {
       message: "Missing 'phone_number_id' body param!",
     });
@@ -278,6 +315,18 @@ export async function performEmbeddedSignup(
     app_secret,
     payload.code,
   );
+
+  if (!payload.phone_number_id) {
+    log.info(
+      "Coexistence finish named no number: reading it off the WABA",
+      ctx,
+    );
+    payload.phone_number_id = await getWabaPhoneNumberId(
+      business_access_token,
+      payload.waba_id,
+    );
+    ctx.phone_number_id = payload.phone_number_id;
+  }
 
   log.info("Step 2: Subscribe to webhooks on the customer's WABA", ctx);
   await postSubscribeToWebhooks(
