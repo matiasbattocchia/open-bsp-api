@@ -523,3 +523,90 @@ export async function deleteSignup(
 
   return data;
 }
+
+/**
+ * What Embedded Signup's popup posts to the page when it closes without a
+ * finish the page knows: the step the user left at, Meta's own error, or an
+ * event name the page does not handle. Nothing of it reaches the signup
+ * route, so it is the only record of an attempt that Meta stopped — a
+ * coexistence option Meta did not offer, a number it refused.
+ */
+export type SignupPopupEvent = {
+  organization_id: string;
+  event?: unknown;
+  data?: unknown;
+};
+
+const POPUP_FIELDS = [
+  "current_step",
+  "error_message",
+  "error_id",
+  "session_id",
+  "timestamp",
+  "waba_id",
+  "phone_number_id",
+  "business_id",
+] as const;
+
+// The browser relays the popup's message as is, so only Meta's known fields
+// are kept, as bounded strings.
+function popupField(value: unknown): string | undefined {
+  if (typeof value === "string") return value.slice(0, 500);
+  if (typeof value === "number") return String(value);
+  return undefined;
+}
+
+export async function recordSignupPopupEvent(
+  client: ReturnType<typeof createClient>,
+  payload: SignupPopupEvent,
+) {
+  const event = popupField(payload.event)?.slice(0, 64);
+
+  if (!event) {
+    throw new HTTPException(400, { message: "Missing 'event' body param!" });
+  }
+
+  const data =
+    (payload.data && typeof payload.data === "object"
+      ? payload.data
+      : {}) as Record<string, unknown>;
+
+  const metadata: Record<string, string> = { event };
+
+  for (const field of POPUP_FIELDS) {
+    const value = popupField(data[field]);
+    if (value !== undefined) metadata[field] = value;
+  }
+
+  const { level, message } = metadata.error_message
+    ? {
+      level: "error" as const,
+      message: `Meta signup error: ${metadata.error_message}`,
+    }
+    : event === "CANCEL"
+    ? {
+      level: "warning" as const,
+      message: `Signup abandoned at step ${metadata.current_step ?? "unknown"}`,
+    }
+    : {
+      level: "warning" as const,
+      message: `Unhandled signup event ${event}`,
+    };
+
+  log.info("Signup popup event", {
+    organization_id: payload.organization_id,
+    ...metadata,
+  });
+
+  await client
+    .from("logs")
+    .insert({
+      organization_id: payload.organization_id,
+      category: "signup",
+      service: "whatsapp",
+      level,
+      message,
+      metadata,
+    })
+    .throwOnError();
+}

@@ -20,7 +20,9 @@ import {
 import {
   deleteSignup,
   performEmbeddedSignup,
+  recordSignupPopupEvent,
   SignupPayload,
+  type SignupPopupEvent,
 } from "./embedded_signup.ts";
 import {
   type ManagementEnv,
@@ -63,7 +65,9 @@ app.onError((err, c) => {
 
 // Validate user or key (skip for public onboard routes)
 app.use("*", async (c, next) => {
-  if (c.req.path.endsWith("/onboard")) {
+  if (
+    c.req.path.endsWith("/onboard") || c.req.path.endsWith("/onboard/events")
+  ) {
     await next();
     return;
   }
@@ -278,6 +282,19 @@ app.post(
   },
 );
 
+// Whoever may launch the signup may report how its popup ended.
+app.post(
+  "/whatsapp-management/signup/events",
+  requireRoles(["member", "admin", "owner"]),
+  async (c) => {
+    const payload = await c.req.json<SignupPopupEvent>();
+
+    await recordSignupPopupEvent(createUnsecureClient(), payload);
+
+    return c.body(null, 204);
+  },
+);
+
 app.delete(
   "/whatsapp-management/signup",
   // A member disconnects their own user-scoped number; admin+ any.
@@ -460,6 +477,42 @@ app.post("/whatsapp-management/onboard", async (c) => {
 
     throw error;
   }
+});
+
+// The onboard page's popup report, on the same token the page was opened with.
+app.post("/whatsapp-management/onboard/events", async (c) => {
+  const body = await c.req.json<
+    Omit<SignupPopupEvent, "organization_id"> & { token?: string }
+  >();
+
+  if (!body.token) {
+    throw new HTTPException(400, { message: "Missing 'token' body param" });
+  }
+
+  const client = createUnsecureClient();
+
+  const { data: tokenData } = await client
+    .from("onboarding_tokens")
+    .select("organization_id")
+    .eq("id", body.token)
+    .eq("service", "whatsapp")
+    .eq("status", "active")
+    .gt("expires_at", new Date().toISOString())
+    .maybeSingle();
+
+  if (!tokenData) {
+    throw new HTTPException(400, {
+      message: "Invalid or expired onboarding token",
+    });
+  }
+
+  await recordSignupPopupEvent(client, {
+    organization_id: tokenData.organization_id,
+    event: body.event,
+    data: body.data,
+  });
+
+  return c.body(null, 204);
 });
 
 Deno.serve(app.fetch);
