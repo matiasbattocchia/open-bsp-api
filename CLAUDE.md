@@ -42,31 +42,34 @@ The current date/time is NOT reliably in the conversation context. When querying
 logs with time ranges (e.g., "last 12 hours"), **always run `date -u` first** to
 get the actual current UTC time. Do not guess or hardcode timestamps.
 
-### Querying stdout logs (console.log / console.error)
+### Querying edge function logs
 
-Use the Supabase Management API to query `function_logs` (edge function stdout):
+Use the Supabase Management API `logs` endpoint (or the Supabase MCP
+`query_logs` tool, which runs the same queries). Every source is one `logs`
+table, picked with `source`; nested fields are `log_attributes['<key>']`:
 
 ```bash
 ACCESS_TOKEN=$(cat ~/.supabase/access-token)
 REF="nheelwshzbgenpavwhcy"
 
-curl -s "https://api.supabase.com/v1/projects/${REF}/analytics/endpoints/logs.all" \
+curl -s "https://api.supabase.com/v1/projects/${REF}/analytics/endpoints/logs" \
   -H "Authorization: Bearer ${ACCESS_TOKEN}" \
   -G \
-  --data-urlencode "sql=select cast(timestamp as datetime) as ts, event_message from function_logs where regexp_contains(event_message, 'ERROR_KEYWORD') order by timestamp desc limit 10" \
-  --data-urlencode "iso_timestamp_start=2026-04-10T00:00:00Z"
+  --data-urlencode "sql=select timestamp, event_message from logs where source = 'function_logs' and positionCaseInsensitive(event_message, 'ERROR_KEYWORD') > 0 order by timestamp desc limit 10" \
+  --data-urlencode "iso_timestamp_start=2026-04-10T00:00:00Z" \
+  --data-urlencode "iso_timestamp_end=2026-04-10T12:00:00Z"
 ```
 
-Available log tables: `function_logs` (stdout), `function_edge_logs`
-(HTTP-level), `edge_logs`, `postgres_logs`, `auth_logs`, `storage_logs`,
-`realtime_logs`. Uses BigQuery SQL syntax. Max 1000 rows per query. Always
-filter by timestamp.
+- `function_logs` is edge function stdout (`console.log` / `console.error`).
+- `function_edge_logs` is one row per invocation: `log_attributes` keys
+  `request.pathname`, `response.status_code`, `execution_time_ms`,
+  `function_id`, `version`. No stdout.
+- Other sources: `edge_logs`, `postgres_logs`, `postgrest_logs`, `auth_logs`,
+  `storage_logs`, `realtime_logs` —
+  `select source, count() from logs group by
+  source` lists them.
 
-### Querying HTTP-level logs (status codes, execution time)
-
-Use the Supabase MCP server `get_logs` tool with `service: "edge-function"`.
-This returns invocation metadata (status code, execution time, function version)
-but **not** stdout content.
+ClickHouse SQL. The window is at most 24 hours; always pass both timestamps.
 
 ### Applying database fixes
 
