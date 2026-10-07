@@ -184,8 +184,6 @@ contacts, and templates.
 [OpenBSP n8n nodes](https://github.com/matiasbattocchia/n8n-nodes-openbsp)** —
 The official n8n community node package for OpenBSP.
 
-<img src="https://raw.githubusercontent.com/matiasbattocchia/n8n-nodes-openbsp/main/images/04-echo-bot-workflow.png" alt="Echo bot workflow built with the OpenBSP n8n nodes" width="600">
-
 ## Claude Code plugin
 
 The OpenBSP plugin gives Claude Code full API access and optionally bridges
@@ -327,9 +325,13 @@ A managed instance is available at
 **[web.openbsp.dev](https://web.openbsp.dev)** — same codebase as this repo,
 running on Supabase. Sign up with a Google or GitHub account.
 
-<img src="meta-tech-provider.png" alt="Meta Tech Provider" width="200">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="meta-business-partner-dark.png">
+  <img src="meta-business-partner-light.png" alt="Meta Business Partner" width="200">
+</picture>
 
-The hosted instance is operated by a registered **Meta Tech Provider**.
+The hosted instance is operated by Matías Battocchia, a registered **Meta Tech
+Partner**.
 
 ### Quotas
 
@@ -339,6 +341,8 @@ The hosted instance is operated by a registered **Meta Tech Provider**.
 | Conversations | Unlimited        |
 | Storage       | 1 GB             |
 | AI Credits    | $1.00 (one-time) |
+
+Need higher limits or a special feature? [Get in touch](#community).
 
 AI Credits apply only when agents use the built-in LLM gateway. Configuring an
 agent with your own provider API key (`AgentExtra.api_key`) bypasses credit
