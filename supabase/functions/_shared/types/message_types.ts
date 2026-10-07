@@ -185,11 +185,14 @@ type PollPart = DataPart<"poll", {
 /**
  * One voter's choice on a poll, `re_message_id` the poll. It replaces that
  * voter's earlier vote; `selected` empty is the vote withdrawn. `question`
- * rides along so the row reads on its own.
+ * rides along so the row reads on its own, and `results` is the poll as it
+ * stands with this vote counted: per option, in the poll's order, who picks it
+ * now (addresses, as `sender_address`). Only votes the bridge saw are counted.
  */
 type PollVotePart = DataPart<"poll_vote", {
   question: string;
   selected: string[];
+  results?: { option: string; votes: number; voters: string[] }[];
 }>;
 
 type OrderPart = DataPart<"order", Order>;
