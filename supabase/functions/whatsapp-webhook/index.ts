@@ -758,6 +758,12 @@ async function processMessage(request: Request): Promise<Response> {
             conversation_address: contact_address,
             sender_address: contact_address,
             content,
+            // A history media asset describes a message that already
+            // happened: stating `pending` null leaves it unarmed, so neither
+            // agent-client nor the media preprocessor wakes for a backfill.
+            // The threaded replay fills in its delivery status. A live
+            // message takes the column default, the arm bit.
+            ...(field === "history" && { status: { pending: null } }),
             timestamp: new Date(webhookMessage.timestamp * 1000).toISOString(),
           };
 

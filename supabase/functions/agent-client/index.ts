@@ -129,7 +129,7 @@ function getNewestIncomingMessage(
       return 0;
     });
 
-  return sortedMessages[0];
+  return sortedMessages.at(0);
 }
 
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -317,6 +317,17 @@ Deno.serve(async (req) => {
 
   // CHECK IF THERE IS A NEWER MESSAGE
   const newestMessage = getNewestIncomingMessage(incoming, messages, fromPeer);
+
+  // The incoming message can fall outside the context window — a timestamp
+  // older than it, as a backfill's has, or crowded out by newer ones — and
+  // with no newer peer message there is nothing in view to answer.
+  if (!newestMessage) {
+    log.info(
+      `Message ${incoming.id} is outside the context window of conversation ${conv.id}. Skipping response.`,
+    );
+
+    return new Response("ok", { headers: corsHeaders });
+  }
 
   if (newestMessage.id !== incoming.id) {
     // Then the newest message is not the incoming one that triggered this edge function.
