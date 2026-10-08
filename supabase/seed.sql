@@ -31,16 +31,18 @@ insert into billing.tiers (id, name, level) values
   ('free',    'Free',    0),
   ('starter', 'Starter', 1);
 
--- Tier limits (no rows = no limits)
--- cap: ceiling for counter/gauge, floor for balance
+-- Tier limits (no row = no limit, and the UI shows no quota for it)
+-- cap: ceiling for counter/gauge, floor for balance; null = unlimited
 -- starter caps above plan included to allow paid overage
 insert into billing.tiers_products (tier_id, product_id, interval, cap) values
   ('free',    'messages',   'month',    5000),
+  ('free',    'conversations', 'month', null),
   ('free',    'storage',    'lifetime', 1),
   ('free',    'ai_credits', 'lifetime', 0),
   ('free',    'organizations_addresses', 'lifetime', null),
 
   ('starter', 'messages',   'month',    100000),
+  ('starter', 'conversations', 'month', null),
   ('starter', 'storage',    'lifetime', 100),
   ('starter', 'ai_credits', 'lifetime', 0),
   ('starter', 'organizations_addresses', 'lifetime', null);
