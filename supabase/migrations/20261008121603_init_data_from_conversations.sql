@@ -1,16 +1,11 @@
-create function public.init_data(
-  p_organization_id uuid,
-  p_limit integer default 200,
-  p_per_conversation integer default 10,
-  p_since timestamptz default null,
-  p_until timestamptz default null
-)
-returns json
-language plpgsql
-stable
-security invoker
-set search_path to ''
-as $$
+set check_function_bodies = off;
+
+CREATE OR REPLACE FUNCTION public.init_data(p_organization_id uuid, p_limit integer DEFAULT 200, p_per_conversation integer DEFAULT 10, p_since timestamp with time zone DEFAULT NULL::timestamp with time zone, p_until timestamp with time zone DEFAULT NULL::timestamp with time zone)
+ RETURNS json
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO ''
+AS $function$
 declare
   _messages json;
   _conversations json;
@@ -76,4 +71,7 @@ begin
     'messages', _messages
   );
 end;
-$$;
+$function$
+;
+
+
