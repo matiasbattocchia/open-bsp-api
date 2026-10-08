@@ -68,6 +68,13 @@ on storage.objects
 for each row
 execute function billing.update_storage_usage();
 
+-- Track connected accounts (and check the cap for new ones)
+create trigger update_billing_account_usage
+after insert or update of status or delete
+on public.organizations_addresses
+for each row
+execute function billing.update_account_usage();
+
 -- Skip ledger insert if product doesn't exist (no billing)
 -- Named "a_guard" to sort before "update_billing" (alphabetical trigger execution)
 create trigger a_guard_billing_ledger_product

@@ -232,6 +232,51 @@ begin
 end;
 $$;
 
+-- Trigger: track connected accounts, a gauge.
+-- An account counts while it is connected. `local` (the org itself) and
+-- `slack` (members' own identities) never count. Disconnecting keeps the row,
+-- since conversations hang off it, so the gauge follows status transitions,
+-- not only inserts and deletes.
+-- Only a brand-new account is checked against the cap. A reconnect can arrive
+-- through a provider webhook (e.g. ACCOUNT_RECONNECTED), which must never
+-- fail; an upsert that hits an existing row takes the update path.
+create function billing.update_account_usage() returns trigger
+language plpgsql
+security definer
+set search_path to ''
+as $$
+declare
+  _org_id uuid := coalesce(new.organization_id, old.organization_id);
+  _old int := 0;
+  _new int := 0;
+begin
+  if tg_op <> 'INSERT' then
+    _old := (old.service not in ('local', 'slack') and old.status = 'connected')::int;
+  end if;
+
+  if tg_op <> 'DELETE' then
+    _new := (new.service not in ('local', 'slack') and new.status = 'connected')::int;
+  end if;
+
+  if _new = _old then
+    return null;
+  end if;
+
+  -- Cascade from an organization delete: its billing rows are going too, and
+  -- there is no usage to credit back.
+  if not exists (select 1 from public.organizations where id = _org_id) then
+    return null;
+  end if;
+
+  if tg_op = 'INSERT' then
+    perform billing.check_limit(_org_id, tg_table_name);
+  end if;
+
+  perform billing.update_usage(_org_id, tg_table_name, _new - _old);
+  return null;
+end;
+$$;
+
 -- Trigger: skip ledger insert if the product doesn't exist (no billing)
 create function billing.guard_ledger_insert() returns trigger
 language plpgsql

@@ -23,6 +23,7 @@ insert into billing.products (id, name, unit, kind) values
   ('messages',      'Messages',      'count', 'counter'),
   ('conversations', 'Conversations', 'count', 'counter'),
   ('storage',       'Storage',       'gb',    'gauge'),
+  ('organizations_addresses', 'Connections', 'count', 'gauge'),
   ('ai_credits',    'AI Credits',    'usd',   'balance');
 
 -- Tiers (levels of trust: 0 = free, 1 = starter, ...)
@@ -37,10 +38,12 @@ insert into billing.tiers_products (tier_id, product_id, interval, cap) values
   ('free',    'messages',   'month',    5000),
   ('free',    'storage',    'lifetime', 1),
   ('free',    'ai_credits', 'lifetime', 0),
+  ('free',    'organizations_addresses', 'lifetime', null),
 
   ('starter', 'messages',   'month',    100000),
   ('starter', 'storage',    'lifetime', 100),
-  ('starter', 'ai_credits', 'lifetime', 0);
+  ('starter', 'ai_credits', 'lifetime', 0),
+  ('starter', 'organizations_addresses', 'lifetime', null);
 
 -- Plans (min_tier: minimum tier level required)
 insert into billing.plans (id, min_tier, price, billing_cycle, is_default) values
