@@ -26,42 +26,73 @@ insert into billing.products (id, name, unit, kind) values
   ('organizations_addresses', 'Connections', 'count', 'gauge'),
   ('ai_credits',    'AI Credits',    'usd',   'balance');
 
--- Tiers (levels of trust: 0 = free, 1 = starter, ...)
+-- Tiers (levels of trust: 0 = free, 1 = starter, ...), one per plan: taking
+-- a plan raises the organization to the plan's min_tier.
 insert into billing.tiers (id, name, level) values
-  ('free',    'Free',    0),
-  ('starter', 'Starter', 1);
+  ('free',     'Free',     0),
+  ('starter',  'Starter',  1),
+  ('pro',      'Pro',      2),
+  ('business', 'Business', 3);
 
 -- Tier limits (no row = no limit, and the UI shows no quota for it)
 -- cap: ceiling for counter/gauge, floor for balance; null = unlimited
--- starter caps above plan included to allow paid overage
+-- A paid tier's caps sit past the point where its plan's overage costs as much
+-- as the next plan (so a customer can grow into the upgrade), and bound the
+-- worst-case overage bill to ~5-7x the plan's price (what an unpaid account
+-- can run up). Free's caps are its allowances: there is no overage to pay.
 insert into billing.tiers_products (tier_id, product_id, interval, cap) values
-  ('free',    'messages',   'month',    5000),
-  ('free',    'conversations', 'month', null),
-  ('free',    'storage',    'lifetime', 1),
-  ('free',    'ai_credits', 'lifetime', 0),
-  ('free',    'organizations_addresses', 'lifetime', null),
+  ('free',     'messages',   'month',    5000),
+  ('free',     'conversations', 'month', null),
+  ('free',     'storage',    'lifetime', 1),
+  ('free',     'ai_credits', 'lifetime', 0),
+  ('free',     'organizations_addresses', 'lifetime', null),
 
-  ('starter', 'messages',   'month',    100000),
-  ('starter', 'conversations', 'month', null),
-  ('starter', 'storage',    'lifetime', 100),
-  ('starter', 'ai_credits', 'lifetime', 0),
-  ('starter', 'organizations_addresses', 'lifetime', null);
+  ('starter',  'messages',   'month',    50000),   -- upgrade pays at 30k; max overage $35
+  ('starter',  'conversations', 'month', null),
+  ('starter',  'storage',    'lifetime', 25),
+  ('starter',  'ai_credits', 'lifetime', 0),
+  ('starter',  'organizations_addresses', 'lifetime', null),
+
+  ('pro',      'messages',   'month',    300000),  -- upgrade pays at ~232k; max overage $120
+  ('pro',      'conversations', 'month', null),
+  ('pro',      'storage',    'lifetime', 250),
+  ('pro',      'ai_credits', 'lifetime', 0),
+  ('pro',      'organizations_addresses', 'lifetime', null),
+
+  ('business', 'messages',   'month',    2000000), -- max overage $500
+  ('business', 'conversations', 'month', null),
+  ('business', 'storage',    'lifetime', 1000),
+  ('business', 'ai_credits', 'lifetime', 0),
+  ('business', 'organizations_addresses', 'lifetime', null);
 
 -- Plans (min_tier: minimum tier level required)
 insert into billing.plans (id, min_tier, price, billing_cycle, is_default) values
-  ('free',    0, 0, null,    true),
-  ('starter', 1, 5, 'month', false);
+  ('free',     0, 0,  null,    true),
+  ('starter',  1, 5,  'month', false),
+  ('pro',      2, 20, 'month', false),
+  ('business', 3, 99, 'month', false);
 
 -- Plan product allowances and overage pricing
--- no rows for conversations (metered only, no limits or charges)
+-- no rows for conversations (metered only, no limits or charges); connections
+-- are unlimited on every plan
+-- Going up a plan, a message costs less: the bundle's price per message falls
+-- ($0.33, $0.20, $0.13 per 1k), and overage is 3x the plan's own rate, so past
+-- a point (30% into the next plan's allowance) upgrading is cheaper than
+-- paying overage. Storage falls the same way.
+-- AI credits: $1 once, granted on Free; paid plans grant none.
 insert into billing.plans_products (plan_id, product_id, interval, included, unit_price) values
-  ('free',    'messages',   'month',    5000,  null),
-  ('free',    'storage',    'lifetime', 1,     null),
-  ('free',    'ai_credits', 'lifetime', 1.00,  null),
+  ('free',     'messages',   'month',    5000,   null),
+  ('free',     'storage',    'lifetime', 1,      null),
+  ('free',     'ai_credits', 'lifetime', 1.00,   null),
 
-  ('starter', 'messages',   'month',    25000, 0.001),
-  ('starter', 'storage',    'lifetime', 25,    0.025),
-  ('starter', 'ai_credits', 'lifetime', 1,     null);
+  ('starter',  'messages',   'month',    15000,  0.001),
+  ('starter',  'storage',    'lifetime', 10,     0.10),
+
+  ('pro',      'messages',   'month',    100000, 0.0006),
+  ('pro',      'storage',    'lifetime', 50,     0.06),
+
+  ('business', 'messages',   'month',    750000, 0.0004),
+  ('business', 'storage',    'lifetime', 250,    0.04);
 
 -- Costs (provider-specific pricing structures)
 -- Google: https://ai.google.dev/gemini-api/docs/pricing

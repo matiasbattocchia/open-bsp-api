@@ -333,16 +333,27 @@ running on Supabase. Sign up with a Google or GitHub account.
 The hosted instance is operated by Matías Battocchia, a registered **Meta Tech
 Partner**.
 
-### Quotas
+### Plans
 
-| Resource      | Included         |
-| ------------- | ---------------- |
-| Messages      | 5,000 / month    |
-| Conversations | Unlimited        |
-| Storage       | 1 GB             |
-| AI Credits    | $1.00 (one-time) |
+|                 | Free             | Starter        | Pro             | Business        |
+| --------------- | ---------------- | -------------- | --------------- | --------------- |
+| Price           | $0               | $5 / month     | $20 / month     | $99 / month     |
+| Messages        | 5,000 / month    | 15,000 / month | 100,000 / month | 750,000 / month |
+| Extra messages  | —                | $0.001 each    | $0.0006 each    | $0.0004 each    |
+| Messages, up to | 5,000 / month    | 50,000 / month | 300,000 / month | 2M / month      |
+| Storage         | 1 GB             | 10 GB          | 50 GB           | 250 GB          |
+| Extra storage   | —                | $0.10 / GB     | $0.06 / GB      | $0.04 / GB      |
+| Storage, up to  | 1 GB             | 25 GB          | 250 GB          | 1,000 GB        |
+| Conversations   | Unlimited        | Unlimited      | Unlimited       | Unlimited       |
+| Connections     | Unlimited        | Unlimited      | Unlimited       | Unlimited       |
+| AI Credits      | $1.00 (one-time) | —              | —               | —               |
 
-Need higher limits or a special feature? [Get in touch](#community).
+Messages count both ways: sent and received, on any channel, including those
+sent from the phone or a linked device. On Free, once the month's messages run
+out, sending stops until the next month; received messages keep arriving.
+
+There are no online payments yet: to change plans, or for higher limits or a
+special feature, [get in touch](#community).
 
 AI Credits apply only when agents use the built-in LLM gateway. Configuring an
 agent with your own provider API key (`AgentExtra.api_key`) bypasses credit
