@@ -217,6 +217,18 @@ on public.messages
 for each row
 execute function public.notify_webhook();
 
+-- Named to sort before set_message: BEFORE triggers fire alphabetically, and
+-- this one decides what the merge receives.
+create trigger keep_stored_media
+before update
+on public.messages
+for each row
+when (
+  new.content ->> 'kind' = 'media_placeholder'
+  or new.content ->> 'type' = 'file'
+)
+execute function public.keep_stored_media();
+
 -- Addressing is set (and validated against the conversation) at insert and
 -- frozen here; updates only fill sender_address once and merge content/status.
 create trigger preserve_addressing

@@ -208,8 +208,10 @@ type TemplatePart = DataPart<"template", Template>;
 
 /**
  * A medium that arrived without its bytes: the Cloud API sends this when it
- * cannot hand the media over, and whatsapp-web sends it for media it did not
- * store (a history import, a failed download, a storage cap).
+ * cannot hand the media over, and every service writes it for media it did
+ * not store — a history import, a failed download, an oversized file, a full
+ * storage quota (see withoutMedia), the reason in `status.errors`. A FilePart,
+ * by contrast, always holds stored bytes or an external URL.
  *
  * `data` stays empty, as the Cloud API leaves it. Whatever IS known about the
  * medium goes in `file` — the field a reader already consults for a FilePart,

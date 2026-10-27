@@ -20,6 +20,7 @@ import {
   fetchMedia,
   MAX_STORAGE_UPLOAD_SIZE,
   uploadToStorage,
+  withoutMedia,
 } from "../_shared/media.ts";
 import { whatsappToMarkdown } from "../_shared/markdown.ts";
 
@@ -256,11 +257,10 @@ async function downloadMediaItem({
       limit: MAX_STORAGE_UPLOAD_SIZE,
     });
 
-    // Preserve message with original WhatsApp media reference and error status
-    message.status = {
-      error: `File too large: ${sizeMB} MB (limit: ${limitMB} MB)`,
-    };
-    return message;
+    return withoutMedia(
+      message,
+      `File too large: ${sizeMB} MB (limit: ${limitMB} MB)`,
+    );
   }
 
   // Fetch part 2: Get the file using the download url
@@ -1182,18 +1182,14 @@ async function processMessage(request: Request): Promise<Response> {
           client,
         });
       } catch (error) {
-        log.warn(
-          "Failed to download media, preserving message with original reference",
-          {
-            error: error instanceof Error ? error.message : String(error),
-            message_id: message.external_id,
-          },
-        );
+        const reason = error instanceof Error ? error.message : String(error);
 
-        message.status = {
-          error: error instanceof Error ? error.message : String(error),
-        };
-        return message;
+        log.warn("Failed to download media, storing a placeholder", {
+          error: reason,
+          message_id: message.external_id,
+        });
+
+        return withoutMedia(message, reason);
       }
     }),
   );

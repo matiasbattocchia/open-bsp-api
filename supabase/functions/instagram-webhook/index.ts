@@ -23,6 +23,7 @@ import {
   fetchMedia,
   MAX_STORAGE_UPLOAD_SIZE,
   uploadToStorage,
+  withoutMedia,
 } from "../_shared/media.ts";
 
 const API_VERSION = "v25.0";
@@ -296,11 +297,10 @@ async function downloadMediaItem({
       limit: MAX_STORAGE_UPLOAD_SIZE,
     });
 
-    // Preserve message with original Instagram media reference and error status
-    message.status = {
-      error: `File too large: ${sizeMB} MB (limit: ${limitMB} MB)`,
-    };
-    return message;
+    return withoutMedia(
+      message,
+      `File too large: ${sizeMB} MB (limit: ${limitMB} MB)`,
+    );
   }
 
   // Store the file
@@ -934,18 +934,14 @@ async function processMessage(request: Request): Promise<Response> {
           client,
         });
       } catch (error) {
-        log.warn(
-          "Failed to download IG media, preserving message with original reference",
-          {
-            error: error instanceof Error ? error.message : String(error),
-            message_id: message.external_id,
-          },
-        );
+        const reason = error instanceof Error ? error.message : String(error);
 
-        message.status = {
-          error: error instanceof Error ? error.message : String(error),
-        };
-        return message;
+        log.warn("Failed to download IG media, storing a placeholder", {
+          error: reason,
+          message_id: message.external_id,
+        });
+
+        return withoutMedia(message, reason);
       }
     }),
   );

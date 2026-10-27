@@ -74,6 +74,7 @@ export type IncomingStatus = {
   deleted?: string; // sender deleted/revoked the message (Instagram, WhatsApp coexistence)
   preprocessing?: string;
   preprocessed?: string;
+  errors?: string[]; // why a medium arrived as a media_placeholder
 };
 
 export type OutgoingStatus = {

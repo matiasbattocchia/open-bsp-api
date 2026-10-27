@@ -348,6 +348,28 @@ begin
 end;
 $$;
 
+-- BEFORE UPDATE, ahead of the content merge: a medium and its placeholder can
+-- land on the same row in either order — the Cloud API's history sync replays
+-- a media message as a media_placeholder and sends the asset on its own, and
+-- whichever arrives second patches the first. A stored file always wins. A
+-- placeholder landing on a row that holds a file leaves the content as it is
+-- (the caption is the same on both); a file landing on a placeholder drops the
+-- placeholder's `data`, which a FilePart does not carry.
+create function public.keep_stored_media() returns trigger
+language plpgsql
+as $$
+begin
+  if new.content->>'kind' = 'media_placeholder'
+    and old.content->'file'->>'uri' is not null then
+    new.content := old.content;
+  elsif new.content->>'type' = 'file' and old.content ? 'data' then
+    new.content := new.content || '{"data": null}'::jsonb;
+  end if;
+
+  return new;
+end;
+$$;
+
 -- AFTER trigger: a synced REMOVE dropped the entry from the service's address
 -- book — delete the row too, unless a conversation still references the
 -- address. The conversation's address equals the contact's exactly on direct

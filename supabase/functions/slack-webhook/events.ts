@@ -20,7 +20,11 @@ import type {
   Mention,
   MessageInsert,
 } from "../_shared/supabase.ts";
-import { MAX_STORAGE_UPLOAD_SIZE, uploadToStorage } from "../_shared/media.ts";
+import {
+  MAX_STORAGE_UPLOAD_SIZE,
+  uploadToStorage,
+  withoutMedia,
+} from "../_shared/media.ts";
 import {
   ensureFreshToken,
   eventAuthorizations,
@@ -623,47 +627,33 @@ async function onMessage(
     const token = await anyWorkspaceToken(ctx);
 
     for (const [index, file] of files.entries()) {
-      const uri = await downloadFile(ctx, token, file);
+      const download = await downloadFile(ctx, token, file);
       // One row per file; Slack's message text is the caption of the first
       // (mentions ride with it).
       const caption = index === 0 && event.text
         ? { text, ...(mentions ? { mentions } : {}) }
         : {};
 
-      rows.push({
+      const row: MessageInsert = {
         ...base,
         external_id: index === 0
           ? externalId(ctx.team, channel, event.ts)
           : `${externalId(ctx.team, channel, event.ts)}:f${index}`,
-        content: uri
-          ? {
-            version: "1",
-            type: "file",
-            kind: kindFromMime(file.mimetype ?? ""),
-            file: {
-              mime_type: file.mimetype ?? "application/octet-stream",
-              uri,
-              name: file.name,
-              size: file.size ?? 0,
-            },
-            ...caption,
-          } as IncomingMessage
-          // Download failed/oversized/no token: keep the message with a
-          // placeholder so the timeline stays complete. Slack still told us
-          // what the file was, so that much travels with it.
-          : {
-            version: "1",
-            type: "data",
-            kind: "media_placeholder",
-            data: {},
-            file: {
-              mime_type: file.mimetype ?? "application/octet-stream",
-              name: file.name,
-              size: file.size ?? 0,
-            },
-            ...caption,
-          } as IncomingMessage,
-      });
+        content: {
+          version: "1",
+          type: "file",
+          kind: kindFromMime(file.mimetype ?? ""),
+          file: {
+            mime_type: file.mimetype ?? "application/octet-stream",
+            uri: "uri" in download ? download.uri : file.url_private ?? "",
+            name: file.name,
+            size: file.size ?? 0,
+          },
+          ...caption,
+        } as IncomingMessage,
+      };
+
+      rows.push("uri" in download ? row : withoutMedia(row, download.error));
     }
   }
 
@@ -677,12 +667,15 @@ async function downloadFile(
   ctx: Ctx,
   token: string | null,
   file: SlackFile,
-): Promise<string | null> {
-  if (!token || !file.url_private) return null;
+): Promise<{ uri: string } | { error: string }> {
+  if (!token) return { error: "No Slack token to download the file with" };
+  if (!file.url_private) return { error: "Slack sent no download URL" };
 
   if ((file.size ?? 0) > MAX_STORAGE_UPLOAD_SIZE) {
     log.warn(`Slack file ${file.id} exceeds storage limit, skipping`);
-    return null;
+    const sizeMB = ((file.size ?? 0) / (1000 * 1000)).toFixed(1);
+    const limitMB = (MAX_STORAGE_UPLOAD_SIZE / (1000 * 1000)).toFixed(0);
+    return { error: `File too large: ${sizeMB} MB (limit: ${limitMB} MB)` };
   }
 
   try {
@@ -692,19 +685,21 @@ async function downloadFile(
 
     if (!response.ok) {
       log.warn(`Slack file download failed (${response.status})`, file.id);
-      return null;
+      return { error: `Slack file download failed (${response.status})` };
     }
 
     const blob = await response.blob();
-    return await uploadToStorage(
-      ctx.client,
-      ctx.organization_id,
-      blob,
-      file.name,
-    );
+    return {
+      uri: await uploadToStorage(
+        ctx.client,
+        ctx.organization_id,
+        blob,
+        file.name,
+      ),
+    };
   } catch (error) {
     log.warn(`Slack file download failed`, { file: file.id, error });
-    return null;
+    return { error: error instanceof Error ? error.message : String(error) };
   }
 }
 

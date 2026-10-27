@@ -101,7 +101,7 @@ function isQuotaError(error: unknown): boolean {
 // bubble to the runtime, which answers 500 with nothing on stdout. Catch it
 // here so every 500 says why. Quota rejections are not faults: they answer
 // 402 so the connector knows not to retry and can degrade instead (e.g. send
-// the message without its media, stamping status.error).
+// the message as a media_placeholder, stamping status.errors).
 Deno.serve(async (req) => {
   try {
     return await handle(req);

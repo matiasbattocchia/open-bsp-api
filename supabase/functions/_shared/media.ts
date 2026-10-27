@@ -2,6 +2,9 @@ import ky from "ky";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { decodeBase64 } from "jsr:@std/encoding/base64";
 import { encodeBase64Url } from "jsr:@std/encoding/base64url";
+import type { MessageInsert } from "./types/database_types.ts";
+import type { IncomingMessage } from "./types/message_types.ts";
+import type { IncomingStatus } from "./types/status_types.ts";
 
 const SIGNED_URL_EXPIRATION_SECONDS = 3600; // 1 hour
 const BASE_URI = "internal://media";
@@ -50,6 +53,53 @@ export async function uploadToStorage(
   }
 
   return BASE_URI + key;
+}
+
+/**
+ * What an inbound medium becomes when its bytes could not be stored — a failed
+ * download, a file over the upload limit, a full storage quota: a
+ * media_placeholder, the shape the Cloud API itself sends for media it cannot
+ * hand over. Every service that downloads media degrades this way, so a
+ * FilePart always means stored bytes.
+ *
+ * Everything else the message said survives (caption, mentions, reply
+ * context), and so does what is known about the medium: `file` minus the
+ * `uri`, which held the service's own reference and is the one thing missing.
+ *
+ * The reason goes in `status.errors`, merged into the status the row already
+ * states, so the writer's arming decision survives the failure — a history
+ * replay's `pending: null`, Slack's explicit `pending`. A row that stated none
+ * ends up stating one, which leaves it unarmed, as the bridge's are.
+ */
+export function withoutMedia(
+  message: MessageInsert,
+  reason: string,
+): MessageInsert {
+  if (message.content.type !== "file") {
+    return message;
+  }
+
+  const {
+    type: _type,
+    kind: _kind,
+    file: { uri: _uri, ...file },
+    ...rest
+  } = message.content;
+
+  return {
+    ...message,
+    content: {
+      ...rest,
+      type: "data",
+      kind: "media_placeholder",
+      data: {},
+      file,
+    } as IncomingMessage,
+    status: {
+      ...message.status,
+      errors: [reason],
+    } as IncomingStatus,
+  };
 }
 
 export async function downloadFromStorage(client: SupabaseClient, uri: string) {
