@@ -6,6 +6,11 @@ import type {
   WhatsAppOrganizationAddressExtra,
 } from "../_shared/supabase.ts";
 import { ContentfulStatusCode } from "jsr:@hono/hono/utils/http-status";
+import {
+  canConnect,
+  isQuotaError,
+  recordRefusedConnection,
+} from "../_shared/connections.ts";
 
 const API_VERSION = "v24.0";
 const APP_ID = Deno.env.get("META_APP_ID");
@@ -328,6 +333,24 @@ export async function performEmbeddedSignup(
     ctx.phone_number_id = payload.phone_number_id;
   }
 
+  // Before anything changes at Meta: a refusal after step 2 would leave the
+  // WABA sending its webhooks to an account that is not connected here.
+  if (
+    !(await canConnect(client, payload.organization_id, "whatsapp", {
+      address: payload.phone_number_id,
+    }))
+  ) {
+    await recordRefusedConnection(
+      client,
+      payload.organization_id,
+      "whatsapp",
+      payload.phone_number_id,
+    );
+    throw new HTTPException(402, {
+      message: "Usage limit reached for organizations_addresses",
+    });
+  }
+
   log.info("Step 2: Subscribe to webhooks on the customer's WABA", ctx);
   await postSubscribeToWebhooks(
     business_access_token,
@@ -378,6 +401,17 @@ export async function performEmbeddedSignup(
     .single();
 
   if (error) {
+    // The check above passed, but another account connected in between.
+    if (isQuotaError(error)) {
+      await recordRefusedConnection(
+        client,
+        payload.organization_id,
+        "whatsapp",
+        payload.phone_number_id,
+      );
+      throw new HTTPException(402, { message: error.message, cause: error });
+    }
+
     throw new HTTPException(500, {
       message: "Could not persist phone number data",
       cause: error,

@@ -237,9 +237,12 @@ $$;
 -- `slack` (members' own identities) never count. Disconnecting keeps the row,
 -- since conversations hang off it, so the gauge follows status transitions,
 -- not only inserts and deletes.
--- Only a brand-new account is checked against the cap. A reconnect can arrive
--- through a provider webhook (e.g. ACCOUNT_RECONNECTED), which must never
--- fail; an upsert that hits an existing row takes the update path.
+-- Any account becoming connected is checked against the cap — a new one, and
+-- an existing row going from disconnected to connected, which is how a
+-- re-onboarding lands (an upsert onto the old row takes the update path). A
+-- row that stays connected is not checked: refreshing a token never fails.
+-- Writers that cannot surface an error to a person (provider webhooks, the
+-- bridge's session events) catch the PT402 and record the refusal instead.
 create function billing.update_account_usage() returns trigger
 language plpgsql
 security definer
@@ -268,7 +271,7 @@ begin
     return null;
   end if;
 
-  if tg_op = 'INSERT' then
+  if _new > _old then
     perform billing.check_limit(_org_id, tg_table_name);
   end if;
 

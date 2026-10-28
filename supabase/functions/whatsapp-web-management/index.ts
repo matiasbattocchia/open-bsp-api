@@ -10,6 +10,11 @@ import * as log from "../_shared/logger.ts";
 import { Json } from "../_shared/db_types.ts";
 import { createClient, createUnsecureClient } from "../_shared/supabase.ts";
 import {
+  canConnect,
+  isQuotaError,
+  recordRefusedConnection,
+} from "../_shared/connections.ts";
+import {
   type ManagementEnv,
   requireRoles,
   requireRolesOrOwnAddress,
@@ -125,6 +130,25 @@ app.post(
       requireRoles(["admin", "owner"]),
     );
 
+    // Before a QR code is ever shown: a pairing the cap then refuses would
+    // leave the phone linked to a session that is not connected here.
+    const client = createUnsecureClient();
+    if (
+      !(await canConnect(client, organization_id, "whatsapp-web", {
+        address: phone_number?.replace(/\D/g, ""),
+      }))
+    ) {
+      await recordRefusedConnection(
+        client,
+        organization_id,
+        "whatsapp-web",
+        phone_number?.replace(/\D/g, ""),
+      );
+      throw new HTTPException(402, {
+        message: "Usage limit reached for organizations_addresses",
+      });
+    }
+
     const result = await callBridge("POST", "/sessions", {
       organization_id,
       phone_number,
@@ -226,7 +250,7 @@ app.post("/whatsapp-web-management/sessions/events", async (c) => {
   const client = createUnsecureClient();
 
   if (event === "connected") {
-    await client
+    const { error } = await client
       .from("organizations_addresses")
       .upsert({
         organization_id,
@@ -241,8 +265,28 @@ app.post("/whatsapp-web-management/sessions/events", async (c) => {
         // matches on extra->>phone_number and would otherwise never match a
         // whatsapp-web account.
         extra: { ...extra, phone_number: address },
-      })
-      .throwOnError();
+      });
+
+    if (error) {
+      if (!isQuotaError(error)) throw error;
+
+      // Over the connections cap: a pairing that slipped past the check at
+      // its start (another account connected meanwhile), or a session the
+      // bridge brings back for an account disconnected here. Nobody is
+      // watching, so the refusal is recorded for the organization, and the
+      // session is logged out — kept, it would relay messages for an account
+      // that is not connected.
+      await recordRefusedConnection(
+        client,
+        organization_id,
+        "whatsapp-web",
+        address,
+      );
+      await callBridge("DELETE", `/sessions/${encodeURIComponent(address)}`)
+        .catch((e) => log.error("Could not log out a refused session", e));
+
+      return c.json({ error: error.message }, 402);
+    }
   } else if (event === "logged_out") {
     await client
       .from("organizations_addresses")

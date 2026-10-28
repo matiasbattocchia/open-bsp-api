@@ -2,6 +2,11 @@ import * as log from "../_shared/logger.ts";
 import { HTTPException } from "jsr:@hono/hono/http-exception";
 import { ContentfulStatusCode } from "jsr:@hono/hono/utils/http-status";
 import { decodeBase64Url } from "@std/encoding/base64url";
+import {
+  canConnect,
+  isQuotaError,
+  recordRefusedConnection,
+} from "../_shared/connections.ts";
 import type {
   createClient,
   InstagramOrganizationAddressExtra,
@@ -340,6 +345,25 @@ export async function performInstagramLogin(
   log.info("Step 3: Fetch the connected account's profile", ctx);
   const account = await getInstagramAccount(longLived.access_token);
 
+  // Before anything changes at Meta: the account is known now, and a refusal
+  // after step 4 would leave it sending webhooks to an account not connected
+  // here.
+  if (
+    !(await canConnect(client, payload.organization_id, "instagram", {
+      address: account.user_id || String(shortLived.user_id),
+    }))
+  ) {
+    await recordRefusedConnection(
+      client,
+      payload.organization_id,
+      "instagram",
+      account.user_id || String(shortLived.user_id),
+    );
+    throw new HTTPException(402, {
+      message: "Usage limit reached for organizations_addresses",
+    });
+  }
+
   log.info("Step 4: Subscribe the account to webhooks", ctx);
   await subscribeToWebhooks(longLived.access_token);
 
@@ -373,6 +397,17 @@ export async function performInstagramLogin(
     .single();
 
   if (error) {
+    // The check above passed, but another account connected in between.
+    if (isQuotaError(error)) {
+      await recordRefusedConnection(
+        client,
+        payload.organization_id,
+        "instagram",
+        ig_user_id,
+      );
+      throw new HTTPException(402, { message: error.message, cause: error });
+    }
+
     throw new HTTPException(500, {
       message: "Could not persist Instagram account data",
       cause: error,

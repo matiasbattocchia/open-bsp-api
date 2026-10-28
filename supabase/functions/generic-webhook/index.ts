@@ -63,6 +63,7 @@ import {
   type OutgoingStatus,
 } from "../_shared/supabase.ts";
 import { MAX_STORAGE_UPLOAD_SIZE, uploadToStorage } from "../_shared/media.ts";
+import { isQuotaError } from "../_shared/connections.ts";
 import type { Database, Json } from "../_shared/db_types.ts";
 
 type Service = Database["public"]["Enums"]["service"];
@@ -83,17 +84,6 @@ function connectorToken(service: string): string | null {
     return Deno.env.get("WHATSAPP_WEB_TOKEN") ?? "";
   }
   return null;
-}
-
-/** A billing-cap rejection. billing.check_limit raises SQLSTATE PT402 —
- * PostgREST maps that to HTTP 402 by itself, so callers see the code
- * directly; the Storage API instead flattens the trigger raise into its
- * message ("database error, code: PT402"), hence the text checks. */
-function isQuotaError(error: unknown): boolean {
-  const { code, message } = error as { code?: unknown; message?: unknown };
-  const text = typeof message === "string" ? message : "";
-  return code === "PT402" || text.includes("PT402") ||
-    /Usage limit reached for|Insufficient balance for/.test(text);
 }
 
 // Anything the handler throws — a malformed batch body, a .throwOnError()

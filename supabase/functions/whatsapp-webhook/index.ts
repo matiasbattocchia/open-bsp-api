@@ -23,6 +23,10 @@ import {
   withoutMedia,
 } from "../_shared/media.ts";
 import { whatsappToMarkdown } from "../_shared/markdown.ts";
+import {
+  isQuotaError,
+  recordRefusedConnection,
+} from "../_shared/connections.ts";
 
 const API_VERSION = "v24.0";
 const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN");
@@ -620,12 +624,25 @@ async function processMessage(request: Request): Promise<Response> {
             waba_id: account_waba_id,
           });
 
-          await client
+          const { error } = await client
             .from("organizations_addresses")
             .update({ status: nextStatus })
             .eq("organization_id", address.organization_id)
-            .eq("extra->>waba_id", account_waba_id)
-            .throwOnError();
+            .eq("extra->>waba_id", account_waba_id);
+
+          // A reconnect over the connections cap stays disconnected. Meta
+          // must not be answered with an error (it would retry the event for
+          // days), so the refusal is recorded for the organization instead.
+          if (error && isQuotaError(error)) {
+            await recordRefusedConnection(
+              client,
+              address.organization_id,
+              "whatsapp",
+              address.address,
+            );
+          } else if (error) {
+            throw error;
+          }
         }
       }
 
