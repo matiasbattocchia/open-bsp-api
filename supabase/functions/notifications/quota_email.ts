@@ -46,8 +46,8 @@ export function quotaEmail(
       ? `${org} has run out of ${name}`
       : `${org} is running low on ${name}`;
     summary = capped
-      ? `${org} has no ${name} left on OpenBSP.`
-      : `${org} has ${used} of ${name} left on OpenBSP.`;
+      ? `${org} has no ${name} left.`
+      : `${org} has ${used} of ${name} left.`;
   } else {
     const percent = Math.floor((alert.quantity / alert.cap) * 100);
     subject = capped
@@ -55,7 +55,7 @@ export function quotaEmail(
       : `${org} is at ${percent}% of its ${name.toLowerCase()} limit`;
     summary = `${org} has used ${used} of ${cap} ${name.toLowerCase()}${
       monthly ? " this month" : ""
-    } on OpenBSP.`;
+    }.`;
   }
 
   const effect = capped
