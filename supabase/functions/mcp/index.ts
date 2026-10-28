@@ -49,6 +49,19 @@ app.get("/mcp/.well-known/oauth-protected-resource", (c) =>
     resource_name: "OpenBSP MCP",
   }));
 
+// The server is stateless: there is no session to stream server-initiated
+// messages on (GET) or to terminate (DELETE), so both get the spec's 405
+// instead of an SSE stream that idles until the wall-clock limit kills the
+// worker. Answered before auth — there is nothing to authorize.
+app.on(["GET", "DELETE"], "*", (c) => {
+  c.header("Allow", "POST");
+  return c.json({
+    jsonrpc: "2.0",
+    error: { code: -32000, message: "Method not allowed." },
+    id: null,
+  }, 405);
+});
+
 // Auth middleware — resolves the caller to an org-scoped Supabase client.
 // A 401 carries the WWW-Authenticate challenge so an MCP connector can
 // discover the authorization server and start the OAuth flow.
@@ -96,11 +109,15 @@ app.use("*", async (c, next) => {
         return unauthorized("Invalid token", error);
       }
 
-      // Org-scope the session: first org the user belongs to (RLS applies).
+      // Org-scope the session: the user's oldest current membership. RLS
+      // already hides organizations they have left; the deleted_at filter
+      // states it here rather than relying on it.
       const { data: agents, error: agentsError } = await supabase
         .from("agents")
         .select("organization_id")
         .eq("user_id", data.user.id)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: true })
         .limit(1);
 
       if (agentsError || !agents?.length) {
@@ -361,7 +378,29 @@ app.all("*", async (c) => {
 
   await server.connect(transport);
 
-  return transport.handleRequest(c.req.raw);
+  // The transport consumes the body; keep a copy to name the JSON-RPC method
+  // if the request is rejected.
+  const request = c.req.raw.clone();
+  const response = await transport.handleRequest(c.req.raw);
+
+  // Transport rejections (400s) carry their reason only in the response body.
+  // Credentials headers are deliberately not logged.
+  if (response.status >= 400) {
+    const rpcMethod = await request.json()
+      .then((m) => Array.isArray(m) ? m.map((x) => x?.method) : m?.method)
+      .catch(() => "<unparseable body>");
+
+    log.warn("MCP request rejected", {
+      status: response.status,
+      method: c.req.method,
+      contentType: c.req.header("Content-Type"),
+      protocolVersion: c.req.header("MCP-Protocol-Version"),
+      rpcMethod,
+      body: await response.clone().text(),
+    });
+  }
+
+  return response;
 });
 
 Deno.serve(app.fetch);
