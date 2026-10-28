@@ -553,11 +553,18 @@ async function processMessage(request: Request): Promise<Response> {
       log.info(`WhatsApp ${field} payload`, value);
 
       if (field === "account_update") {
+        // Partner and account events name their WABA in waba_info — entry.id
+        // is then a business, not the WABA. Coexistence events carry no
+        // waba_info, and there entry.id is the WABA.
+        const account_waba_id = "waba_info" in value
+          ? value.waba_info.waba_id
+          : waba_id;
+
         // Query directly since account_update events do not populate orgAddressMap
         const { data: address } = await client
           .from("organizations_addresses")
           .select()
-          .eq("extra->>waba_id", waba_id)
+          .eq("extra->>waba_id", account_waba_id)
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle()
@@ -574,7 +581,7 @@ async function processMessage(request: Request): Promise<Response> {
         log.info("Account update event", {
           organization_id: address.organization_id,
           event: value.event,
-          waba_id,
+          waba_id: account_waba_id,
         });
 
         await client
@@ -585,14 +592,22 @@ async function processMessage(request: Request): Promise<Response> {
             service: "whatsapp",
             level: "info",
             message: value.event.toLocaleLowerCase(),
-            metadata: { waba_id, value },
+            metadata: { waba_id: account_waba_id, value },
           })
           .throwOnError();
 
-        // Coexistence lifecycle: PARTNER_REMOVED and ACCOUNT_OFFBOARDED
-        // disconnect the address; ACCOUNT_RECONNECTED re-enables it after the
-        // client re-onboards (device switch, reinstall, or re-registration).
+        // Any event that takes the WABA away from our app disconnects it: the
+        // client removed us as a partner, uninstalled our app (an uninstall
+        // names the app, and only ours counts), deleted the account, or
+        // offboarded from coexistence. ACCOUNT_RECONNECTED re-enables it after
+        // the client re-onboards (device switch, reinstall, or
+        // re-registration). An install does not reconnect — onboarding writes
+        // its own row.
         const nextStatus = value.event === "PARTNER_REMOVED" ||
+            (value.event === "PARTNER_APP_UNINSTALLED" &&
+              (!APP_ID ||
+                APP_ID.split("|").includes(value.waba_info.partner_app_id))) ||
+            value.event === "ACCOUNT_DELETED" ||
             value.event === "ACCOUNT_OFFBOARDED"
           ? "disconnected"
           : value.event === "ACCOUNT_RECONNECTED"
@@ -602,14 +617,14 @@ async function processMessage(request: Request): Promise<Response> {
         if (nextStatus) {
           log.info(`Account ${value.event}, setting address status`, {
             status: nextStatus,
-            waba_id,
+            waba_id: account_waba_id,
           });
 
           await client
             .from("organizations_addresses")
             .update({ status: nextStatus })
             .eq("organization_id", address.organization_id)
-            .eq("extra->>waba_id", waba_id)
+            .eq("extra->>waba_id", account_waba_id)
             .throwOnError();
         }
       }
