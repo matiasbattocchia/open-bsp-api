@@ -3,6 +3,7 @@ import { Hono } from "@hono/hono";
 import { cors } from "jsr:@hono/hono/cors";
 import { HTTPException } from "jsr:@hono/hono/http-exception";
 import * as log from "../_shared/logger.ts";
+import { canConnect } from "../_shared/connections.ts";
 import { Json } from "../_shared/db_types.ts";
 import {
   createApiClient,
@@ -355,9 +356,24 @@ app.get("/whatsapp-management/onboard", async (c) => {
     return c.json({ valid: false });
   }
 
+  // Whether the organization's connections cap has room for one more, so the
+  // page can say so before the customer goes through Meta's login for
+  // nothing. A link stays usable once the cap has room again; the POST checks
+  // anew. Optimistic on a failed check: the POST has the final word.
+  const can_connect = await canConnect(
+    client,
+    data.organization_id,
+    "whatsapp",
+    {},
+  ).catch((error) => {
+    log.warn("Onboard cap check failed", error);
+    return true;
+  });
+
   return c.json({
     valid: true,
     organization_name: data.organizations?.name,
+    can_connect,
   });
 });
 
