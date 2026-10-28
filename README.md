@@ -345,7 +345,7 @@ Partner**.
 | Extra storage   | —                | $0.10 / GB     | $0.06 / GB      | $0.04 / GB      |
 | Storage, up to  | 1 GB             | 25 GB          | 250 GB          | 1,000 GB        |
 | Conversations   | Unlimited        | Unlimited      | Unlimited       | Unlimited       |
-| Connections     | Unlimited        | Unlimited      | Unlimited       | Unlimited       |
+| Connections     | 3                | Unlimited      | Unlimited       | Unlimited       |
 | AI Credits      | $1.00 (one-time) | —              | —               | —               |
 
 Messages count both ways: sent and received, on any channel, including those

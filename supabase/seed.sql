@@ -45,7 +45,7 @@ insert into billing.tiers_products (tier_id, product_id, interval, cap) values
   ('free',     'conversations', 'month', null),
   ('free',     'storage',    'lifetime', 1),
   ('free',     'ai_credits', 'lifetime', 0),
-  ('free',     'organizations_addresses', 'lifetime', null),
+  ('free',     'organizations_addresses', 'lifetime', 3),
 
   ('starter',  'messages',   'month',    50000),   -- upgrade pays at 30k; max overage $35
   ('starter',  'conversations', 'month', null),
