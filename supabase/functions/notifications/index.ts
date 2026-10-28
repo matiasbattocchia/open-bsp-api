@@ -8,6 +8,7 @@ import {
 import * as log from "../_shared/logger.ts";
 import { APP_URL, type Email, sendEmails } from "../_shared/email.ts";
 import { type AlertRow, quotaEmail } from "./quota_email.ts";
+import { type AddressRow, connectionEmail } from "./connection_email.ts";
 
 /**
  * Emails, sent through Resend from database triggers (public.edge_function):
@@ -15,6 +16,8 @@ import { type AlertRow, quotaEmail } from "./quota_email.ts";
  *   public.invitations INSERT (pending)            → the invitee
  *   public.invitations UPDATE pending → accepted   → the inviter
  *   billing.alerts     INSERT (near / capped)      → every member
+ *   public.organizations_addresses UPDATE, a new issue
+ *                                                  → whoever can reconnect it
  *
  * English only: nothing on the server knows a reader's language, and mail
  * clients translate.
@@ -32,7 +35,7 @@ Deno.serve(async (req) => {
   }
 
   const payload = (await req.json()) as WebhookPayload<
-    InvitationRow | AlertRow
+    InvitationRow | AlertRow | AddressRow
   >;
   const source = `${payload.schema}.${payload.table}`;
 
@@ -53,6 +56,10 @@ Deno.serve(async (req) => {
       }
     } else if (source === "billing.alerts" && payload.type === "INSERT") {
       await quotaAlert(client, payload.record as AlertRow);
+    } else if (
+      source === "public.organizations_addresses" && payload.type === "UPDATE"
+    ) {
+      await addressIssue(client, payload.record as AddressRow);
     }
 
     return new Response();
@@ -137,5 +144,46 @@ async function quotaAlert(client: SupabaseClient<Database>, alert: AlertRow) {
   await sendEmails(
     [...emails].map((to): Email => ({ to, ...content })),
     `quota/${alert.organization_id}/${alert.product_id}/${alert.period}/${alert.level}/${alert.created_at}`,
+  );
+}
+
+/**
+ * An account the service disconnected (see organizations_addresses.issue), to
+ * whoever can reconnect it: the member a personal account belongs to, or the
+ * organization's admins and owners for its own.
+ */
+async function addressIssue(
+  client: SupabaseClient<Database>,
+  row: AddressRow,
+) {
+  if (!row.issue) return;
+
+  let agents = client.from("agents").select("user_id").eq(
+    "organization_id",
+    row.organization_id,
+  ).not("user_id", "is", null).is("deleted_at", null);
+
+  agents = row.agent_id
+    ? agents.eq("id", row.agent_id)
+    : agents.in("role", ["admin", "owner"]);
+
+  const [{ data: organization }, { data: members }] = await Promise.all([
+    client.from("organizations").select("name").eq("id", row.organization_id)
+      .single().throwOnError(),
+    agents.throwOnError(),
+  ]);
+
+  const emails = new Set<string>();
+
+  for (const { user_id } of members ?? []) {
+    const { data } = await client.auth.admin.getUserById(user_id!);
+    if (data.user?.email) emails.add(data.user.email);
+  }
+
+  const content = connectionEmail(organization.name, row);
+
+  await sendEmails(
+    [...emails].map((to): Email => ({ to, ...content })),
+    `address-issue/${row.organization_id}/${row.service}/${row.address}/${row.updated_at}`,
   );
 }

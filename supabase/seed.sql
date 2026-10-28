@@ -237,6 +237,39 @@ insert into public.organizations_addresses (organization_id, service, address, e
    '{"waba_id": "309222208943804", "phone_number": "5492604237116", "access_token": "EAAEKlp6x6a...GZC", "flow_type": "new_phone_number"}', 'disconnected')
 ;
 
+-- Organization Addresses - WhatsApp Web and Instagram (for Mountain Peaks):
+-- one of each in a state the UI has to explain. A linked WhatsApp Web number;
+-- one WhatsApp logged out and one it barred for a while (the service's doing,
+-- so each carries an issue, and a warning in logs below); an Instagram account
+-- whose token died, still connected since messages keep arriving; and one a
+-- member disconnected, which warns about nothing. Three connected accounts in
+-- all: Free's cap, so the connect buttons show locked.
+insert into public.organizations_addresses (organization_id, service, address, extra, status, issue) values
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'whatsapp-web', '5492604237117',
+   '{"device_jid": "5492604237117:12@s.whatsapp.net", "phone_number": "5492604237117"}', 'connected', null),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'whatsapp-web', '5492604237118',
+   '{"device_jid": "5492604237118:7@s.whatsapp.net", "phone_number": "5492604237118"}', 'disconnected',
+   '{"reason": "logged_out"}'),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'whatsapp-web', '5492604237119',
+   '{"device_jid": "5492604237119:3@s.whatsapp.net", "phone_number": "5492604237119"}', 'disconnected',
+   jsonb_build_object('reason', 'banned', 'until', now() + interval '20 hours')),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'instagram', '17841400000000001',
+   '{"ig_user_id": "17841400000000001", "username": "jaspers.market", "name": "Jaspers Market", "access_token": "IGAA...x9Z", "token_expires_at": "2026-12-15T00:00:00Z", "token_refreshed_at": "2026-10-16T00:00:00Z", "scopes": ["instagram_business_basic", "instagram_business_manage_messages"]}', 'connected',
+   '{"reason": "expired"}'),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', 'instagram', '17841400000000002',
+   '{"ig_user_id": "17841400000000002", "username": "mountain.peaks", "name": "Mountain Peaks"}', 'disconnected', null)
+;
+
+-- The warnings whatsapp-web-management writes when the bridge reports a
+-- number logged out (reason 401) or temporarily banned (code 101: messages
+-- to people who don't have it saved).
+insert into public.logs (organization_id, organization_address, level, category, service, message, metadata) values
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', '5492604237118', 'warning', 'session', 'whatsapp-web',
+   'WhatsApp Web session logged out; re-pairing required', '{"reason": 401}'),
+  ('3a182d8d-d6d8-44bd-b021-029915476b8c', '5492604237119', 'warning', 'session', 'whatsapp-web',
+   'WhatsApp Web number temporarily banned', '{"code": 101, "expire": 72000}')
+;
+
 -- Contacts Addresses (for Mountain Peaks)
 insert into public.contacts_addresses (organization_id, organization_address, service, address, extra) values
   ('3a182d8d-d6d8-44bd-b021-029915476b8c', '318232498042593', 'whatsapp', '541133525394', '{"name": "Dolphin"}'),

@@ -16,7 +16,7 @@ import {
 } from "../_shared/supabase.ts";
 import { createSignedUrl } from "../_shared/media.ts";
 import { commitDispatchedMessage } from "../_shared/dispatch.ts";
-import { flagNeedsReauth } from "../_shared/instagram.ts";
+import { flagExpiredToken } from "../_shared/instagram.ts";
 import { Json } from "../_shared/db_types.ts";
 
 const API_VERSION = "v25.0";
@@ -336,7 +336,7 @@ Deno.serve(async (req) => {
       // the connection so the UI prompts a re-login — the refresh sweep only
       // looks near expiry and would miss a mid-life revocation for weeks.
       if (metaCode === 190) {
-        await flagNeedsReauth(
+        await flagExpiredToken(
           client,
           message.organization_id,
           message.organization_address,
@@ -422,7 +422,7 @@ Deno.serve(async (req) => {
         : undefined;
 
       if (metaCode === 190) {
-        await flagNeedsReauth(
+        await flagExpiredToken(
           client,
           message.organization_id,
           message.organization_address,

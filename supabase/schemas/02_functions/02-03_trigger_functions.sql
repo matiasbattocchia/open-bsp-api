@@ -24,6 +24,16 @@ begin
 end;
 $$;
 
+-- See organizations_addresses.issue.
+create function public.clear_address_issue() returns trigger
+language plpgsql
+as $$
+begin
+  new.issue := null;
+  return new;
+end;
+$$;
+
 -- A conversation's identity is its addressing, so none of it ever changes:
 -- not the peer address, not the account (organization_address, service) the
 -- conversation hangs off. Nothing legitimate needs it to: an ingestor upserts

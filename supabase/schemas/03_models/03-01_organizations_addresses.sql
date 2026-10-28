@@ -11,6 +11,14 @@ create table public.organizations_addresses (
   agent_id uuid,
   extra jsonb,
   status text default 'connected'::text not null,
+  -- What the service broke, when it was the service and not a member: the UI
+  -- warns, and whoever can reconnect the account gets an email. null while
+  -- the account works, and after a member disconnects it themselves.
+  -- { reason: 'logged_out' | 'banned' | 'expired', until?: ISO } — a ban that
+  -- says when it lifts carries `until`. Usually on a disconnected row; an
+  -- Instagram token that died keeps its row connected, since messages still
+  -- arrive and the account keeps its place under the connections cap.
+  issue jsonb,
   created_at timestamp with time zone default now() not null,
   updated_at timestamp with time zone default now() not null
 );
@@ -27,6 +35,10 @@ add constraint organizations_addresses_pkey
 primary key (organization_id, service, address);
 
 alter table only public.organizations_addresses
+add constraint organizations_addresses_issue_reason
+check (issue is null or issue->>'reason' in ('logged_out', 'banned', 'expired'));
+
+alter table only public.organizations_addresses
 add constraint organizations_addresses_organization_id_fkey
 foreign key (organization_id)
 references public.organizations(id)
@@ -41,11 +53,32 @@ when (
 )
 execute function public.merge_update('extra');
 
+-- An account connected again has nothing left to warn about, whichever path
+-- brought it back.
+create trigger clear_issue
+before update
+on public.organizations_addresses
+for each row
+when (
+  old.status <> 'connected' and new.status = 'connected'
+)
+execute function public.clear_address_issue();
+
 create trigger set_updated_at
 before update
 on public.organizations_addresses
 for each row
 execute function public.moddatetime('updated_at');
+
+-- A new issue is an email to whoever can reconnect the account.
+create trigger notify_address_issue
+after update
+on public.organizations_addresses
+for each row
+when (
+  new.issue is not null and old.issue is distinct from new.issue
+)
+execute function public.edge_function('/notifications', 'post');
 
 create trigger z_notify_webhook_organizations_addresses
 after insert or update

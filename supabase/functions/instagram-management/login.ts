@@ -1,4 +1,5 @@
 import * as log from "../_shared/logger.ts";
+import { flagExpiredToken } from "../_shared/instagram.ts";
 import { HTTPException } from "jsr:@hono/hono/http-exception";
 import { ContentfulStatusCode } from "jsr:@hono/hono/utils/http-status";
 import { decodeBase64Url } from "@std/encoding/base64url";
@@ -391,6 +392,8 @@ export async function performInstagramLogin(
       organization_id: payload.organization_id,
       agent_id: payload.agent_id ?? null,
       status: "connected",
+      // A fresh login is what an expired token was waiting for.
+      issue: null,
       extra,
     })
     .select()
@@ -479,8 +482,9 @@ export async function refreshTokens(client: Client) {
             token_expires_at: new Date(now + longLived.expires_in * 1000)
               .toISOString(),
             token_refreshed_at: new Date(now).toISOString(),
-            needs_reauth: null,
           },
+          // A token that refreshes is alive.
+          issue: null,
         })
         .eq("organization_id", row.organization_id)
         .eq("address", row.address)
@@ -497,12 +501,16 @@ export async function refreshTokens(client: Client) {
         error: message,
       });
 
-      // Flag the account so the UI can prompt a re-login; merge keeps the rest.
-      await client
-        .from("organizations_addresses")
-        .update({ extra: { needs_reauth: new Date(now).toISOString() } })
-        .eq("organization_id", row.organization_id)
-        .eq("address", row.address);
+      // Only a refusal of the token itself (190) means a re-login: anything
+      // else (a network error, Graph down) is tried again on the next sweep,
+      // while the token still has days left.
+      const cause = error instanceof HTTPException
+        ? error.cause as { error?: { code?: number } } | undefined
+        : undefined;
+
+      if (cause?.error?.code === 190) {
+        await flagExpiredToken(client, row.organization_id, row.address);
+      }
 
       await client
         .from("logs")

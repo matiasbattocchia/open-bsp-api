@@ -8,6 +8,7 @@ import { cors } from "jsr:@hono/hono/cors";
 import { HTTPException } from "jsr:@hono/hono/http-exception";
 import * as log from "../_shared/logger.ts";
 import { Json } from "../_shared/db_types.ts";
+import type { OrganizationAddressIssue } from "../_shared/types/extra_types.ts";
 import { createClient, createUnsecureClient } from "../_shared/supabase.ts";
 import {
   canConnect,
@@ -196,26 +197,38 @@ app.get(
 );
 
 // Logout: the bridge logs the device out and deletes it from its session
-// store; the organizations_addresses row is marked disconnected here.
+// store; the organizations_addresses row is marked disconnected here — first,
+// so the logged_out the bridge may post while logging out finds the row no
+// longer connected and takes it for what it is, a member's own disconnect.
 app.delete(
   "/whatsapp-web-management/sessions/:address",
   requireRolesOrOwnAddress("whatsapp-web", requireRoles(["admin", "owner"])),
   async (c) => {
     const organization_id = c.req.query("organization_id")!;
     const address = c.req.param("address") ?? "";
+    const client = createUnsecureClient();
 
-    await callBridge(
-      "DELETE",
-      `/sessions/${encodeURIComponent(address)}`,
-    );
+    const setStatus = (status: "connected" | "disconnected") =>
+      client
+        .from("organizations_addresses")
+        .update({ status })
+        .eq("organization_id", organization_id)
+        .eq("service", "whatsapp-web")
+        .eq("address", address)
+        .throwOnError();
 
-    await createUnsecureClient()
-      .from("organizations_addresses")
-      .update({ status: "disconnected" })
-      .eq("organization_id", organization_id)
-      .eq("service", "whatsapp-web")
-      .eq("address", address)
-      .throwOnError();
+    await setStatus("disconnected");
+
+    try {
+      await callBridge(
+        "DELETE",
+        `/sessions/${encodeURIComponent(address)}`,
+      );
+    } catch (error) {
+      // Still linked: the row says so again.
+      await setStatus("connected");
+      throw error;
+    }
 
     return c.json({});
   },
@@ -233,7 +246,7 @@ app.post("/whatsapp-web-management/sessions/events", async (c) => {
 
   const { event, organization_id, address, agent_id, extra } = await c.req
     .json<{
-      event: "connected" | "logged_out";
+      event: "connected" | "logged_out" | "temporary_ban";
       organization_id: string;
       /** The session's own number (canonical bare digits) */
       address: string;
@@ -243,7 +256,10 @@ app.post("/whatsapp-web-management/sessions/events", async (c) => {
        * shared inbox.
        */
       agent_id?: string;
-      /** e.g. { device_jid } */
+      /**
+       * connected: { device_jid }; logged_out: { reason }; temporary_ban:
+       * { code, expire } — expire in seconds, when WhatsApp says.
+       */
       extra?: Record<string, Json>;
     }>();
 
@@ -287,29 +303,49 @@ app.post("/whatsapp-web-management/sessions/events", async (c) => {
 
       return c.json({ error: error.message }, 402);
     }
-  } else if (event === "logged_out") {
-    await client
+  } else if (event === "logged_out" || event === "temporary_ban") {
+    // The service took the account away: the phone unlinked the device or
+    // WhatsApp evicted it (the bridge can't tell the two apart, both arrive
+    // as reason 401), or WhatsApp barred the number for a while. Either way
+    // nothing goes in or out, and the issue is what the UI warns about and
+    // the email reports. Only a connected row: one a member just
+    // disconnected is theirs, not the service's.
+    const expire = typeof extra?.expire === "number" ? extra.expire : null;
+    const issue: OrganizationAddressIssue = event === "logged_out"
+      ? { reason: "logged_out" }
+      : {
+        reason: "banned",
+        ...(expire
+          ? { until: new Date(Date.now() + expire * 1000).toISOString() }
+          : {}),
+      };
+
+    const { data: rows } = await client
       .from("organizations_addresses")
-      .update({ status: "disconnected" })
+      .update({ status: "disconnected", issue })
       .eq("organization_id", organization_id)
       .eq("service", "whatsapp-web")
       .eq("address", address)
+      .eq("status", "connected")
+      .select("address")
       .throwOnError();
 
-    // Surface the main real-world failure mode of an unofficial channel: the
-    // UI prompts a re-pair based on this log/status.
-    await client
-      .from("logs")
-      .insert({
-        organization_id,
-        organization_address: address,
-        category: "session",
-        service: "whatsapp-web",
-        level: "warning",
-        message: "WhatsApp Web session logged out; re-pairing required",
-        metadata: (extra ?? {}) as Json,
-      })
-      .throwOnError();
+    if (rows.length) {
+      await client
+        .from("logs")
+        .insert({
+          organization_id,
+          organization_address: address,
+          category: "session",
+          service: "whatsapp-web",
+          level: "warning",
+          message: event === "logged_out"
+            ? "WhatsApp Web session logged out; re-pairing required"
+            : "WhatsApp Web number temporarily banned",
+          metadata: (extra ?? {}) as Json,
+        })
+        .throwOnError();
+    }
   } else {
     throw new HTTPException(400, { message: `Unknown event ${event}` });
   }

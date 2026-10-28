@@ -51,7 +51,14 @@ export type InstagramOrganizationAddressExtra = {
   token_expires_at?: string; // ISO; when the long-lived token expires
   token_refreshed_at?: string; // ISO; last successful refresh (or initial issue)
   scopes?: string[]; // granted permissions
-  needs_reauth?: string; // ISO; set when a refresh failed and re-login is required
+};
+
+// organizations_addresses.issue: what the service broke, when it was the
+// service and not a member — a WhatsApp Web device logged out or barred, an
+// Instagram token that died.
+export type OrganizationAddressIssue = {
+  reason: "logged_out" | "banned" | "expired";
+  until?: string; // ISO; when a ban says it lifts
 };
 
 // Slack has two row shapes: the workspace anchor (address = team id,

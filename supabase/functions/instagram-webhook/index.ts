@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import * as log from "../_shared/logger.ts";
-import { flagNeedsReauth } from "../_shared/instagram.ts";
+import { flagExpiredToken } from "../_shared/instagram.ts";
 import {
   type ContactAddressInsert,
   createUnsecureClient,
@@ -317,7 +317,7 @@ async function downloadMediaItem({
  * `name_fetched_at` so the TTL guard can suppress retries. `tokenDead` marks
  * Graph error 190 (token expired/invalidated) — webhooks keep flowing after a
  * password change while the stored token is dead, making this the earliest
- * detection point for a needs_reauth prompt.
+ * detection point for an expired token.
  */
 async function fetchProfile(
   igsid: string,
@@ -669,7 +669,7 @@ async function processMessage(request: Request): Promise<Response> {
     }
   }
   for (const contact of deadTokenAddresses.values()) {
-    await flagNeedsReauth(
+    await flagExpiredToken(
       client,
       contact.organization_id,
       contact.orgAddress.address,
