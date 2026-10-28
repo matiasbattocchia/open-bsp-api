@@ -15,8 +15,10 @@ const CONSEQUENCE: Record<string, string> = {
   ai_credits: "AI agents without their own API key stop replying",
 };
 
+// Rounded down, so usage short of the cap never reads as the cap itself
+// (0.998 GB is "0.99 GB of 1 GB", not "1 GB of 1 GB" at 99%).
 function amount(quantity: number, unit: string) {
-  const number = quantity.toLocaleString("en-US", {
+  const number = (Math.floor(quantity * 100) / 100).toLocaleString("en-US", {
     maximumFractionDigits: 2,
   });
   if (unit === "usd") return `$${number}`;
