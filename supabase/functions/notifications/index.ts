@@ -7,6 +7,7 @@ import {
 } from "../_shared/supabase.ts";
 import * as log from "../_shared/logger.ts";
 import { APP_URL, type Email, sendEmails } from "../_shared/email.ts";
+import { type AlertRow, quotaEmail } from "./quota_email.ts";
 
 /**
  * Emails, sent through Resend from database triggers (public.edge_function):
@@ -20,7 +21,6 @@ import { APP_URL, type Email, sendEmails } from "../_shared/email.ts";
  */
 
 type InvitationRow = Database["public"]["Tables"]["invitations"]["Row"];
-type AlertRow = Database["billing"]["Tables"]["alerts"]["Row"];
 
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
@@ -110,25 +110,6 @@ async function invitationAccepted(invitation: InvitationRow) {
   }], `invitation-accepted/${invitation.id}`);
 }
 
-/** What stops working at the cap, by the trigger that enforces it. */
-const CONSEQUENCE: Record<string, string> = {
-  messages: "sending messages pauses; incoming messages keep arriving",
-  conversations: "new conversations can't be started",
-  storage:
-    "files can't be uploaded, and incoming media arrives without its file",
-  organizations_addresses: "no more accounts can be connected",
-  ai_credits: "AI agents without their own API key stop replying",
-};
-
-function amount(quantity: number, unit: string) {
-  const number = quantity.toLocaleString("en-US", {
-    maximumFractionDigits: 2,
-  });
-  if (unit === "usd") return `$${number}`;
-  if (unit === "count") return number;
-  return `${number} ${unit.toUpperCase()}`;
-}
-
 async function quotaAlert(client: SupabaseClient<Database>, alert: AlertRow) {
   const [{ data: organization }, { data: product }, { data: members }] =
     await Promise.all([
@@ -151,65 +132,10 @@ async function quotaAlert(client: SupabaseClient<Database>, alert: AlertRow) {
     if (data.user?.email) emails.add(data.user.email);
   }
 
-  const org = organization.name;
-  const name = product.name;
-  const capped = alert.level === "capped";
-  const monthly = alert.interval === "month";
-  const used = amount(alert.quantity, product.unit);
-  const cap = amount(alert.cap, product.unit);
-  const consequence = CONSEQUENCE[alert.product_id] ??
-    "it can't be used any further";
-
-  let subject: string;
-  let summary: string;
-
-  if (product.kind === "balance") {
-    subject = capped
-      ? `${org} has run out of ${name}`
-      : `${org} is running low on ${name}`;
-    summary = capped
-      ? `${org} has no ${name} left on OpenBSP.`
-      : `${org} has ${used} of ${name} left on OpenBSP.`;
-  } else {
-    const percent = Math.floor((alert.quantity / alert.cap) * 100);
-    subject = capped
-      ? `${org} reached its ${name.toLowerCase()} limit`
-      : `${org} is at ${percent}% of its ${name.toLowerCase()} limit`;
-    summary = `${org} has used ${used} of ${cap} ${name.toLowerCase()}${
-      monthly ? " this month" : ""
-    } on OpenBSP.`;
-  }
-
-  const effect = capped
-    ? `${consequence[0].toUpperCase()}${consequence.slice(1)}.`
-    : `At the limit, ${consequence}.`;
-
-  const next = new Date(alert.period);
-  next.setUTCMonth(next.getUTCMonth() + 1);
-  const renewal = monthly
-    ? `The quota renews on ${
-      next.toLocaleDateString("en-US", {
-        month: "long",
-        day: "numeric",
-        timeZone: "UTC",
-      })
-    }.`
-    : null;
-
-  const lines = [
-    summary,
-    effect,
-    ...(renewal ? [renewal] : []),
-    "A higher plan raises the limit.",
-  ];
+  const content = quotaEmail(organization.name, product, alert);
 
   await sendEmails(
-    [...emails].map((to): Email => ({
-      to,
-      subject,
-      lines,
-      action: { label: "See plans", url: `${APP_URL}/settings/plans` },
-    })),
+    [...emails].map((to): Email => ({ to, ...content })),
     `quota/${alert.organization_id}/${alert.product_id}/${alert.period}/${alert.level}/${alert.created_at}`,
   );
 }
