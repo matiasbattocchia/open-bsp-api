@@ -23,10 +23,7 @@ import {
   withoutMedia,
 } from "../_shared/media.ts";
 import { whatsappToMarkdown } from "../_shared/markdown.ts";
-import {
-  isQuotaError,
-  recordRefusedConnection,
-} from "../_shared/connections.ts";
+import { handleAccountUpdate } from "./account_update.ts";
 
 const API_VERSION = "v24.0";
 const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN");
@@ -557,93 +554,16 @@ async function processMessage(request: Request): Promise<Response> {
       log.info(`WhatsApp ${field} payload`, value);
 
       if (field === "account_update") {
-        // Partner and account events name their WABA in waba_info — entry.id
-        // is then a business, not the WABA. Coexistence events carry no
-        // waba_info, and there entry.id is the WABA.
-        const account_waba_id = "waba_info" in value
-          ? value.waba_info.waba_id
-          : waba_id;
-
-        // Query directly since account_update events do not populate orgAddressMap
-        const { data: address } = await client
-          .from("organizations_addresses")
-          .select()
-          .eq("extra->>waba_id", account_waba_id)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle()
-          .throwOnError();
-
-        if (!address?.organization_id) {
-          log.warn(
-            "Could not log account update payload: No organization found for WABA",
-            value,
-          );
-          continue;
-        }
-
-        log.info("Account update event", {
-          organization_id: address.organization_id,
-          event: value.event,
-          waba_id: account_waba_id,
-        });
-
-        await client
-          .from("logs")
-          .insert({
-            organization_id: address.organization_id,
-            category: "account_update",
-            service: "whatsapp",
-            level: "info",
-            message: value.event.toLocaleLowerCase(),
-            metadata: { waba_id: account_waba_id, value },
-          })
-          .throwOnError();
-
-        // Any event that takes the WABA away from our app disconnects it: the
-        // client removed us as a partner, uninstalled our app (an uninstall
-        // names the app, and only ours counts), deleted the account, or
-        // offboarded from coexistence. ACCOUNT_RECONNECTED re-enables it after
-        // the client re-onboards (device switch, reinstall, or
-        // re-registration). An install does not reconnect — onboarding writes
-        // its own row.
-        const nextStatus = value.event === "PARTNER_REMOVED" ||
-            (value.event === "PARTNER_APP_UNINSTALLED" &&
-              (!APP_ID ||
-                APP_ID.split("|").includes(value.waba_info.partner_app_id))) ||
-            value.event === "ACCOUNT_DELETED" ||
-            value.event === "ACCOUNT_OFFBOARDED"
-          ? "disconnected"
-          : value.event === "ACCOUNT_RECONNECTED"
-          ? "connected"
-          : null;
-
-        if (nextStatus) {
-          log.info(`Account ${value.event}, setting address status`, {
-            status: nextStatus,
-            waba_id: account_waba_id,
-          });
-
-          const { error } = await client
-            .from("organizations_addresses")
-            .update({ status: nextStatus })
-            .eq("organization_id", address.organization_id)
-            .eq("extra->>waba_id", account_waba_id);
-
-          // A reconnect over the connections cap stays disconnected. Meta
-          // must not be answered with an error (it would retry the event for
-          // days), so the refusal is recorded for the organization instead.
-          if (error && isQuotaError(error)) {
-            await recordRefusedConnection(
-              client,
-              address.organization_id,
-              "whatsapp",
-              address.address,
-            );
-          } else if (error) {
-            throw error;
-          }
-        }
+        // Partner and app events name their WABA in waba_info — entry.id is
+        // then a business, not the WABA. The rest carry no waba_info, and
+        // there entry.id is the WABA.
+        await handleAccountUpdate(
+          client,
+          "waba_info" in value && value.waba_info
+            ? value.waba_info.waba_id
+            : waba_id,
+          value,
+        );
       }
 
       // A user's BSUID changed (previous → current), e.g. after a phone-number

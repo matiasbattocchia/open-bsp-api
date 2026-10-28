@@ -14,6 +14,7 @@ import {
 import { downloadFromStorage } from "../_shared/media.ts";
 import { commitDispatchedMessage } from "../_shared/dispatch.ts";
 import { Json } from "../_shared/db_types.ts";
+import type { OrganizationAddressIssue } from "../_shared/types/extra_types.ts";
 import { markdownToWhatsApp } from "../_shared/markdown.ts";
 
 const API_VERSION = "v24.0";
@@ -535,6 +536,24 @@ Deno.serve(async (req) => {
         code: metaCode,
         error: errorMessage,
       });
+
+      // The account's own token is dead (revoked, or its grant was): the
+      // account needs signing up again, and the issue says so. It stays
+      // connected — webhooks keep arriving, and the signup finds it already
+      // counted under the connections cap. Not for the fallback token, which
+      // is ours and no account's to fix.
+      if (metaCode === 190 && account.access_token) {
+        const issue: OrganizationAddressIssue = { reason: "expired" };
+
+        await client
+          .from("organizations_addresses")
+          .update({ issue })
+          .eq("organization_id", message.organization_id)
+          .eq("service", "whatsapp")
+          .eq("address", message.organization_address)
+          .eq("status", "connected")
+          .throwOnError();
+      }
 
       await client
         .from("messages")

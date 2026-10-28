@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./supabase.ts";
 import * as log from "./logger.ts";
+import type { OrganizationAddressIssue } from "./types/extra_types.ts";
 
 type Service = Database["public"]["Enums"]["service"];
 
@@ -58,6 +59,37 @@ export async function canConnect(
   if (!error) return true;
   if (isQuotaError(error)) return false;
   throw error;
+}
+
+/**
+ * The issues Meta holds an account by: until Meta reinstates it, a WhatsApp
+ * Business account reported for a violation or disabled can't be connected,
+ * in its organization or in any other.
+ */
+export const META_FLAGS: OrganizationAddressIssue["reason"][] = [
+  "violation",
+  "banned",
+];
+
+/**
+ * Why Meta holds this WhatsApp Business account, if it does: the issue on any
+ * of its accounts, in whichever organization. Read across organizations, so
+ * it needs the service-role client.
+ */
+export async function heldByMeta(
+  client: SupabaseClient<Database>,
+  waba_id: string,
+): Promise<OrganizationAddressIssue | null> {
+  const { data } = await client
+    .from("organizations_addresses")
+    .select("issue")
+    .eq("service", "whatsapp")
+    .eq("extra->>waba_id", waba_id)
+    .in("issue->>reason", META_FLAGS)
+    .limit(1)
+    .throwOnError();
+
+  return (data[0]?.issue as OrganizationAddressIssue | undefined) ?? null;
 }
 
 /**

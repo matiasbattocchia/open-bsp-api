@@ -54,11 +54,20 @@ export type InstagramOrganizationAddressExtra = {
 };
 
 // organizations_addresses.issue: what the service broke, when it was the
-// service and not a member — a WhatsApp Web device logged out or barred, an
-// Instagram token that died.
+// service and not a member — a WhatsApp Web device logged out or barred, a
+// token that died, a WhatsApp Business account Meta unshared, deleted,
+// flagged or disabled.
 export type OrganizationAddressIssue = {
-  reason: "logged_out" | "banned" | "expired";
+  reason:
+    | "logged_out"
+    | "banned"
+    | "expired"
+    | "removed"
+    | "offboarded"
+    | "deleted"
+    | "violation";
   until?: string; // ISO; when a ban says it lifts
+  detail?: string; // the provider's word for it, e.g. a violation's type (SCAM)
 };
 
 // Slack has two row shapes: the workspace anchor (address = team id,

@@ -14,10 +14,20 @@ create table public.organizations_addresses (
   -- What the service broke, when it was the service and not a member: the UI
   -- warns, and whoever can reconnect the account gets an email. null while
   -- the account works, and after a member disconnects it themselves.
-  -- { reason: 'logged_out' | 'banned' | 'expired', until?: ISO } — a ban that
-  -- says when it lifts carries `until`. Usually on a disconnected row; an
-  -- Instagram token that died keeps its row connected, since messages still
-  -- arrive and the account keeps its place under the connections cap.
+  -- { reason, until?: ISO, detail?: text } — reason is one of:
+  --   logged_out  WhatsApp unlinked the device (WhatsApp Web)
+  --   banned      the number or account was barred; a ban that says when it
+  --               lifts carries `until`
+  --   expired     the token died
+  --   removed     our access was taken away at the provider (unshared, app
+  --               uninstalled, deauthorized)
+  --   offboarded  a coexistence number stopped sharing with the API
+  --   deleted     the number or its account no longer exists
+  --   violation   Meta reported a policy violation
+  -- `detail` is the provider's own word for it, e.g. a violation's type
+  -- (SCAM). Usually on a disconnected row; a token that died keeps its row
+  -- connected, since messages still arrive and the account keeps its place
+  -- under the connections cap.
   issue jsonb,
   created_at timestamp with time zone default now() not null,
   updated_at timestamp with time zone default now() not null
@@ -36,7 +46,18 @@ primary key (organization_id, service, address);
 
 alter table only public.organizations_addresses
 add constraint organizations_addresses_issue_reason
-check (issue is null or issue->>'reason' in ('logged_out', 'banned', 'expired'));
+check (
+  issue is null
+  or issue->>'reason' in (
+    'logged_out',
+    'banned',
+    'expired',
+    'removed',
+    'offboarded',
+    'deleted',
+    'violation'
+  )
+);
 
 alter table only public.organizations_addresses
 add constraint organizations_addresses_organization_id_fkey
@@ -70,13 +91,16 @@ on public.organizations_addresses
 for each row
 execute function public.moddatetime('updated_at');
 
--- A new issue is an email to whoever can reconnect the account.
+-- An account's first issue is an email to whoever can reconnect it. Only the
+-- first: one that worsens (a violation, then the ban that follows it moments
+-- later) or is flagged again stays quiet until the account is reconnected and
+-- the issue cleared.
 create trigger notify_address_issue
 after update
 on public.organizations_addresses
 for each row
 when (
-  new.issue is not null and old.issue is distinct from new.issue
+  old.issue is null and new.issue is not null
 )
 execute function public.edge_function('/notifications', 'post');
 

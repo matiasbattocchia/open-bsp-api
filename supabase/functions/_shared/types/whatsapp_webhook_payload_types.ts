@@ -182,10 +182,11 @@ export type WebhookValueStateSync = {
   state_sync: WebhookStateSyncItem[];
 };
 
-// Account update webhook types
+// Account update webhook types. Partner and app events name their WABA in
+// waba_info; the rest carry none, and the WABA ID is found in entry.id.
 export type WebhookAccountUpdate_Account = {
   event: "ACCOUNT_DELETED";
-  waba_info: {
+  waba_info?: {
     waba_id: string;
     owner_business_id: string;
   };
@@ -206,19 +207,59 @@ export type WebhookAccountUpdate_Partner = {
     waba_id: string;
     owner_business_id: string;
   };
+  // Only for a coexistence number (WhatsApp Business app and Cloud API).
+  disconnection_info?: {
+    reason:
+      | "ACCOUNT_DISCONNECTED"
+      | "BUSINESS_DOWNGRADE"
+      | "CHANGE_NUMBER"
+      | "COMPANION_INACTIVITY"
+      | "PRIMARY_INACTIVITY"
+      | "USER_RE_REGISTERED";
+    initiated_by: "SYSTEM" | "USER";
+  };
 };
 
-// Coexistence lifecycle events. These payloads carry only `event` (no
-// waba_info); the WABA ID is found in entry.id instead.
+// Coexistence lifecycle events. These payloads carry only `event`.
 export type WebhookAccountUpdate_Coexistence = {
   event: "ACCOUNT_OFFBOARDED" | "ACCOUNT_RECONNECTED";
+};
+
+export type WebhookAccountUpdate_PhoneNumber = {
+  event: "PHONE_NUMBER_ADDED" | "PHONE_NUMBER_REMOVED";
+  phone_number: string; // display number, digits only
+};
+
+export type WebhookAccountUpdate_Violation = {
+  event: "ACCOUNT_VIOLATION";
+  violation_info: { violation_type: string }; // e.g. SCAM, ADULT
+};
+
+export type WebhookAccountUpdate_Restriction = {
+  event: "ACCOUNT_RESTRICTION";
+  restriction_info: {
+    restriction_type: string; // e.g. RESTRICTED_BIZ_INITIATED_MESSAGING
+    expiration: number; // unix seconds
+  }[];
+};
+
+export type WebhookAccountUpdate_Ban = {
+  event: "DISABLED_UPDATE";
+  ban_info: {
+    waba_ban_state: "SCHEDULE_FOR_DISABLE" | "DISABLE" | "REINSTATE";
+    waba_ban_date: string; // e.g. "October 24, 2026"
+  };
 };
 
 export type WebhookAccountUpdateValue =
   | WebhookAccountUpdate_Account
   | WebhookAccountUpdate_PartnerApp
   | WebhookAccountUpdate_Partner
-  | WebhookAccountUpdate_Coexistence;
+  | WebhookAccountUpdate_Coexistence
+  | WebhookAccountUpdate_PhoneNumber
+  | WebhookAccountUpdate_Violation
+  | WebhookAccountUpdate_Restriction
+  | WebhookAccountUpdate_Ban;
 
 // Value type for user_id_update webhooks (a user's BSUID changed).
 export type WebhookUserIdUpdate = {

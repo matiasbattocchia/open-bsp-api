@@ -8,6 +8,7 @@ import type {
 import { ContentfulStatusCode } from "jsr:@hono/hono/utils/http-status";
 import {
   canConnect,
+  heldByMeta,
   isQuotaError,
   recordRefusedConnection,
 } from "../_shared/connections.ts";
@@ -335,6 +336,28 @@ export async function performEmbeddedSignup(
 
   // Before anything changes at Meta: a refusal after step 2 would leave the
   // WABA sending its webhooks to an account that is not connected here.
+  const held = await heldByMeta(client, payload.waba_id);
+
+  if (held) {
+    log.warn("Signup refused: Meta holds the WhatsApp Business account", {
+      ...ctx,
+      issue: held,
+    });
+    await client.from("logs").insert({
+      organization_id: payload.organization_id,
+      category: "account_update",
+      service: "whatsapp",
+      level: "warning",
+      message:
+        "Account not connected: Meta reported or disabled this WhatsApp Business account",
+      metadata: { waba_id: payload.waba_id, issue: held },
+    }).throwOnError();
+    throw new HTTPException(403, {
+      message:
+        "Meta reported or disabled this WhatsApp Business account; it can't be connected unless Meta reinstates it",
+    });
+  }
+
   if (
     !(await canConnect(client, payload.organization_id, "whatsapp", {
       address: payload.phone_number_id,
@@ -386,6 +409,8 @@ export async function performEmbeddedSignup(
       organization_id: payload.organization_id,
       agent_id: payload.agent_id ?? null,
       status: "connected",
+      // A fresh token is what an expired one was waiting for.
+      issue: null,
       extra: {
         waba_id: payload.waba_id,
         business_id: payload.business_id,

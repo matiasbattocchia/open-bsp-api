@@ -4,6 +4,7 @@ import { cors } from "jsr:@hono/hono/cors";
 import { HTTPException } from "jsr:@hono/hono/http-exception";
 import * as log from "../_shared/logger.ts";
 import { canConnect } from "../_shared/connections.ts";
+import type { OrganizationAddressIssue } from "../_shared/types/extra_types.ts";
 import { Json } from "../_shared/db_types.ts";
 import {
   createApiClient,
@@ -418,11 +419,17 @@ app.post("/instagram-management/deauthorize", async (c) => {
 
   const client = createUnsecureClient();
 
+  // The account's owner removed our app from Instagram's settings: the
+  // service took the account away, and the issue says so. A row already
+  // disconnected was a member's doing, and stays theirs.
+  const issue: OrganizationAddressIssue = { reason: "removed" };
+
   await client
     .from("organizations_addresses")
-    .update({ status: "disconnected" })
+    .update({ status: "disconnected", issue })
     .eq("address", payload.user_id)
-    .eq("service", "instagram");
+    .eq("service", "instagram")
+    .eq("status", "connected");
 
   return c.json({ success: true });
 });
