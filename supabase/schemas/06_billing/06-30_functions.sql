@@ -277,6 +277,100 @@ begin
 end;
 $$;
 
+-- How close a quantity is to its cap, as the UI's quotaStatus reads it:
+-- 'capped' at the cap, 'near' from 80% of it, else 'ok'. A balance runs the
+-- other way — its cap is a floor — and is near once 80% of the plan's grant
+-- above that floor is spent. No cap, no quota.
+create function billing.quota_level(
+  _kind text,
+  _quantity numeric,
+  _cap numeric,
+  _grant numeric
+) returns text
+language sql
+immutable
+set search_path to ''
+as $$
+  select case
+    when _cap is null then 'ok'
+    when _kind = 'balance' then
+      case
+        when _quantity <= _cap then 'capped'
+        when coalesce(_grant, 0) - _cap > 0
+          and _quantity - _cap <= (coalesce(_grant, 0) - _cap) * 0.2 then 'near'
+        else 'ok'
+      end
+    when _quantity >= _cap then 'capped'
+    when _quantity >= _cap * 0.8 then 'near'
+    else 'ok'
+  end
+$$;
+
+-- Trigger: a usage row moved; record the quota level it crossed into. Only
+-- the row the tier caps counts (the month row of a monthly quota, the
+-- lifetime row of a lifetime one). Moving up a level inserts its alert — the
+-- insert is what notifies; moving down removes the alerts that no longer
+-- hold, so a later crossing notifies again. Jumping straight past 80% to the
+-- cap records only the cap.
+create function billing.track_quota_alerts() returns trigger
+language plpgsql
+security definer
+set search_path to ''
+as $$
+declare
+  _kind text;
+  _cap numeric;
+  _interval text;
+  _grant numeric;
+  _before text;
+  _after text;
+  _rank jsonb := '{"ok": 0, "near": 1, "capped": 2}';
+begin
+  select p.kind, tp.cap, tp.interval, pp.included
+  into _kind, _cap, _interval, _grant
+  from billing.subscriptions s
+  join billing.tiers_products tp
+    on tp.tier_id = s.tier_id and tp.product_id = new.product_id
+  join billing.products p on p.id = new.product_id
+  left join billing.plans_products pp
+    on pp.plan_id = s.plan_id and pp.product_id = new.product_id
+  where s.organization_id = new.organization_id;
+
+  if not found or _cap is null or _interval <> new.interval then
+    return null;
+  end if;
+
+  _before := billing.quota_level(
+    _kind,
+    case when tg_op = 'UPDATE' then old.quantity else 0 end,
+    _cap,
+    _grant
+  );
+  _after := billing.quota_level(_kind, new.quantity, _cap, _grant);
+
+  if _after = _before then
+    return null;
+  end if;
+
+  delete from billing.alerts a
+  where a.organization_id = new.organization_id
+    and a.product_id = new.product_id
+    and a.interval = new.interval
+    and a.period = new.period
+    and (_rank ->> a.level)::int > (_rank ->> _after)::int;
+
+  if (_rank ->> _after)::int > (_rank ->> _before)::int then
+    insert into billing.alerts
+      (organization_id, product_id, interval, period, level, quantity, cap)
+    values
+      (new.organization_id, new.product_id, new.interval, new.period, _after, new.quantity, _cap)
+    on conflict do nothing;
+  end if;
+
+  return null;
+end;
+$$;
+
 -- Trigger: skip ledger insert if the product doesn't exist (no billing)
 create function billing.guard_ledger_insert() returns trigger
 language plpgsql

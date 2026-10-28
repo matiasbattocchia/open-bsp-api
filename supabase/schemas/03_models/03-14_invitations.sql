@@ -88,6 +88,22 @@ on public.invitations
 for each row
 execute function public.moddatetime('updated_at');
 
+-- The invitee hears about an offer when it is made, and the inviter when it
+-- is taken. Rejections and revocations stay quiet.
+create trigger notify_invitation_received
+after insert
+on public.invitations
+for each row
+when (new.status = 'pending')
+execute function public.edge_function('/notifications', 'post');
+
+create trigger notify_invitation_accepted
+after update of status
+on public.invitations
+for each row
+when (old.status = 'pending' and new.status = 'accepted')
+execute function public.edge_function('/notifications', 'post');
+
 -- Default privileges for postgres-created tables only grant the owner, so the
 -- API roles need these explicitly. Rows are narrowed by 05-13; anon is here
 -- because an owner-scoped API key may run the invitation flow, exactly as it

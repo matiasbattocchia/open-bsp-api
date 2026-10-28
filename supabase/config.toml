@@ -87,6 +87,11 @@ verify_jwt = false
 import_map = "./functions/deno.json"
 entrypoint = "./functions/mcp/index.ts"
 
+[functions.notifications]
+verify_jwt = false
+import_map = "./functions/deno.json"
+entrypoint = "./functions/notifications/index.ts"
+
 [functions.storage-gc]
 verify_jwt = false
 import_map = "./functions/deno.json"

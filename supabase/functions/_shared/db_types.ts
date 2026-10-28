@@ -16,6 +16,7 @@ export type Database = {
           name: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           id?: string
@@ -30,21 +31,69 @@ export type Database = {
         }
         Relationships: []
       }
+      alerts: {
+        Row: {
+          cap: number
+          created_at: string
+          interval: string
+          level: string
+          organization_id: string
+          period: string
+          product_id: string
+          quantity: number
+        }
+        ComputedFields: never
+        Insert: {
+          cap: number
+          created_at?: string
+          interval: string
+          level: string
+          organization_id: string
+          period: string
+          product_id: string
+          quantity: number
+        }
+        Update: {
+          cap?: number
+          created_at?: string
+          interval?: string
+          level?: string
+          organization_id?: string
+          period?: string
+          product_id?: string
+          quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alerts_usage_fkey"
+            columns: ["organization_id", "product_id", "interval", "period"]
+            isOneToOne: false
+            referencedRelation: "usage"
+            referencedColumns: [
+              "organization_id",
+              "product_id",
+              "interval",
+              "period",
+            ]
+          },
+        ]
+      }
       costs: {
         Row: {
           created_at: string
           effective_at: string
-          pricing: Json
+          pricing: NonNullable<Json>
           product: string
           provider: string
           quantity: number
           unit: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           effective_at?: string
-          pricing: Json
+          pricing: NonNullable<Json>
           product: string
           provider: string
           quantity: number
@@ -54,7 +103,7 @@ export type Database = {
         Update: {
           created_at?: string
           effective_at?: string
-          pricing?: Json
+          pricing?: NonNullable<Json>
           product?: string
           provider?: string
           quantity?: number
@@ -74,6 +123,7 @@ export type Database = {
           subtotal: number
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           id?: string
@@ -110,6 +160,7 @@ export type Database = {
           unit_price: number
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           amount: number
           created_at?: string
@@ -183,6 +234,7 @@ export type Database = {
           type: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           agent_id?: string | null
           billable?: boolean | null
@@ -236,6 +288,7 @@ export type Database = {
           status: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           account_id?: string | null
           amount: number
@@ -288,6 +341,7 @@ export type Database = {
           price: number
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           active?: boolean
           billing_cycle?: string | null
@@ -320,6 +374,7 @@ export type Database = {
           unit_price: number | null
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           included?: number | null
@@ -364,6 +419,7 @@ export type Database = {
           unit: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           id: string
@@ -393,6 +449,7 @@ export type Database = {
           tier_id: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           account_id?: string | null
           created_at?: string
@@ -446,6 +503,7 @@ export type Database = {
           name: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           active?: boolean
           created_at?: string
@@ -473,6 +531,7 @@ export type Database = {
           tier_id: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           cap?: number | null
           created_at?: string
@@ -516,6 +575,7 @@ export type Database = {
           quantity: number
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           interval?: string
@@ -557,6 +617,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      quota_level: {
+        Args: { _cap: number; _grant: number; _kind: string; _quantity: number }
+        Returns: string
+      }
       update_usage: {
         Args: {
           _organization_id: string
@@ -588,6 +652,7 @@ export type Database = {
           updated_at: string
           user_id: string | null
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           deleted_at?: string | null
@@ -632,6 +697,7 @@ export type Database = {
           role: Database["public"]["Enums"]["role"]
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           id?: string
@@ -671,6 +737,7 @@ export type Database = {
           status: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           address: string
           created_at?: string
@@ -721,6 +788,7 @@ export type Database = {
           type: string | null
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           address: string
           created_at?: string
@@ -773,6 +841,7 @@ export type Database = {
           service: Database["public"]["Enums"]["service"]
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           agent_id: string
           conversation_id: string
@@ -838,6 +907,7 @@ export type Database = {
           status: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           email: string
@@ -893,6 +963,7 @@ export type Database = {
           organization_id: string
           service: Database["public"]["Enums"]["service"] | null
         }
+        ComputedFields: never
         Insert: {
           category: string
           created_at?: string
@@ -935,7 +1006,7 @@ export type Database = {
       messages: {
         Row: {
           agent_id: string | null
-          content: Json
+          content: NonNullable<Json>
           conversation_address: string | null
           conversation_id: string
           created_at: string
@@ -945,14 +1016,15 @@ export type Database = {
           organization_id: string
           sender_address: string | null
           service: Database["public"]["Enums"]["service"]
-          status: Json
+          status: NonNullable<Json>
           thread_id: string | null
           timestamp: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           agent_id?: string | null
-          content: Json
+          content: NonNullable<Json>
           conversation_address?: string | null
           conversation_id: string
           created_at?: string
@@ -962,14 +1034,14 @@ export type Database = {
           organization_id: string
           sender_address?: string | null
           service: Database["public"]["Enums"]["service"]
-          status?: Json
+          status?: NonNullable<Json>
           thread_id?: string | null
           timestamp?: string
           updated_at?: string
         }
         Update: {
           agent_id?: string | null
-          content?: Json
+          content?: NonNullable<Json>
           conversation_address?: string | null
           conversation_id?: string
           created_at?: string
@@ -979,7 +1051,7 @@ export type Database = {
           organization_id?: string
           sender_address?: string | null
           service?: Database["public"]["Enums"]["service"]
-          status?: Json
+          status?: NonNullable<Json>
           thread_id?: string | null
           timestamp?: string
           updated_at?: string
@@ -1021,6 +1093,7 @@ export type Database = {
           used_at: string | null
           verify_token: string | null
         }
+        ComputedFields: never
         Insert: {
           callback_url?: string | null
           created_at?: string
@@ -1063,6 +1136,7 @@ export type Database = {
           name: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           extra?: Json | null
@@ -1090,6 +1164,7 @@ export type Database = {
           status: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           address: string
           agent_id?: string | null
@@ -1138,6 +1213,7 @@ export type Database = {
           updated_at: string
           url: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           id?: string
@@ -1191,11 +1267,17 @@ export type Database = {
         Args: { role?: Database["public"]["Enums"]["role"] }
         Returns: string[]
       }
-      get_own_agents: { Args: never; Returns: string[] }
-      get_participant_conversations: { Args: never; Returns: string[] }
-      get_restricted_conversations: { Args: never; Returns: string[] }
+      get_own_agents: { Args: Record<PropertyKey, never>; Returns: string[] }
+      get_participant_conversations: {
+        Args: Record<PropertyKey, never>
+        Returns: string[]
+      }
+      get_restricted_conversations: {
+        Args: Record<PropertyKey, never>
+        Returns: string[]
+      }
       get_visible_addresses: {
-        Args: never
+        Args: Record<PropertyKey, never>
         Returns: {
           address: string
           organization_id: string
@@ -1267,6 +1349,7 @@ export type Database = {
           type: Database["storage"]["Enums"]["buckettype"]
           updated_at: string | null
         }
+        ComputedFields: never
         Insert: {
           allowed_mime_types?: string[] | null
           avif_autodetection?: boolean | null
@@ -1305,6 +1388,7 @@ export type Database = {
           type: Database["storage"]["Enums"]["buckettype"]
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           deleted_at?: string | null
@@ -1332,6 +1416,7 @@ export type Database = {
           type: Database["storage"]["Enums"]["buckettype"]
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           created_at?: string
           id: string
@@ -1352,16 +1437,17 @@ export type Database = {
           catalog_id: string
           created_at: string
           id: string
-          metadata: Json
+          metadata: NonNullable<Json>
           name: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           bucket_name: string
           catalog_id: string
           created_at?: string
           id?: string
-          metadata?: Json
+          metadata?: NonNullable<Json>
           name: string
           updated_at?: string
         }
@@ -1370,7 +1456,7 @@ export type Database = {
           catalog_id?: string
           created_at?: string
           id?: string
-          metadata?: Json
+          metadata?: NonNullable<Json>
           name?: string
           updated_at?: string
         }
@@ -1398,6 +1484,7 @@ export type Database = {
           shard_key: string | null
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           bucket_name: string
           catalog_id: string
@@ -1448,6 +1535,7 @@ export type Database = {
           id: number
           name: string
         }
+        ComputedFields: never
         Insert: {
           executed_at?: string | null
           hash: string
@@ -1477,6 +1565,7 @@ export type Database = {
           user_metadata: Json | null
           version: string | null
         }
+        ComputedFields: never
         Insert: {
           bucket_id?: string | null
           created_at?: string | null
@@ -1486,7 +1575,7 @@ export type Database = {
           name?: string | null
           owner?: string | null
           owner_id?: string | null
-          path_tokens?: string[] | null
+          path_tokens?: never
           updated_at?: string | null
           user_metadata?: Json | null
           version?: string | null
@@ -1500,7 +1589,7 @@ export type Database = {
           name?: string | null
           owner?: string | null
           owner_id?: string | null
-          path_tokens?: string[] | null
+          path_tokens?: never
           updated_at?: string | null
           user_metadata?: Json | null
           version?: string | null
@@ -1528,6 +1617,7 @@ export type Database = {
           user_metadata: Json | null
           version: string
         }
+        ComputedFields: never
         Insert: {
           bucket_id: string
           created_at?: string
@@ -1575,6 +1665,7 @@ export type Database = {
           upload_id: string
           version: string
         }
+        ComputedFields: never
         Insert: {
           bucket_id: string
           created_at?: string
@@ -1628,6 +1719,7 @@ export type Database = {
           name: string
           updated_at: string
         }
+        ComputedFields: never
         Insert: {
           bucket_id: string
           created_at?: string
@@ -1685,7 +1777,7 @@ export type Database = {
         Returns: string
       }
       get_size_by_bucket: {
-        Args: never
+        Args: Record<PropertyKey, never>
         Returns: {
           bucket_id: string
           size: number
@@ -1725,7 +1817,7 @@ export type Database = {
           updated_at: string
         }[]
       }
-      operation: { Args: never; Returns: string }
+      operation: { Args: Record<PropertyKey, never>; Returns: string }
       search: {
         Args: {
           bucketname: string
@@ -1806,12 +1898,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1833,13 +1925,12 @@ export type Tables<
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1858,13 +1949,12 @@ export type TablesInsert<
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1883,13 +1973,12 @@ export type TablesUpdate<
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema["Enums"]
-    | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    keyof DefaultSchema["Enums"] | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1902,11 +1991,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1948,4 +2037,3 @@ export const Constants = {
     },
   },
 } as const
-

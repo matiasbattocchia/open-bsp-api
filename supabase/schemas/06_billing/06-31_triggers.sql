@@ -89,3 +89,18 @@ after insert
 on billing.ledger
 for each row
 execute function billing.process_ledger_entry();
+
+-- Record quota crossings as usage moves. Day rows are never what a tier caps.
+create trigger track_billing_quota_alerts
+after insert or update of quantity
+on billing.usage
+for each row
+when (new.interval <> 'day')
+execute function billing.track_quota_alerts();
+
+-- A new alert is an email to the organization's members.
+create trigger notify_billing_alert
+after insert
+on billing.alerts
+for each row
+execute function public.edge_function('/notifications', 'post');
