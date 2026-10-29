@@ -108,6 +108,7 @@ export async function performTikTokLogin(
     name: profile.display_name,
     profile_picture_url: profile.profile_image,
     ...tokenExtra(token),
+    onboarding_token_id: payload.onboarding_token_id ?? null,
   };
 
   log.info("Persisting TikTok account data", ctx);
@@ -121,7 +122,6 @@ export async function performTikTokLogin(
       status: "connected",
       // A fresh login is what an expired authorization was waiting for.
       issue: null,
-      onboarding_token_id: payload.onboarding_token_id ?? null,
       extra,
     })
     .select()

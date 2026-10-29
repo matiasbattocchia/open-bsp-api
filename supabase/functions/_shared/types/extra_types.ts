@@ -40,6 +40,11 @@ export type WhatsAppOrganizationAddressExtra = {
   access_token?: string; // Meta system-user token
   callback_url?: string | null;
   verify_token?: string | null;
+  // The onboarding link (onboarding_tokens.id) it last connected through;
+  // null or absent when a member connected it in the app. Every signup writes
+  // it. The link may be deleted since, and the account still says it came by
+  // one.
+  onboarding_token_id?: string | null;
 };
 
 export type InstagramOrganizationAddressExtra = {
@@ -51,6 +56,11 @@ export type InstagramOrganizationAddressExtra = {
   token_expires_at?: string; // ISO; when the long-lived token expires
   token_refreshed_at?: string; // ISO; last successful refresh (or initial issue)
   scopes?: string[]; // granted permissions
+  // The onboarding link (onboarding_tokens.id) it last connected through;
+  // null or absent when a member connected it in the app. Every signup writes
+  // it. The link may be deleted since, and the account still says it came by
+  // one.
+  onboarding_token_id?: string | null;
 };
 
 // address = the account's open_id. The access token lives 24 hours, the
@@ -67,6 +77,11 @@ export type TikTokOrganizationAddressExtra = {
   refresh_token_expires_at?: string; // ISO
   token_refreshed_at?: string; // ISO; last successful refresh (or initial issue)
   scopes?: string[]; // granted scopes
+  // The onboarding link (onboarding_tokens.id) it last connected through;
+  // null or absent when a member connected it in the app. Every signup writes
+  // it. The link may be deleted since, and the account still says it came by
+  // one.
+  onboarding_token_id?: string | null;
 };
 
 // organizations_addresses.issue: what the service broke, when it was the

@@ -413,7 +413,6 @@ export async function performEmbeddedSignup(
       status: "connected",
       // A fresh token is what an expired one was waiting for.
       issue: null,
-      onboarding_token_id: payload.onboarding_token_id ?? null,
       extra: {
         waba_id: payload.waba_id,
         business_id: payload.business_id,
@@ -423,6 +422,7 @@ export async function performEmbeddedSignup(
         verified_name: phone_number.verified_name,
         callback_url: payload.callback_url || null,
         verify_token: payload.verify_token || null,
+        onboarding_token_id: payload.onboarding_token_id ?? null,
       },
     })
     .select()

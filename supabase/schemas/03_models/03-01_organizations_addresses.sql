@@ -34,11 +34,6 @@ create table public.organizations_addresses (
   -- has passed is over: it warns of nothing, and stays until the account
   -- reconnects or a new issue replaces it.
   issue jsonb,
-  -- The onboarding link (onboarding_tokens.id) the account last connected
-  -- through; null when a member connected it in the app. Every signup writes
-  -- it, webhooks that reconnect the account don't. No foreign key: a link
-  -- deleted afterwards still leaves the account saying it arrived by one.
-  onboarding_token_id uuid,
   created_at timestamp with time zone default now() not null,
   updated_at timestamp with time zone default now() not null
 );

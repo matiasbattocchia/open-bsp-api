@@ -383,6 +383,7 @@ export async function performInstagramLogin(
       .toISOString(),
     token_refreshed_at: new Date(now).toISOString(),
     scopes: normalizePermissions(shortLived.permissions),
+    onboarding_token_id: payload.onboarding_token_id ?? null,
   };
 
   log.info("Persisting Instagram account data", ctx);
@@ -396,7 +397,6 @@ export async function performInstagramLogin(
       status: "connected",
       // A fresh login is what an expired token was waiting for.
       issue: null,
-      onboarding_token_id: payload.onboarding_token_id ?? null,
       extra,
     })
     .select()
