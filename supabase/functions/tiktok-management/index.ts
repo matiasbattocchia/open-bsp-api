@@ -325,6 +325,7 @@ app.post("/tiktok-management/onboard", async (c) => {
     code: body.code,
     redirect_uri: body.redirect_uri,
     organization_id: tokenData.organization_id,
+    onboarding_token_id: body.token,
   };
 
   // Connect the account, then mark the link used on success. Same try/catch as

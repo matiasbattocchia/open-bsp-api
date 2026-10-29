@@ -245,6 +245,8 @@ export type SignupPayload = {
   flow_type?: "only_waba" | "new_phone_number" | "existing_phone_number";
   callback_url?: string;
   verify_token?: string;
+  /** The onboarding link this signup came through; absent in the app. */
+  onboarding_token_id?: string;
 };
 
 export async function performEmbeddedSignup(
@@ -411,6 +413,7 @@ export async function performEmbeddedSignup(
       status: "connected",
       // A fresh token is what an expired one was waiting for.
       issue: null,
+      onboarding_token_id: payload.onboarding_token_id ?? null,
       extra: {
         waba_id: payload.waba_id,
         business_id: payload.business_id,

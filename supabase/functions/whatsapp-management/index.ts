@@ -447,6 +447,7 @@ app.post("/whatsapp-management/onboard", async (c) => {
     flow_type: body.flow_type,
     callback_url: tokenData.callback_url ?? undefined,
     verify_token: tokenData.verify_token ?? undefined,
+    onboarding_token_id: body.token,
   };
 
   // Connect the account, then mark the link used on success. Same try/catch as

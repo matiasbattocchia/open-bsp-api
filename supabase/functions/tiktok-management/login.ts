@@ -35,6 +35,8 @@ export type TikTokLoginPayload = {
    * Absent is the org's shared inbox.
    */
   agent_id?: string;
+  /** The onboarding link this signup came through; absent in the app. */
+  onboarding_token_id?: string;
 };
 
 /**
@@ -119,6 +121,7 @@ export async function performTikTokLogin(
       status: "connected",
       // A fresh login is what an expired authorization was waiting for.
       issue: null,
+      onboarding_token_id: payload.onboarding_token_id ?? null,
       extra,
     })
     .select()

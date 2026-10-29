@@ -1160,6 +1160,7 @@ export type Database = {
           created_at: string
           extra: Json | null
           issue: Json | null
+          onboarding_token_id: string | null
           organization_id: string
           service: Database["public"]["Enums"]["service"]
           status: string
@@ -1172,6 +1173,7 @@ export type Database = {
           created_at?: string
           extra?: Json | null
           issue?: Json | null
+          onboarding_token_id?: string | null
           organization_id: string
           service: Database["public"]["Enums"]["service"]
           status?: string
@@ -1183,6 +1185,7 @@ export type Database = {
           created_at?: string
           extra?: Json | null
           issue?: Json | null
+          onboarding_token_id?: string | null
           organization_id?: string
           service?: Database["public"]["Enums"]["service"]
           status?: string
