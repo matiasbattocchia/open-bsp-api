@@ -21,12 +21,14 @@ type Account = {
 
 /**
  * What a Meta event does to one of the WABA's accounts here: disconnect it,
- * with the issue that says why, or connect it again. Nothing for an account
- * the event leaves as it is.
+ * with the issue that says why, connect it again, or leave it connected with
+ * an issue (or without its last one). Nothing for an account the event leaves
+ * as it is.
  */
 type Change =
   | { status: "disconnected"; issue: OrganizationAddressIssue }
   | { status: "connected"; reinstated: boolean }
+  | { issue: OrganizationAddressIssue | null }
   | null;
 
 const reasonOf = (account: Account) =>
@@ -44,9 +46,11 @@ const flagged = (account: Account) => META_FLAGS.includes(reasonOf(account)!);
  *   DISABLED_UPDATE, DISABLE                            banned
  *   DISABLED_UPDATE, REINSTATE                          connected again
  *   ACCOUNT_RECONNECTED                                 connected again
+ *   ACCOUNT_RESTRICTION                                 restricted
  *
- * Each of the first five takes a connected account away. A violation or a ban
- * takes every account of the WABA, connected or not, and holds it: the
+ * Each of the first five takes a connected account away; a restriction
+ * leaves it connected, limited until the restriction expires. A violation or
+ * a ban takes every account of the WABA, connected or not, and holds it: the
  * account can't be connected again, here or in another organization, until
  * Meta reinstates it. A violation alone is acted on as if it were final —
  * a free tier is not worth our standing with Meta — and reversing a mistake
@@ -107,6 +111,29 @@ function changeFor(
           // Scheduled for disable: Meta may still change its mind.
           return null;
       }
+    case "ACCOUNT_RESTRICTION": {
+      // Never over another issue, which says more about the account. No
+      // restrictions left is the last one lifted.
+      if (
+        !connected || (reasonOf(account) && reasonOf(account) !== "restricted")
+      ) {
+        return null;
+      }
+      const restrictions = value.restriction_info ?? [];
+      if (!restrictions.length) {
+        return reasonOf(account) ? { issue: null } : null;
+      }
+      return {
+        issue: {
+          reason: "restricted",
+          until: new Date(
+            Math.max(...restrictions.map((r) => r.expiration)) * 1000,
+          ).toISOString(),
+          // Comma-separated when there are several.
+          detail: restrictions.map((r) => r.restriction_type).join(","),
+        },
+      };
+    }
     case "ACCOUNT_RECONNECTED":
       // The number set up in the app again (device switch, reinstall,
       // re-registration). Not one Meta holds, nor one that no longer exists.
@@ -168,7 +195,9 @@ export async function handleAccountUpdate(
   })).filter(({ change }) => change);
 
   const serious =
-    changes.some(({ change }) => change?.status === "disconnected") ||
+    changes.some(({ change }) =>
+      change && "status" in change && change.status === "disconnected"
+    ) ||
     value.event === "ACCOUNT_RESTRICTION" ||
     value.event === "DISABLED_UPDATE";
 
@@ -211,7 +240,9 @@ export async function handleAccountUpdate(
         .eq("address", account.address);
 
     const { error } = await update(
-      change!.status === "disconnected"
+      !("status" in change!)
+        ? { issue: change!.issue }
+        : change!.status === "disconnected"
         ? { status: "disconnected", issue: change!.issue }
         : { status: "connected" },
     );
@@ -223,7 +254,10 @@ export async function handleAccountUpdate(
     // refusal is recorded for the organization instead. A reinstated account
     // is no longer Meta's to hold, so it loses the flag and can be connected
     // again once there is room.
-    if (change!.status === "connected" && isQuotaError(error)) {
+    if (
+      "status" in change! && change.status === "connected" &&
+      isQuotaError(error)
+    ) {
       await recordRefusedConnection(
         client,
         account.organization_id,
@@ -231,7 +265,7 @@ export async function handleAccountUpdate(
         account.address,
       );
 
-      if (change!.reinstated) {
+      if (change.reinstated) {
         await update({ issue: null }).throwOnError();
       }
     } else {

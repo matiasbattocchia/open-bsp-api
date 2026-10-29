@@ -24,10 +24,15 @@ create table public.organizations_addresses (
   --   offboarded  a coexistence number stopped sharing with the API
   --   deleted     the number or its account no longer exists
   --   violation   Meta reported a policy violation
+  --   restricted  Meta limited what the account may do for a while
+  --               (`until`), e.g. starting conversations
+  --   locked      Meta refused to send because the account is locked
   -- `detail` is the provider's own word for it, e.g. a violation's type
-  -- (SCAM). Usually on a disconnected row; a token that died keeps its row
-  -- connected, since messages still arrive and the account keeps its place
-  -- under the connections cap.
+  -- (SCAM). Usually on a disconnected row; a token that died, a restriction
+  -- and a lock keep theirs connected, since messages still arrive and the
+  -- account keeps its place under the connections cap. An issue whose `until`
+  -- has passed is over: it warns of nothing, and stays until the account
+  -- reconnects or a new issue replaces it.
   issue jsonb,
   created_at timestamp with time zone default now() not null,
   updated_at timestamp with time zone default now() not null
@@ -55,7 +60,9 @@ check (
     'removed',
     'offboarded',
     'deleted',
-    'violation'
+    'violation',
+    'restricted',
+    'locked'
   )
 );
 
@@ -94,13 +101,15 @@ execute function public.moddatetime('updated_at');
 -- An account's first issue is an email to whoever can reconnect it. Only the
 -- first: one that worsens (a violation, then the ban that follows it moments
 -- later) or is flagged again stays quiet until the account is reconnected and
--- the issue cleared.
+-- the issue cleared, or the issue it replaces is over.
 create trigger notify_address_issue
 after update
 on public.organizations_addresses
 for each row
 when (
-  old.issue is null and new.issue is not null
+  new.issue is not null
+  and new.issue is distinct from old.issue
+  and (old.issue is null or (old.issue->>'until')::timestamptz < now())
 )
 execute function public.edge_function('/notifications', 'post');
 

@@ -25,6 +25,7 @@ import type {
   UsersListResponse,
 } from "@slack/web-api";
 import * as log from "../_shared/logger.ts";
+import type { OrganizationAddressIssue } from "./types/extra_types.ts";
 
 const CLIENT_ID = Deno.env.get("SLACK_CLIENT_ID") ?? "";
 const CLIENT_SECRET = Deno.env.get("SLACK_CLIENT_SECRET") ?? "";
@@ -340,9 +341,11 @@ export type SlackConnection = {
 };
 
 /**
- * Flips a personal connection to disconnected and clears its secrets so the
- * UI prompts a reconnect — same semantics as the tokens_revoked webhook.
- * merge_update keeps the untouched extra keys.
+ * Flips a connection (a member's, or the workspace anchor) to disconnected
+ * and clears its secrets so the UI prompts a reconnect, its issue saying the
+ * token died — same semantics as the tokens_revoked webhook. merge_update
+ * keeps the untouched extra keys. Only a connected row: one a member
+ * disconnected is theirs.
  */
 export async function disconnectConnection(
   client: SupabaseClient,
@@ -353,11 +356,13 @@ export async function disconnectConnection(
     .from("organizations_addresses")
     .update({
       status: "disconnected",
+      issue: { reason: "expired" } satisfies OrganizationAddressIssue,
       extra: { access_token: null, refresh_token: null },
     })
     .eq("organization_id", organization_id)
     .eq("service", "slack")
     .eq("address", address)
+    .eq("status", "connected")
     .throwOnError();
 }
 

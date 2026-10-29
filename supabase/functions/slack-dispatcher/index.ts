@@ -26,6 +26,7 @@ import { downloadFromStorage } from "../_shared/media.ts";
 import { markdownToSlack } from "../_shared/markdown.ts";
 import {
   DEAD_TOKEN_ERRORS,
+  disconnectConnection,
   ensureFreshToken,
   slackApi,
   type SlackConnection,
@@ -362,16 +363,11 @@ Deno.serve(async (req) => {
       // `used` is unset only if getConnection itself threw, which is not a
       // token error.
       if (used) {
-        await client
-          .from("organizations_addresses")
-          .update({
-            status: "disconnected",
-            extra: { access_token: null, refresh_token: null },
-          })
-          .eq("organization_id", message.organization_id)
-          .eq("service", "slack")
-          .eq("address", used.address)
-          .throwOnError();
+        await disconnectConnection(
+          client,
+          message.organization_id,
+          used.address,
+        );
       }
     }
 

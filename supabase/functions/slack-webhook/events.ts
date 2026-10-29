@@ -35,6 +35,7 @@ import {
 } from "../_shared/slack.ts";
 import { slackToMarkdown } from "../_shared/markdown.ts";
 import { emojiFromShortcode } from "../_shared/emoji.ts";
+import type { OrganizationAddressIssue } from "../_shared/types/extra_types.ts";
 
 import type {
   ChannelArchiveEvent,
@@ -906,7 +907,8 @@ async function onUserChange(
 }
 
 // A member revoked the app from the Slack side: flip their connection to
-// disconnected (same semantics as DELETE /connect — everything else stays).
+// disconnected (same semantics as DELETE /connect — everything else stays),
+// its issue saying our access was removed.
 async function onTokensRevoked(
   ctx: Ctx,
   event: TokensRevokedEvent,
@@ -916,22 +918,28 @@ async function onTokensRevoked(
       .from("organizations_addresses")
       .update({
         status: "disconnected",
+        issue: { reason: "removed" } satisfies OrganizationAddressIssue,
         extra: { access_token: null, refresh_token: null },
       })
       .eq("organization_id", ctx.organization_id)
       .eq("service", "slack")
       .eq("address", `${ctx.team}:${user}`)
+      .eq("status", "connected")
       .throwOnError();
   }
 }
 
 async function onAppUninstalled(ctx: Ctx): Promise<void> {
-  // Anchor + every personal connection of this workspace.
+  // Anchor + every personal connection of this workspace still connected.
   await ctx.client
     .from("organizations_addresses")
-    .update({ status: "disconnected" })
+    .update({
+      status: "disconnected",
+      issue: { reason: "removed" } satisfies OrganizationAddressIssue,
+    })
     .eq("organization_id", ctx.organization_id)
     .eq("service", "slack")
+    .eq("status", "connected")
     .or(`address.eq.${ctx.team},address.like.${ctx.team}:%`)
     .throwOnError();
 

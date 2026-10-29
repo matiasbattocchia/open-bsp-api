@@ -433,13 +433,27 @@ Deno.serve(async (req) => {
 
   const { data: account } = await client
     .from("organizations_addresses")
-    .select("extra->>access_token")
+    .select("extra->>access_token, issue")
     .eq("organization_id", message.organization_id)
     .eq("address", message.organization_address)
     .single()
     .throwOnError();
 
   const access_token = account.access_token || DEFAULT_ACCESS_TOKEN;
+
+  /** Updates the account while it's connected: one a member disconnected is theirs. */
+  const updateAccount = (fields: {
+    status?: string;
+    issue: OrganizationAddressIssue | null;
+  }) =>
+    client
+      .from("organizations_addresses")
+      .update(fields)
+      .eq("organization_id", message.organization_id)
+      .eq("service", "whatsapp")
+      .eq("address", message.organization_address)
+      .eq("status", "connected")
+      .throwOnError();
 
   let to: string | undefined;
   let recipient: string | undefined;
@@ -496,15 +510,27 @@ Deno.serve(async (req) => {
             .toISOString(),
         },
       });
+
+      // A send that went through: the lock a send last found is over, and so
+      // is a dead token, when the send was on the account's own.
+      const issue = account.issue as OrganizationAddressIssue | null;
+      if (
+        issue?.reason === "locked" ||
+        (issue?.reason === "expired" && account.access_token)
+      ) {
+        await updateAccount({ issue: null });
+      }
     } catch (error) {
       const isWhatsAppError = error instanceof WhatsAppError;
       const errorMessage = error instanceof Error
         ? error.message
         : String(error);
-      const metaCode = isWhatsAppError
-        ? (error.cause as { error?: { code?: number } } | undefined)?.error
-          ?.code
+      const metaError = isWhatsAppError
+        ? (error.cause as
+          | { error?: { code?: number; error_subcode?: number } }
+          | undefined)?.error
         : undefined;
+      const metaCode = metaError?.code;
       const isRetryable = metaCode != null &&
         RETRYABLE_META_CODES.has(metaCode);
       const errorDetail: Json = isWhatsAppError
@@ -537,22 +563,25 @@ Deno.serve(async (req) => {
         error: errorMessage,
       });
 
-      // The account's own token is dead (revoked, or its grant was): the
-      // account needs signing up again, and the issue says so. It stays
-      // connected — webhooks keep arriving, and the signup finds it already
-      // counted under the connections cap. Not for the fallback token, which
-      // is ours and no account's to fix.
+      // What the error says about the account, beyond this message:
+      //   190     its own token is dead (revoked, or its grant was), and it
+      //           needs signing up again. Not for the fallback token, which
+      //           is ours and no account's to fix.
+      //   131031  Meta locked it: a policy violation, or a two-step
+      //           verification PIN that doesn't match.
+      //   100/33  its number doesn't exist: deleted, or, on the fallback
+      //           token, no longer shared with us.
+      // The first two keep it connected — webhooks keep arriving, and it
+      // keeps its place under the connections cap.
       if (metaCode === 190 && account.access_token) {
-        const issue: OrganizationAddressIssue = { reason: "expired" };
-
-        await client
-          .from("organizations_addresses")
-          .update({ issue })
-          .eq("organization_id", message.organization_id)
-          .eq("service", "whatsapp")
-          .eq("address", message.organization_address)
-          .eq("status", "connected")
-          .throwOnError();
+        await updateAccount({ issue: { reason: "expired" } });
+      } else if (metaCode === 131031) {
+        await updateAccount({ issue: { reason: "locked" } });
+      } else if (metaCode === 100 && metaError?.error_subcode === 33) {
+        await updateAccount({
+          status: "disconnected",
+          issue: { reason: account.access_token ? "deleted" : "removed" },
+        });
       }
 
       await client

@@ -72,7 +72,7 @@ export type TikTokOrganizationAddressExtra = {
 // organizations_addresses.issue: what the service broke, when it was the
 // service and not a member — a WhatsApp Web device logged out or barred, a
 // token that died, a WhatsApp Business account Meta unshared, deleted,
-// flagged or disabled.
+// flagged, disabled, restricted or locked. Over once `until` has passed.
 export type OrganizationAddressIssue = {
   reason:
     | "logged_out"
@@ -81,8 +81,10 @@ export type OrganizationAddressIssue = {
     | "removed"
     | "offboarded"
     | "deleted"
-    | "violation";
-  until?: string; // ISO; when a ban says it lifts
+    | "violation"
+    | "restricted"
+    | "locked";
+  until?: string; // ISO; when a ban or a restriction lifts
   detail?: string; // the provider's word for it, e.g. a violation's type (SCAM)
 };
 
