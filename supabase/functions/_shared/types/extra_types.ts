@@ -53,6 +53,22 @@ export type InstagramOrganizationAddressExtra = {
   scopes?: string[]; // granted permissions
 };
 
+// address = the account's open_id. The access token lives 24 hours, the
+// refresh token a year; token keys accept null so a disconnect can clear them
+// through the merge_update trigger.
+export type TikTokOrganizationAddressExtra = {
+  open_id?: string;
+  username?: string;
+  name?: string; // display name
+  profile_picture_url?: string;
+  access_token?: string | null;
+  refresh_token?: string | null;
+  token_expires_at?: string; // ISO
+  refresh_token_expires_at?: string; // ISO
+  token_refreshed_at?: string; // ISO; last successful refresh (or initial issue)
+  scopes?: string[]; // granted scopes
+};
+
 // organizations_addresses.issue: what the service broke, when it was the
 // service and not a member — a WhatsApp Web device logged out or barred, a
 // token that died, a WhatsApp Business account Meta unshared, deleted,
@@ -93,7 +109,8 @@ export type SlackOrganizationAddressExtra = {
 export type OrganizationAddressExtra =
   | WhatsAppOrganizationAddressExtra
   | InstagramOrganizationAddressExtra
-  | SlackOrganizationAddressExtra;
+  | SlackOrganizationAddressExtra
+  | TikTokOrganizationAddressExtra;
 
 /**
  * Only the service role writes this on every service but `local` — RLS grants

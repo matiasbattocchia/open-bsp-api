@@ -44,6 +44,11 @@ verify_jwt = false
 import_map = "./functions/deno.json"
 entrypoint = "./functions/instagram-management/index.ts"
 
+[functions.tiktok-management]
+verify_jwt = false
+import_map = "./functions/deno.json"
+entrypoint = "./functions/tiktok-management/index.ts"
+
 [functions.media-preprocessor]
 verify_jwt = false
 import_map = "./functions/deno.json"

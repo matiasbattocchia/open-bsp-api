@@ -9,6 +9,7 @@ const SERVICE: Record<string, string> = {
   whatsapp: "WhatsApp",
   "whatsapp-web": "WhatsApp Web",
   instagram: "Instagram",
+  tiktok: "TikTok",
 };
 
 /** How the account reads in the app: its number, or its @username. */
@@ -17,7 +18,7 @@ function label(row: AddressRow) {
     phone_number?: string;
     username?: string;
   };
-  if (row.service === "instagram") {
+  if (row.service === "instagram" || row.service === "tiktok") {
     return extra.username ? `@${extra.username}` : row.address;
   }
   // Older WhatsApp rows keep the number formatted, "+1 555 616 1619".

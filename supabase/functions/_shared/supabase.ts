@@ -108,6 +108,7 @@ export type {
   OrganizationAddressExtra,
   OrganizationExtra,
   PreprocessingConfig,
+  TikTokOrganizationAddressExtra,
   ToolConfig,
   WhatsAppContactAddressExtra,
   WhatsAppOrganizationAddressExtra,
