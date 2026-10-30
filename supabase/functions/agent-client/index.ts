@@ -29,6 +29,7 @@ import type {
   ResponseContext,
 } from "./protocols/base.ts";
 import { getFileMetadata } from "../_shared/media.ts";
+import { splitText } from "../_shared/split_text.ts";
 
 const sanitizeLabel = (label: string) => {
   return label
@@ -382,6 +383,68 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  // TEXT LIMITS
+  //
+  // A row holds at most what its service sends in one message (the database
+  // refuses more, see limit_text_length), so a longer reply goes out as
+  // several. The first piece keeps the message's own fields (what it replies
+  // to, its artifacts); the rest follow as plain text of the same task. A
+  // caption too long for its file follows the file as text.
+
+  const limits = new Map<"text" | "file", number | null>();
+
+  const textLimit = async (type: "text" | "file") => {
+    if (!limits.has(type)) {
+      const { data } = await client
+        .rpc("text_limit", { service: conv.service, type })
+        .throwOnError();
+      limits.set(type, data);
+    }
+    return limits.get(type) ?? null;
+  };
+
+  const withinLimits = async <T extends MessageInsert>(messages: T[]) => {
+    const result: T[] = [];
+
+    for (const message of messages) {
+      const content = message.content as OutgoingMessage;
+      const limit = !isInternal(message) &&
+          (content.type === "text" || content.type === "file") &&
+          content.text
+        ? await textLimit(content.type)
+        : null;
+
+      if (limit === null || [...content.text!].length <= limit) {
+        result.push(message);
+        continue;
+      }
+
+      const pieces = splitText(
+        content.text!,
+        await textLimit("text") ?? Infinity,
+      );
+      const head = content.type === "file"
+        ? { ...content, text: undefined }
+        : { ...content, text: pieces.shift() };
+
+      result.push(
+        { ...message, content: head },
+        ...pieces.map((text) => ({
+          ...message,
+          content: {
+            version: "1",
+            type: "text",
+            kind: "text",
+            text,
+            ...(content.task && { task: content.task }),
+          },
+        })),
+      );
+    }
+
+    return result;
+  };
+
   // WELCOME MESSAGE
   //
   // The agent's, not the organization's — so it needs an agent; without
@@ -412,9 +475,15 @@ Deno.serve(async (req) => {
 
     log.info("Welcome message", (outgoing.content as TextPart).text);
 
+    const welcome = await withinLimits([outgoing]);
+
     await client
       .from("messages")
-      .insert(outgoing)
+      .insert(welcome.map((message, index) => ({
+        ...message,
+        // Disambiguate by milliseconds index to ensure the insertion order.
+        timestamp: new Date(Date.now() + index).toISOString(),
+      })))
       .throwOnError();
 
     return new Response("ok", { headers: corsHeaders });
@@ -950,7 +1019,10 @@ Deno.serve(async (req) => {
     if (response.messages?.length) {
       log.info("Agent response", response.messages.at(-1)?.content);
 
-      const output_messages = response.messages.map((message, index) => ({
+      const output_messages = (await withinLimits(response.messages)).map((
+        message,
+        index,
+      ) => ({
         ...message,
         ...(isInternal(message) && { status: {} }),
         // Make sure the messages have the correct addressing

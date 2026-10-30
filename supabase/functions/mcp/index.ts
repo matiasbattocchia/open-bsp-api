@@ -332,7 +332,7 @@ function createMcpServer(
     "send_message",
     {
       description:
-        "Send a text or template message. Enforces 24h service window for text messages.",
+        "Send a text or template message. Enforces 24h service window for text messages. A text message holds at most 4096 characters: send longer text as several messages.",
       inputSchema: {
         contact_phone: z.string().describe("Contact's phone number"),
         content: z.any().describe("Message content (text or template object)"),

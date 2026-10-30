@@ -201,6 +201,21 @@ when (
 )
 execute function public.dispatcher_edge_function();
 
+-- The rows the dispatch trigger above sends, scheduled ones included. Named
+-- to sort after handle_new_message: BEFORE triggers fire alphabetically, and
+-- that one fills in the service.
+create trigger limit_text_length
+before insert
+on public.messages
+for each row
+when (
+  new.sender_address is null
+  and (new.status ->> 'pending') is not null
+  and new.content ->> 'internal' is null
+  and new.content ->> 'text' is not null
+)
+execute function public.limit_text_length();
+
 create trigger handle_message_to_media_preprocessor
 after insert
 on public.messages

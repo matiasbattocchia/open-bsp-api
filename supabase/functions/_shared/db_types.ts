@@ -1316,6 +1316,10 @@ export type Database = {
         Returns: Json
       }
       reject_invitation: { Args: { invitation_id: string }; Returns: undefined }
+      text_limit: {
+        Args: { service: Database["public"]["Enums"]["service"]; type: string }
+        Returns: number
+      }
     }
     Enums: {
       log_level: "info" | "warning" | "error"
