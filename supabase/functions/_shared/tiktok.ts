@@ -19,8 +19,24 @@ const APP_SECRET = Deno.env.get("TIKTOK_APP_SECRET") ?? "";
 /**
  * Scopes requested on authorize: the list in the developer portal's "TikTok
  * account holder authorization URL", which shows what the app was granted.
+ * Business Messaging has no scope of its own; the approved product grants it.
  */
-export const SCOPES: string[] = [];
+export const SCOPES: string[] = [
+  "user.info.basic",
+  "user.info.username",
+  "user.info.stats",
+  "user.info.profile",
+  "user.account.type",
+  "user.insights",
+  "video.list",
+  "video.insights",
+  "comment.list",
+  "comment.list.manage",
+  "video.publish",
+  "video.upload",
+  "biz.spark.auth",
+  "discovery.search.words",
+];
 
 export class TikTokError extends Error {
   /** The envelope's code when TikTok answered; absent on a transport error. */
