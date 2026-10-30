@@ -1266,6 +1266,10 @@ export type Database = {
         Args: { p_id: string; p_organization_id: string; p_user_id: string }
         Returns: boolean
       }
+      commit_dispatched_message: {
+        Args: { external_id?: string; message_id: string; status: Json }
+        Returns: boolean
+      }
       get_authorized_orgs: {
         Args: { role?: Database["public"]["Enums"]["role"] }
         Returns: string[]

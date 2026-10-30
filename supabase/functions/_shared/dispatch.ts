@@ -18,18 +18,19 @@ import * as log from "./logger.ts";
  * Only the success path. A transient failure keeps the arm bit deliberately —
  * that is what the sweep re-fires on.
  *
- * Handles the race where a webhook for the same `external_id` lands before this
- * update and inserts its own row — e.g. a `sent`/`read` status (or an echo)
- * arriving before the dispatcher finished writing. The unique constraint on
- * `external_id` then rejects our update (Postgres 23505). Rather than dropping
- * our row (which holds the authoritative content + agent metadata, and the id
- * the UI/agent already rendered) or losing the webhook row's status, we MERGE:
- * fold the duplicate's status into ours, delete the now-redundant duplicate, and
- * retry the update on our row. Our row survives carrying both halves.
+ * The id is stamped by `commit_dispatched_message`, in one transaction: a
+ * webhook for the same `external_id` can land first (a `sent`/`read` status,
+ * or an echo) and insert a status-only row of its own, and the function folds
+ * that row's status into ours and deletes it. Our row survives, carrying the
+ * authoritative content, the agent metadata and the id the UI/agent already
+ * rendered. A webhook landing mid-merge waits for it and updates our row.
  *
- * `externalId` is optional: some sends (e.g. Instagram reactions) yield no id to
- * track, in which case there is no unique-violation risk and we just merge the
- * status onto our row.
+ * The messages realtime/notify trigger fires on insert/update, not delete, so
+ * removing the webhook's row is not pushed to clients: a UI that already
+ * rendered it may keep showing it until a refresh.
+ *
+ * `externalId` is optional: some sends (e.g. Instagram reactions) yield no id
+ * to track, and the status is merged onto our row alone.
  */
 export async function commitDispatchedMessage({
   client,
@@ -46,58 +47,18 @@ export async function commitDispatchedMessage({
   // armed can say so.
   const patch: Record<string, Json> = { pending: null, ...status };
 
-  const { error } = await client
-    .from("messages")
-    .update({
-      ...(externalId && { external_id: externalId }),
+  const { data: merged } = await client
+    .rpc("commit_dispatched_message", {
+      message_id: messageId,
       status: patch,
+      ...(externalId && { external_id: externalId }),
     })
-    .eq("id", messageId);
-
-  if (!error) return;
-
-  // Only the external_id unique violation is recoverable here.
-  if (error.code !== "23505" || !externalId) throw error;
-
-  log.warn(
-    "A webhook row already owns this external_id; merging the duplicate",
-    { message_id: messageId, external_id: externalId },
-  );
-
-  // Capture the duplicate's status so we don't lose it, then remove it.
-  const { data: duplicate } = await client
-    .from("messages")
-    .select("status")
-    .eq("external_id", externalId)
-    .maybeSingle()
     .throwOnError();
 
-  const duplicateStatus =
-    duplicate?.status && typeof duplicate.status === "object" &&
-      !Array.isArray(duplicate.status)
-      ? duplicate.status as Record<string, Json>
-      : {};
-
-  // NOTE: the messages realtime/notify trigger fires on insert/update, not
-  // delete, so this removal is not pushed to clients. A UI that already rendered
-  // the duplicate row (from the webhook insert) may keep showing it until a
-  // refresh. Rare race, pre-existing limitation. To close it, either add a
-  // notify-on-delete trigger or have the UI dedup rendered messages by
-  // external_id.
-  await client
-    .from("messages")
-    .delete()
-    .eq("external_id", externalId)
-    .throwOnError();
-
-  // Retry on our row, folding the duplicate's status into ours. The status
-  // merge trigger then combines this with our row's existing status.
-  await client
-    .from("messages")
-    .update({
+  if (merged) {
+    log.warn("A webhook row already owned this external_id; merged it", {
+      message_id: messageId,
       external_id: externalId,
-      status: { ...duplicateStatus, ...patch },
-    })
-    .eq("id", messageId)
-    .throwOnError();
+    });
+  }
 }
