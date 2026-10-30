@@ -108,6 +108,7 @@ export type {
   OrganizationAddressExtra,
   OrganizationExtra,
   PreprocessingConfig,
+  TikTokContactAddressExtra,
   TikTokOrganizationAddressExtra,
   ToolConfig,
   WhatsAppContactAddressExtra,
@@ -145,6 +146,13 @@ export type {
   InstagramReplyTo,
   InstagramWebhookPayload,
 } from "./types/instagram_webhook_payload_types.ts";
+export type {
+  TikTokDirectMessage,
+  TikTokWebhookParticipant,
+  TikTokWebhookPayload,
+  TikTokWebhookReaction,
+  TikTokWebhookTemplate,
+} from "./types/tiktok_webhook_payload_types.ts";
 export type {
   MetaWebhookPayload,
   WebhookAccountUpdate_Account,

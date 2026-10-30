@@ -221,9 +221,15 @@ type MediaPlaceholderPart =
   & DataPart<"media_placeholder", Record<PropertyKey, never>>
   & { file?: Omit<FilePart["file"], "uri"> };
 
+/**
+ * A message whose content can't be shown. `region`: TikTok holds back
+ * messages from the EEA, Switzerland and the UK; `other`: a message type we
+ * don't read. The row says one arrived, and its `text` says why there is
+ * nothing to show.
+ */
 type UnsupportedPart = DataPart<
   "unsupported",
-  UnsupportedMessage["unsupported"]
+  { type: UnsupportedMessage["unsupported"]["type"] | "region" | "other" }
 >;
 
 // Synthetic content for messaging_referral events (no message attached).
@@ -247,16 +253,19 @@ export type ReactionPart = DataPart<"reaction", {
   unicode?: string;
 }>;
 
-// Shared Instagram post/reel (attachment types ig_post, ig_reel, reel). Unlike
-// real media, the attachment `payload.url` is a public instagram.com permalink
-// (an HTML page, not a downloadable CDN file), so these are modeled as data — a
-// link card — and skipped by media download. `data.type` keeps the original
-// attachment type so consumers can label it (post vs reel); `url` is the
-// permalink and `title` the shared item's caption when provided.
+// Shared Instagram post/reel (attachment types ig_post, ig_reel, reel) or
+// TikTok post. Unlike real media, the url is a public permalink (an HTML page,
+// not a downloadable CDN file), so these are modeled as data — a link card —
+// and skipped by media download. `data.type` keeps the original attachment
+// type so consumers can label it (post vs reel); `url` is the permalink and
+// `title` the shared item's caption when provided. A TikTok post carries its
+// `item_id`, which is what sending one takes — and TikTok only sends the
+// account's own posts.
 export type SharePart = DataPart<"share", {
-  type: "ig_post" | "ig_reel" | "reel";
+  type: "ig_post" | "ig_reel" | "reel" | "tiktok_post";
   url: string;
   title?: string;
+  item_id?: string;
 }>;
 
 // Multi-part messages
@@ -352,6 +361,7 @@ export type OutgoingMessage =
     | LocationPart
     | TemplatePart
     | ReactionPart
+    | SharePart
   );
 
 /**

@@ -39,6 +39,7 @@ and offer messaging services to other organizations.
 - [WhatsApp integration](#whatsapp-integration)
 - [Instagram integration](#instagram-integration)
 - [App review](#app-review)
+- [TikTok integration](#tiktok-integration)
 - [WhatsApp Web integration (unofficial API)](#whatsapp-web-integration-unofficial-api)
 - [Slack integration](#slack-integration)
 
@@ -868,6 +869,58 @@ We request this permission to view, manage and respond to messages.
 #### Screen recording
 
 https://github.com/user-attachments/assets/d86cf719-250d-4e3d-8c15-873daa6707d6
+
+</details>
+
+## TikTok integration
+
+OpenBSP connects TikTok Business Accounts through TikTok's Business Messaging
+API, part of TikTok API for Business: customers' direct messages arrive in the
+inbox, and the team or an AI agent answers them.
+
+> [!IMPORTANT]
+> TikTok reviews the Business Messaging API separately from the app itself. Only
+> Business Accounts can connect, accounts registered in the EEA, Switzerland or
+> the UK can't, and a business can only answer a customer who wrote first,
+> within 48 hours.
+
+#### Secrets
+
+- **TIKTOK_APP_ID**
+- **TIKTOK_APP_SECRET**
+
+<details>
+<summary>
+Configure the TikTok app
+</summary>
+
+1. Create an app in the
+   [TikTok API for Business developer portal](https://business-api.tiktok.com/portal)
+2. Copy the following values from the app's basic information:
+   - **App ID** → **TIKTOK_APP_ID**
+   - **Secret** → **TIKTOK_APP_SECRET**
+3. Set the **TikTok account holder redirect URL** to
+   `{PUBLIC_URL}/oauth/tiktok`. It is the only one: the in-app connect and the
+   onboarding links both come back to it.
+4. Apply for the **Business Messaging API** product and, once approved, enable
+   the **TikTok Accounts** scope
+5. Copy the scopes in the portal's **TikTok account holder authorization URL**
+   into `SCOPES` in `supabase/functions/_shared/tiktok.ts`
+
+### Configure the webhook
+
+TikTok has one webhook per app, not per account. Point it at this deployment
+once the secrets are deployed:
+
+```bash
+curl -X POST 'https://{SUPABASE_PROJECT_ID}.supabase.co/functions/v1/tiktok-management/webhook' \
+  -H 'Authorization: Bearer {SUPABASE_SERVICE_ROLE_KEY}'
+```
+
+Pass `{"callback_url": "…"}` in the body when the functions sit behind another
+host. A `GET` to the same URL shows where it points. As there is one per app, a
+second environment (say, a staging project) needs a TikTok app of its own to
+receive messages.
 
 </details>
 

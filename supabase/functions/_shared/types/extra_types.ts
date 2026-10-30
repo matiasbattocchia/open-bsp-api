@@ -170,6 +170,9 @@ export type ConversationExtra = {
   purpose?: string;
   /** im only: the counterpart Slack user id */
   user?: string;
+  // TikTok (service = 'tiktok'; address = the customer's unique_identifier)
+  /** The conversation's id at TikTok, which sends address. */
+  tiktok_conversation_id?: string;
 };
 
 export type WhatsAppContactAddressExtra = {
@@ -198,6 +201,15 @@ export type InstagramContactAddressExtra = {
   replaced_by_address?: string;
 };
 
+export type TikTokContactAddressExtra = {
+  name?: string; // display name
+  username?: string;
+  profile_picture_url?: string;
+  // ISO timestamp — set on every fetch (success or failure) so the TTL guard
+  // suppresses retries until the refresh window elapses.
+  name_fetched_at?: string;
+};
+
 export type SlackContactAddressExtra = {
   name?: string;
   picture?: string;
@@ -213,7 +225,8 @@ export type SlackContactAddressExtra = {
 export type ContactAddressExtra =
   | WhatsAppContactAddressExtra
   | InstagramContactAddressExtra
-  | SlackContactAddressExtra;
+  | SlackContactAddressExtra
+  | TikTokContactAddressExtra;
 
 // The display name of a contacts_addresses row: the name the user saved in
 // the service's address book (synced) wins over the name the contact set for

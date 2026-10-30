@@ -1,6 +1,5 @@
 // Minimal TikTok API for Business client: the TikTok account holder OAuth
-// (tt_user) and the account profile. Business Messaging calls build on
-// tiktokApi.
+// (tt_user), the account profile and the Business Messaging calls.
 //
 // Every response comes in one envelope — `{ code, message, request_id, data }`
 // — and a refusal is a non-zero `code`, usually on an HTTP 200.
@@ -26,12 +25,42 @@ export const SCOPES: string[] = [];
 export class TikTokError extends Error {
   /** The envelope's code when TikTok answered; absent on a transport error. */
   code?: number;
+  /** The HTTP status, when the response was not a 200. */
+  status?: number;
 
-  constructor(message: string, options?: { code?: number; cause?: unknown }) {
+  constructor(
+    message: string,
+    options?: { code?: number; status?: number; cause?: unknown },
+  ) {
     super(message, { cause: options?.cause });
     this.name = "TikTokError";
     this.code = options?.code;
+    this.status = options?.status;
   }
+}
+
+/**
+ * Throttling, per TikTok's return codes: app-level (40016, 40100),
+ * advertiser-level (40133) and field-level (40132).
+ */
+const RATE_LIMIT_CODES = new Set([40016, 40100, 40132, 40133]);
+
+/**
+ * Whether TikTok refused the access token as incorrect or revoked (40105) —
+ * the owner took the authorization back, and only a re-login helps.
+ */
+export function isDeadToken(error: unknown): boolean {
+  return error instanceof TikTokError && error.code === 40105;
+}
+
+/**
+ * Whether TikTok asked us to slow down — a reason to try again later, never a
+ * verdict on the token or the message.
+ */
+export function isRateLimited(error: unknown): boolean {
+  return error instanceof TikTokError &&
+    (error.status === 429 ||
+      (error.code !== undefined && RATE_LIMIT_CODES.has(error.code)));
 }
 
 type Envelope<T> = {
@@ -42,9 +71,9 @@ type Envelope<T> = {
 };
 
 /**
- * Calls an API for Business endpoint. A body makes it a JSON POST; `query`
- * values that are not strings go JSON-encoded, as TikTok expects for list
- * parameters (`fields=["username"]`).
+ * Calls an API for Business endpoint. A body makes it a JSON POST, a form a
+ * multipart one; `query` values that are not strings go JSON-encoded, as
+ * TikTok expects for list parameters (`fields=["username"]`).
  */
 export async function tiktokApi<T>(
   path: string,
@@ -52,6 +81,7 @@ export async function tiktokApi<T>(
     access_token?: string;
     query?: Record<string, unknown>;
     body?: Record<string, unknown>;
+    form?: FormData;
   } = {},
 ): Promise<T> {
   const url = new URL(`${API_URL}${path}`);
@@ -64,12 +94,14 @@ export async function tiktokApi<T>(
   }
 
   const response = await fetch(url, {
-    method: options.body ? "POST" : "GET",
+    method: options.body || options.form ? "POST" : "GET",
     headers: {
       ...(options.body && { "Content-Type": "application/json" }),
       ...(options.access_token && { "Access-Token": options.access_token }),
     },
-    body: options.body ? JSON.stringify(options.body) : undefined,
+    body: options.body ? JSON.stringify(options.body) : options.form,
+    // The token rides in a header a cross-origin redirect would carry along.
+    redirect: "error",
   });
 
   const envelope = await response.json().catch(() => null) as
@@ -79,6 +111,7 @@ export async function tiktokApi<T>(
   if (!response.ok || !envelope) {
     throw new TikTokError(`TikTok ${path} answered HTTP ${response.status}`, {
       code: envelope?.code,
+      status: response.status,
       cause: envelope ?? undefined,
     });
   }
@@ -241,7 +274,7 @@ export async function flagExpiredToken(
  * it first when it expires within `thresholdMs`. TikTok refusing the refresh
  * once the access token has lapsed means only a re-login helps, and the
  * account is flagged expired; while the token still has time, a refusal is
- * left to the next attempt.
+ * left to the next attempt, and so is being throttled, whenever it happens.
  */
 export async function ensureFreshToken(
   client: SupabaseClient,
@@ -253,7 +286,8 @@ export async function ensureFreshToken(
   const { access_token, refresh_token, token_expires_at } = extra;
 
   if (!access_token || !refresh_token) {
-    throw new TikTokError(`TikTok account ${address} holds no token`);
+    // Not TikTok's answer: nothing to send it with until someone reconnects.
+    throw new Error(`TikTok account ${address} holds no token`);
   }
 
   const expiresAt = token_expires_at ? Date.parse(token_expires_at) : 0;
@@ -277,11 +311,225 @@ export async function ensureFreshToken(
   } catch (error) {
     if (
       error instanceof TikTokError && error.code !== undefined &&
-      expiresAt <= Date.now()
+      !isRateLimited(error) && expiresAt <= Date.now()
     ) {
       await flagExpiredToken(client, organization_id, address);
     }
 
     throw error;
   }
+}
+
+// Business Messaging
+
+/** What /business/message/send/ takes beside business_id and recipient. */
+export type TikTokSendBody =
+  | {
+    message_type: "TEXT";
+    text: { body: string };
+    referenced_message_info?: { referenced_message_id: string };
+  }
+  | { message_type: "IMAGE"; image: { media_id: string } }
+  | { message_type: "SHARE_POST"; share_post: { item_id: string } }
+  | { message_type: "SENDER_ACTION"; sender_action: "TYPING" | "MARK_READ" };
+
+/**
+ * Sends to a conversation. The message id is empty for a sender action, which
+ * sends nothing.
+ */
+export async function sendMessage(
+  business_id: string,
+  conversation_id: string,
+  access_token: string,
+  body: TikTokSendBody,
+): Promise<string | undefined> {
+  const data = await tiktokApi<{ message?: { message_id?: string } }>(
+    "/business/message/send/",
+    {
+      access_token,
+      body: {
+        business_id,
+        recipient_type: "CONVERSATION",
+        recipient: conversation_id,
+        ...body,
+      },
+    },
+  );
+
+  return data?.message?.message_id || undefined;
+}
+
+/** Uploads an image (JPG or PNG, up to 3 MB) and returns its media_id. */
+export async function uploadImage(
+  business_id: string,
+  access_token: string,
+  file: Blob,
+  name: string,
+): Promise<string> {
+  const form = new FormData();
+  form.append("business_id", business_id);
+  form.append("media_type", "IMAGE");
+  form.append("file", file, name);
+
+  const data = await tiktokApi<{ media_id?: string }>(
+    "/business/message/media/upload/",
+    { access_token, form },
+  );
+
+  if (!data?.media_id) {
+    throw new TikTokError("TikTok media upload returned no media_id", {
+      cause: data,
+    });
+  }
+
+  return data.media_id;
+}
+
+/**
+ * Downloads an image or a video a message carries. TikTok hands out a URL,
+ * valid a day, that answers only with the access token in `x-user`.
+ */
+export async function downloadMedia(
+  access_token: string,
+  media: {
+    business_id: string;
+    conversation_id: string;
+    message_id: string;
+    media_id: string;
+    media_type: "IMAGE" | "VIDEO";
+  },
+): Promise<Blob> {
+  const data = await tiktokApi<{ download_url?: string }>(
+    "/business/message/media/download/",
+    { access_token, body: media },
+  );
+
+  if (!data?.download_url) {
+    throw new TikTokError("TikTok media download returned no URL", {
+      cause: data,
+    });
+  }
+
+  const response = await fetch(data.download_url, {
+    headers: { "x-user": access_token },
+    redirect: "error",
+  });
+
+  if (!response.ok) {
+    throw new TikTokError(
+      `TikTok media download answered HTTP ${response.status}`,
+      { status: response.status },
+    );
+  }
+
+  return await response.blob();
+}
+
+/** A conversation's participant, as /business/message/content/list/ has it. */
+export type TikTokParticipant = {
+  role?: string;
+  id?: string;
+  display_name?: string;
+  profile_image?: string;
+};
+
+/** The participants of a conversation: the business and the customer. */
+export async function listParticipants(
+  business_id: string,
+  conversation_id: string,
+  access_token: string,
+): Promise<TikTokParticipant[]> {
+  const data = await tiktokApi<{ participants?: TikTokParticipant[] }>(
+    "/business/message/content/list/",
+    { access_token, query: { business_id, conversation_id } },
+  );
+
+  return data?.participants ?? [];
+}
+
+/**
+ * Points the app's DIRECT_MESSAGE webhook at `callback_url`. There is one per
+ * app, not per account: every authorized account's messages go there.
+ */
+export async function updateWebhook(callback_url: string) {
+  const { client_id, client_secret } = credentials();
+
+  return await tiktokApi<unknown>("/business/webhook/update/", {
+    body: {
+      app_id: client_id,
+      secret: client_secret,
+      event_type: "DIRECT_MESSAGE",
+      callback_url,
+    },
+  });
+}
+
+/** The app's DIRECT_MESSAGE webhook, as TikTok has it. */
+export async function getWebhook() {
+  const { client_id, client_secret } = credentials();
+
+  return await tiktokApi<unknown>("/business/webhook/list/", {
+    query: {
+      app_id: client_id,
+      secret: client_secret,
+      event_type: "DIRECT_MESSAGE",
+    },
+  });
+}
+
+/**
+ * Verifies a webhook's `TikTok-Signature: t=<seconds>,s=<hex>`, the
+ * HMAC-SHA256 of `${t}.${body}` under the app secret, and that it was signed
+ * within `toleranceSec` — the timestamp is signed, so bounding its age is
+ * what stops a replay.
+ */
+export async function verifySignature(
+  body: string,
+  header: string | null,
+  toleranceSec = 300,
+): Promise<boolean> {
+  if (!header || !APP_SECRET) return false;
+
+  let timestamp: number | undefined;
+  const signatures: string[] = [];
+
+  for (const element of header.split(",")) {
+    const [key, value] = element.split("=", 2).map((v) => v?.trim());
+    if (key === "t" && /^\d+$/.test(value ?? "")) timestamp = Number(value);
+    if (key === "s" && value) signatures.push(value.toLowerCase());
+  }
+
+  if (timestamp === undefined || signatures.length === 0) return false;
+
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(APP_SECRET),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const digest = new Uint8Array(
+    await crypto.subtle.sign(
+      "HMAC",
+      key,
+      encoder.encode(`${timestamp}.${body}`),
+    ),
+  );
+  const expected = Array.from(digest)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+
+  // Constant-time over equal lengths.
+  const matches = signatures.some((signature) => {
+    if (signature.length !== expected.length) return false;
+    let diff = 0;
+    for (let i = 0; i < expected.length; i++) {
+      diff |= signature.charCodeAt(i) ^ expected.charCodeAt(i);
+    }
+    return diff === 0;
+  });
+
+  return matches &&
+    Math.abs(Date.now() / 1000 - timestamp) <= toleranceSec;
 }

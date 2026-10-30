@@ -10,7 +10,12 @@ import {
   createClient,
   createUnsecureClient,
 } from "../_shared/supabase.ts";
-import { buildAuthorizeUrl, TikTokError } from "../_shared/tiktok.ts";
+import {
+  buildAuthorizeUrl,
+  getWebhook,
+  TikTokError,
+  updateWebhook,
+} from "../_shared/tiktok.ts";
 import {
   disconnect,
   performTikTokLogin,
@@ -25,13 +30,19 @@ import {
 } from "../_shared/management_auth.ts";
 
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 
 // Routes that do not use the user/API-key auth middleware. Each has its own
 // auth: an onboarding token or the service-role key. `authorize-url` only
 // composes the public OAuth URL (client_key + scopes + the caller-supplied
 // redirect_uri/state), so it is safe to leave open — the public
 // onboarding-link page needs it without a session.
-const PUBLIC_SUFFIXES = ["/authorize-url", "/onboard", "/refresh-tokens"];
+const PUBLIC_SUFFIXES = [
+  "/authorize-url",
+  "/onboard",
+  "/refresh-tokens",
+  "/webhook",
+];
 
 type AppEnv = ManagementEnv;
 
@@ -374,13 +385,40 @@ app.post("/tiktok-management/onboard", async (c) => {
   }
 });
 
-// Token refresh (invoked by the cron with the service-role key).
-app.post("/tiktok-management/refresh-tokens", async (c) => {
-  const token = c.req.header("Authorization")?.replace("Bearer ", "");
-
-  if (token !== SERVICE_ROLE_KEY) {
+function requireServiceRole(authorization: string | undefined) {
+  if (authorization?.replace("Bearer ", "") !== SERVICE_ROLE_KEY) {
     throw new HTTPException(401, { message: "Unauthorized" });
   }
+}
+
+// The app's one webhook (service-role key): where TikTok sends every
+// authorized account's messages. POST points it at this deployment's
+// tiktok-webhook, or at `callback_url` when the functions sit behind another
+// host; GET shows where it points.
+app.post("/tiktok-management/webhook", async (c) => {
+  requireServiceRole(c.req.header("Authorization"));
+
+  const body = await c.req.json<{ callback_url?: string }>().catch(() => ({}));
+  const callback_url = (body as { callback_url?: string }).callback_url ??
+    `${SUPABASE_URL}/functions/v1/tiktok-webhook`;
+
+  log.info("Pointing the TikTok webhook", { callback_url });
+
+  return Response.json({
+    callback_url,
+    result: await updateWebhook(callback_url),
+  });
+});
+
+app.get("/tiktok-management/webhook", async (c) => {
+  requireServiceRole(c.req.header("Authorization"));
+
+  return Response.json(await getWebhook());
+});
+
+// Token refresh (invoked by the cron with the service-role key).
+app.post("/tiktok-management/refresh-tokens", async (c) => {
+  requireServiceRole(c.req.header("Authorization"));
 
   const client = createUnsecureClient();
   const summary = await refreshTokens(client);
