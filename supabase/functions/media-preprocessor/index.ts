@@ -184,7 +184,7 @@ Deno.serve(async (req) => {
     apiKey,
   });
 
-  const { content, status } = incoming;
+  const { content } = incoming;
 
   if (content.type !== "file") {
     return log_update_and_respond(
@@ -555,21 +555,15 @@ Deno.serve(async (req) => {
     });
   }
 
-  const preprocessed = {
-    ...incoming,
-    content: {
-      ...content,
-      artifacts,
-    },
-    status: {
-      ...status,
-      preprocessed: new Date().toISOString(),
-    },
-  };
-
+  // Content and status merge, so the patch carries only what preprocessing
+  // adds: the row may have moved on since this snapshot (a dispatcher's
+  // `pending: null`, a delivery status), and restating it would undo that.
   await client
     .from("messages")
-    .update(preprocessed)
+    .update({
+      content: { artifacts } as Partial<typeof content>,
+      status: { preprocessed: new Date().toISOString() },
+    })
     .eq("id", incoming.id)
     .throwOnError();
 
