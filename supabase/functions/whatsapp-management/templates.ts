@@ -13,7 +13,7 @@ async function getBusinessCredentials(
 ): Promise<{ waba_id: string; access_token: string }> {
   const { data, error } = await client
     .from("organizations_addresses")
-    .select("extra->>waba_id, extra->>access_token")
+    .select("status, issue, extra->>waba_id, extra->>access_token")
     .eq("organization_id", organization_id)
     .eq("address", organization_address)
     .single();
@@ -23,6 +23,15 @@ async function getBusinessCredentials(
     throw new HTTPException(403, {
       message: "Could not fetch business access token",
       cause: error,
+    });
+  }
+
+  // Meta answers a disconnected account's requests with errors of its own
+  // (an unshared or deleted WABA does not exist for us), so they are not asked.
+  if (data.status !== "connected") {
+    throw new HTTPException(409, {
+      message: "The WhatsApp account is disconnected",
+      cause: data.issue,
     });
   }
 
