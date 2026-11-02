@@ -336,18 +336,18 @@ Partner**.
 
 ### Plans
 
-|                 | Free             | Starter        | Pro             | Business        |
-| --------------- | ---------------- | -------------- | --------------- | --------------- |
-| Price           | $0               | $5 / month     | $20 / month     | $99 / month     |
-| Messages        | 5,000 / month    | 15,000 / month | 100,000 / month | 750,000 / month |
-| Extra messages  | —                | $0.001 each    | $0.0006 each    | $0.0004 each    |
-| Messages, up to | 5,000 / month    | 50,000 / month | 300,000 / month | 2M / month      |
-| Storage         | 1 GB             | 10 GB          | 50 GB           | 250 GB          |
-| Extra storage   | —                | $0.10 / GB     | $0.06 / GB      | $0.04 / GB      |
-| Storage, up to  | 1 GB             | 25 GB          | 250 GB          | 1,000 GB        |
-| Conversations   | Unlimited        | Unlimited      | Unlimited       | Unlimited       |
-| Connections     | 3                | Unlimited      | Unlimited       | Unlimited       |
-| AI Credits      | $1.00 (one-time) | —              | —               | —               |
+|                 | Free             | Starter     | Pro          | Business     |
+| --------------- | ---------------- | ----------- | ------------ | ------------ |
+| Price           | $0               | $5 / month  | $20 / month  | $99 / month  |
+| Messages        | 5k / month       | 15k / month | 100k / month | 750k / month |
+| Extra messages  | —                | $0.001 each | $0.0006 each | $0.0004 each |
+| Messages, up to | 5k / month       | 50k / month | 300k / month | 2M / month   |
+| Storage         | 1 GB             | 10 GB       | 50 GB        | 250 GB       |
+| Extra storage   | —                | $0.10 / GB  | $0.06 / GB   | $0.04 / GB   |
+| Storage, up to  | 1 GB             | 25 GB       | 250 GB       | 1 TB         |
+| Conversations   | Unlimited        | Unlimited   | Unlimited    | Unlimited    |
+| Connections     | 3                | Unlimited   | Unlimited    | Unlimited    |
+| AI Credits      | $1.00 (one-time) | —           | —            | —            |
 
 Messages count both ways: sent and received, on any channel, including those
 sent from the phone or a linked device. On Free, once the month's messages run
