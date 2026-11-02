@@ -2,8 +2,9 @@
 
 An [MCP plugin](https://code.claude.com/docs/en/plugins) that gives Claude Code
 full access to the OpenBSP platform — query any API endpoint, manage contacts,
-conversations, templates, and more. Optionally bridges WhatsApp messages into
-your session in real-time via Supabase Realtime.
+conversations, templates, and more. Bridges incoming messages from every service
+the organization is connected to (WhatsApp, WhatsApp Web, Instagram, TikTok,
+Slack) into your session in real-time via Supabase Realtime.
 
 ## How it works
 
@@ -12,8 +13,8 @@ your session in real-time via Supabase Realtime.
 │  Claude Code                                            │
 │    ├─ login tool ──► Google OAuth → Supabase session    │
 │    ├─ query tool ──► PostgREST / Edge Functions (API)   │
-│    ├─ reply tool ──► messages table → WhatsApp dispatch  │
-│    └─ channel ◄──── Supabase Realtime (WhatsApp inbox)  │
+│    ├─ reply tool ──► messages table → service dispatch  │
+│    └─ channel ◄──── Supabase Realtime (org's inbox)     │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -24,12 +25,13 @@ your session in real-time via Supabase Realtime.
 2. **API access:** The `query` tool makes authenticated HTTP requests to
    PostgREST and Edge Functions. Claude reads the `openbsp://api-reference`
    resource for schema and syntax, then queries freely.
-3. **WhatsApp channel (optional):** If a connected WhatsApp account is found,
-   the plugin subscribes to Supabase Realtime. Incoming messages appear as
-   `<channel>` notifications. Claude replies using the `reply` tool.
+3. **Channel:** Once signed in to an organization, the plugin subscribes to
+   Supabase Realtime. Incoming messages, on any service, appear as `<channel>`
+   notifications. Claude replies using the `reply` tool, in the conversation the
+   message came from.
 
-If no WhatsApp account is available (or resolution fails), the plugin runs in
-**API-only mode** — `query` works, `reply` is not listed.
+If the user belongs to no organization, the plugin runs in **API-only mode** —
+`query` works, `reply` is not listed.
 
 ## Prerequisites
 
@@ -65,29 +67,31 @@ schemas, PostgREST syntax, and example queries.
 ### Example queries
 
 ```
-# List contacts
-query: GET /rest/v1/contacts?select=id,name,status&limit=10&order=name.asc
+# Connected accounts, every service
+query: GET /rest/v1/organizations_addresses?select=service,address,status,extra
 
-# Search by name
-query: GET /rest/v1/contacts?name=ilike.*john*&select=id,name
+# Search contacts by name
+query: GET /rest/v1/contacts_addresses?extra->>name=ilike.*john*&select=service,address,extra
 
 # Recent conversations
-query: GET /rest/v1/conversations?select=id,contact_address,updated_at&order=updated_at.desc&limit=10
+query: GET /rest/v1/conversations?select=id,service,address,name,updated_at&order=updated_at.desc&limit=10
 
-# Messages in a conversation
-query: GET /rest/v1/messages?conversation_id=eq.<uuid>&select=id,direction,content,timestamp&order=timestamp.asc
+# Messages in a conversation (sender_address null = sent by the organization)
+query: GET /rest/v1/messages?conversation_id=eq.<uuid>&select=id,sender_address,content,timestamp&order=timestamp.asc
 
 # List WhatsApp templates
-query: GET /functions/v1/whatsapp-management/templates
+query: PUT /functions/v1/whatsapp-management/templates
+       body: {"organization_id": "<uuid>", "organization_address": "<phone number ID>"}
 ```
 
 Security: paths must start with `/rest/v1/` or `/functions/v1/`. Auth headers
 are injected automatically.
 
-## WhatsApp channel
+## Channel
 
-When a WhatsApp account is resolved, the plugin subscribes to Realtime and
-forwards incoming messages to Claude.
+Once signed in, the plugin subscribes to Realtime and forwards the messages
+contacts write to Claude — on every account the organization has connected,
+whatever the service.
 
 ### Add contacts (required for channel)
 
@@ -95,32 +99,48 @@ The channel is **secure by default** — no contacts are allowed until explicitl
 added. All messages from unknown contacts are silently dropped. This does not
 affect API access (RLS governs that).
 
+An entry is an address on any service: a phone number (WhatsApp, WhatsApp Web),
+an Instagram or TikTok user id, a Slack user id, or a conversation's own address
+— a WhatsApp group JID, a Slack channel id. A message is forwarded when its
+author or its conversation is allowed. Phone numbers match on their digits;
+other addresses verbatim.
+
 ```
-/openbsp:config contacts add 5491155551234
-/openbsp:config contacts add 5491155555678
-/openbsp:config contacts                       # show who's allowed
-/openbsp:config contacts remove 5491155551234  # remove one
-/openbsp:config contacts clear                 # block all again
+/openbsp:config contacts add 5491155551234          # a WhatsApp contact
+/openbsp:config contacts add 17841400000000000      # an Instagram user
+/openbsp:config contacts add C0123ABCD              # a whole Slack channel
+/openbsp:config contacts                            # show who's allowed
+/openbsp:config contacts remove 5491155551234       # remove one
+/openbsp:config contacts clear                      # block all again
 ```
 
 ### What Claude sees
 
 ```xml
-<channel source="openbsp" contact_phone="5491155551234" contact_name="John" direction="incoming" service="whatsapp" message_id="uuid">
+<channel source="openbsp" service="instagram" account="@acme" conversation_id="uuid" sender="17841400000000000" sender_name="John" message_id="uuid">
 Hello, I need help with my order
 </channel>
 ```
+
+A message in a group or channel also carries `conversation_name`, and one in a
+Slack thread `thread_id`.
 
 ### Reply tool
 
 ```
 Tool: reply
 Arguments:
-  contact_phone: "5491155551234"
+  conversation_id: "uuid"
   text: "Your order is on the way!"
+  thread_id: "1730000000.000100"   # optional, from the tag
 ```
 
-The 24-hour service window applies — if the contact hasn't messaged in 24h, a
+The reply goes out on the conversation's service, from the account that holds
+it, as the signed-in member (Slack posts it with their own identity when they
+have connected one). It is queued, not delivered: the service may still refuse
+it. Each service caps a text's length (WhatsApp 4096, Instagram 1000, TikTok
+6000 characters), and a longer reply is refused at once. On WhatsApp, the
+24-hour service window applies — if the contact hasn't messaged in 24h, a
 template must be sent instead.
 
 ## Configuration
@@ -133,14 +153,13 @@ All configuration is managed through skills — no need to hand-edit files.
 /openbsp:config
 ```
 
-Shows: Supabase URL, auth state, org, WhatsApp account, channel status (active
-or API-only), and allowed contacts.
+Shows: Supabase URL, auth state, org, channel status (active or API-only), and
+allowed contacts.
 
-### Multi-org / multi-account
+### Multi-org
 
 ```
 /openbsp:config organization <org-uuid>
-/openbsp:config account <phone-digits>
 ```
 
 ### Sign in / switch accounts
@@ -159,7 +178,6 @@ Env vars override everything (for CI or scripting):
 | `SUPABASE_URL`      | Supabase project URL                                             |
 | `SUPABASE_ANON_KEY` | Supabase anonymous key                                           |
 | `ORG_ID`            | Organization ID (multi-org)                                      |
-| `ACCOUNT_PHONE`     | WhatsApp account phone, digits only (multi-account)              |
 | `OPENBSP_STATE_DIR` | Override state directory (default: `~/.claude/channels/openbsp`) |
 
 ### Config file
@@ -171,8 +189,7 @@ All settings are stored in `~/.claude/channels/openbsp/config.json`:
   "supabaseUrl": "https://custom.supabase.co",
   "supabaseAnonKey": "eyJ...",
   "orgId": "uuid",
-  "accountPhone": "1234567890",
-  "allowedContacts": ["5491155551234"]
+  "allowedContacts": ["5491155551234", "C0123ABCD"]
 }
 ```
 
@@ -204,7 +221,7 @@ plugin/
 ├── api-reference.ts       # Curated API reference (MCP resource)
 ├── auth.ts                # OAuth loopback flow + session persistence
 ├── config.ts              # Config type, load/save helpers, constants
-├── types.ts               # OpenBSP types (subset from _shared/supabase.ts)
+├── types.ts               # OpenBSP types (subset from _shared/types/)
 ├── deno.json              # Import map
 ├── skills/
 │   └── configure/
@@ -223,9 +240,6 @@ headless/SSH environments.
 with any OpenBSP organization. Sign in to the UI app first to verify your
 account.
 
-**"Multiple accounts found"** Set the account phone:
-`/openbsp:config account <phone>`
-
 **Realtime not receiving messages** Check that the `supabase_realtime`
 publication includes the `messages` and `conversations` tables. Check the Claude
 Code debug log at `~/.claude/debug/<session-id>.txt` for stderr output.
@@ -233,5 +247,5 @@ Code debug log at `~/.claude/debug/<session-id>.txt` for stderr output.
 **"blocked by org policy"** Your Team or Enterprise admin needs to
 [enable channels](https://code.claude.com/docs/en/channels#enterprise-controls).
 
-**API-only mode (no WhatsApp account)** The `query` tool still works. `reply` is
-not available. Check `/openbsp:config` for details.
+**API-only mode (no organization)** The `query` tool still works. `reply` is not
+available. Check `/openbsp:config` for details.

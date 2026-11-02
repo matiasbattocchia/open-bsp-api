@@ -30,7 +30,6 @@ export type Config = {
   supabaseUrl: string;
   supabaseAnonKey: string;
   orgId?: string;
-  accountPhone?: string;
   allowedContacts: string[];
 };
 
@@ -38,7 +37,6 @@ type ConfigFile = {
   supabaseUrl?: string;
   supabaseAnonKey?: string;
   orgId?: string;
-  accountPhone?: string;
   allowedContacts?: string[];
 };
 
@@ -68,8 +66,6 @@ export function loadConfig(): Config {
       file.supabaseAnonKey ??
       DEFAULT_SUPABASE_ANON_KEY,
     orgId: Deno.env.get("ORG_ID") ?? file.orgId ?? undefined,
-    accountPhone: Deno.env.get("ACCOUNT_PHONE") ?? file.accountPhone ??
-      undefined,
     allowedContacts: file.allowedContacts ?? [],
   };
 }
