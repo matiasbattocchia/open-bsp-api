@@ -215,7 +215,7 @@ const NO_ORG =
 const answering = loadConfig().answering;
 
 const mcp = new Server(
-  { name: "openbsp", version: "0.4.0" },
+  { name: "openbsp", version: "0.4.1" },
   {
     capabilities: { tools: { listChanged: true }, resources: {} },
     instructions: [

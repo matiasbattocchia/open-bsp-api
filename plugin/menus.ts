@@ -27,6 +27,10 @@ function support(mcp: Server): Support | undefined {
   return mcp.getClientCapabilities()?.elicitation as Support | undefined;
 }
 
+// A dialog waits on a person: the SDK's default request timeout (60s) would
+// retract a menu the user is still reading.
+const DIALOG_TIMEOUT_MS = 60 * 60_000;
+
 const signals = (ui: Ui, own: AbortSignal) =>
   ui.signal ? AbortSignal.any([own, ui.signal]) : own;
 
@@ -46,7 +50,7 @@ export async function form(
   const res = await ui.mcp.elicitInput({
     message,
     requestedSchema: { type: "object", properties, required },
-  }, { signal: ui.signal });
+  }, { signal: ui.signal, timeout: DIALOG_TIMEOUT_MS });
   if (res.action !== "accept") return null;
   return (res.content ?? {}) as Record<string, string | boolean>;
 }
@@ -117,6 +121,7 @@ async function race<T>(
   let open = true;
   const answered = ui.mcp.elicitInput(params, {
     signal: signals(ui, ac.signal),
+    timeout: DIALOG_TIMEOUT_MS,
   })
     .then((res) => {
       open = false;
