@@ -74,7 +74,7 @@ ClickHouse SQL. The window is at most 24 hours; always pass both timestamps.
 ### Applying database fixes
 
 1. Edit the schema file under `supabase/schemas/`
-2. Generate migration: `npx supabase db diff -f <migration_name>`
+2. Generate migration: `npx supabase db diff --use-migra -f <migration_name>`
 3. Apply locally: `npx supabase migration up --local` (test before committing)
 4. Commit — the user pushes and CI deploys automatically
 
@@ -95,7 +95,10 @@ ORDER BY created_at DESC;
 - Never modify applied migrations. Always create new ones.
 - Migrations are **generated** from schema diffs, not manually written: edit the
   schema files under `supabase/schemas/`, then run
-  `npx supabase db diff -f <migration_name>`.
+  `npx supabase db diff --use-migra -f <migration_name>`. **`--use-migra` is
+  required:** without it the CLI diffs `supabase/migrations` against the
+  database, never reads `supabase/schemas/`, and reports "No schema changes
+  found".
 - **Never hand-create or hand-edit a migration** except for a few exceptional
   cases that `db diff` can't produce:
   - **Trim spurious `revoke` noise** — `db diff` emits ~144

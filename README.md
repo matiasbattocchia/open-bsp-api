@@ -1132,8 +1132,11 @@ npx supabase start
 After editing the schema files, generate a migration
 
 ```
-npx supabase db diff -f <migration_name>
+npx supabase db diff --use-migra -f <migration_name>
 ```
+
+(`--use-migra` makes the CLI diff the schema files; without it, it compares
+`supabase/migrations` with the database and finds nothing.)
 
 Apply the migration to the local database
 
