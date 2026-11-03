@@ -187,33 +187,18 @@ The official n8n community node package for OpenBSP.
 
 ## Claude Code plugin
 
-The OpenBSP plugin gives Claude Code full API access and optionally bridges
-WhatsApp messages in real-time. Claude can query contacts, conversations,
-templates, and more via the `query` tool, and reply to WhatsApp messages via the
-`reply` tool.
+With the OpenBSP plugin, Claude Code reads and answers your WhatsApp, Instagram,
+TikTok and Slack messages — drafting each answer for you to approve, or
+answering on its own — and reaches the whole API through its `query` tool.
 
-Install the plugin:
-
-```
-/plugin marketplace add matiasbattocchia/open-bsp-api
-/plugin install openbsp@matiasbattocchia-open-bsp-api
+```bash
+claude plugin install openbsp --marketplace matiasbattocchia/open-bsp-api
 ```
 
-Sign in with Google (same account as the web UI) — Claude walks you through it
-in the terminal:
-
-```
-/openbsp:config login
-```
-
-Then configure allowed contacts for the WhatsApp channel:
-
-```
-/openbsp:config contacts add 5491155551234
-```
-
-No contacts are forwarded until explicitly added (secure by default). API access
-works regardless of channel configuration. See
+Then, in Claude Code, `/openbsp:setup` walks you through menus in the terminal:
+Google or GitHub sign-in (a first one creates your account), creating or joining
+an organization, connecting accounts, how Claude answers and how often it
+checks. No visit to the web app is needed. See
 [`plugin/README.md`](plugin/README.md) for full documentation.
 
 ## Description

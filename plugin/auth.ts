@@ -102,6 +102,24 @@ export async function restoreSession(
   return user.email ?? user.id;
 }
 
+/** Best-effort: the user can always visit the URL by hand. */
+export function openBrowser(url: string): void {
+  const openCmd = Deno.build.os === "darwin"
+    ? "open"
+    : Deno.build.os === "windows"
+    ? "start"
+    : "xdg-open";
+  try {
+    new Deno.Command(openCmd, { args: [url] }).spawn();
+  } catch {
+    // no browser to open
+  }
+}
+
+/** The sign-ins OpenBSP offers; a first one creates the account. */
+export const PROVIDERS = { google: "Google", github: "GitHub" } as const;
+export type Provider = keyof typeof PROVIDERS;
+
 export type PendingLogin = {
   /** The Google sign-in URL to show the user. */
   url: string;
@@ -119,6 +137,7 @@ export type PendingLogin = {
  */
 export async function startLogin(
   supabase: SupabaseClient,
+  provider: Provider,
 ): Promise<PendingLogin> {
   let resolveSession: (s: SavedSession) => void;
   let rejectSession: (e: Error) => void;
@@ -208,7 +227,7 @@ export async function startLogin(
   const redirectTo = `http://localhost:${port}/callback`;
 
   const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: "google",
+    provider,
     options: {
       redirectTo,
       skipBrowserRedirect: true,
@@ -221,17 +240,7 @@ export async function startLogin(
   }
 
   // Best-effort browser open — the caller also surfaces the URL in the TUI.
-  const openCmd = Deno.build.os === "darwin"
-    ? "open"
-    : Deno.build.os === "windows"
-    ? "start"
-    : "xdg-open";
-  try {
-    const cmd = new Deno.Command(openCmd, { args: [data.url] });
-    cmd.spawn();
-  } catch {
-    // Browser open failed — user can visit the URL manually
-  }
+  openBrowser(data.url);
 
   // Backstop timeout — the loopback must not linger forever.
   const timeout = setTimeout(() => {

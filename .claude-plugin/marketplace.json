@@ -1,6 +1,6 @@
 {
   "name": "openbsp",
-  "description": "OpenBSP marketplace — WhatsApp channel and API access plugins for Claude Code.",
+  "description": "OpenBSP marketplace — Claude Code reads and answers your WhatsApp, Instagram, TikTok and Slack messages.",
   "owner": {
     "name": "Matías Battocchia",
     "url": "https://github.com/matiasbattocchia"
@@ -9,7 +9,7 @@
     {
       "name": "openbsp",
       "source": "./plugin",
-      "description": "OpenBSP plugin for Claude Code — WhatsApp channel and API access."
+      "description": "Claude reads and answers your WhatsApp, Instagram, TikTok and Slack messages, and reaches the whole OpenBSP API."
     }
   ]
 }
