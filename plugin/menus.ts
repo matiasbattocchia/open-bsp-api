@@ -1,5 +1,9 @@
 /**
  * Menus and dialogs in the Claude Code TUI, through MCP elicitation.
+ *
+ * Every dialog has the same three ways out: Accept goes on, Decline goes
+ * back, Esc stops. A menu is a list of checkboxes: Claude Code shows a
+ * select collapsed behind a key, and checkboxes in full.
  */
 
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -12,14 +16,25 @@ export type Ui = { mcp: Server; signal?: AbortSignal };
 
 type Field =
   | { type: "string"; title: string; description?: string; default?: string }
-  | {
-    type: "string";
-    title: string;
-    description?: string;
-    default?: string;
-    oneOf: { const: string; title: string }[];
+  | { type: "boolean"; title: string; description?: string; default?: boolean };
+
+/** Decline: the user goes back a step. */
+export class Back extends Error {
+  constructor() {
+    super("Cancelled by the user");
   }
-  | { type: "boolean"; title: string; description?: string };
+}
+
+/** Esc: the user stops. */
+export class Stopped extends Error {
+  constructor() {
+    super("Cancelled by the user");
+  }
+}
+
+function leave(action: string): never {
+  throw action === "decline" ? new Back() : new Stopped();
+}
 
 type Support = { form?: object; url?: object };
 
@@ -40,44 +55,55 @@ export function canShowMenus(mcp: Server): boolean {
   return !!s && (!!s.form || !s.url);
 }
 
-/** A form; null when the user dismisses it. */
+/** A form's values once accepted; throws Back or Stopped otherwise. */
 export async function form(
   ui: Ui,
   message: string,
   properties: Record<string, Field>,
   required: string[] = [],
-): Promise<Record<string, string | boolean> | null> {
+): Promise<Record<string, string | boolean>> {
   const res = await ui.mcp.elicitInput({
     message,
     requestedSchema: { type: "object", properties, required },
   }, { signal: ui.signal, timeout: DIALOG_TIMEOUT_MS });
-  if (res.action !== "accept") return null;
+  if (res.action !== "accept") leave(res.action);
   return (res.content ?? {}) as Record<string, string | boolean>;
 }
 
+/** The choices the user ticks, in order; `ticked` come ticked already. */
+export async function pick(
+  ui: Ui,
+  message: string,
+  choices: Choice[],
+  ticked: string[] = [],
+): Promise<string[]> {
+  const answer = await form(
+    ui,
+    message,
+    Object.fromEntries(choices.map((c, i) => [`c${i}`, {
+      type: "boolean" as const,
+      title: c.title,
+      ...(ticked.includes(c.value) ? { default: true } : {}),
+    }])),
+  );
+  return choices.filter((_, i) => answer[`c${i}`] === true).map((c) => c.value);
+}
+
 /**
- * A menu: the value the user picks; null when they dismiss it. With a
- * `preselected` value, Accept alone takes it.
+ * One of the choices; undefined when none is ticked. The `current` one comes
+ * ticked: Accept alone keeps it, and ticking another picks that one.
  */
 export async function choose(
   ui: Ui,
   message: string,
   choices: Choice[],
-  { title = "Choose", preselected }: { title?: string; preselected?: string } =
-    {},
-): Promise<string | null> {
-  const answer = await form(ui, message, {
-    choice: {
-      type: "string",
-      title,
-      oneOf: choices.map((c) => ({ const: c.value, title: c.title })),
-      ...(preselected ? { default: preselected } : {}),
-    },
-  }, ["choice"]);
-  return (answer?.choice as string | undefined) ?? null;
+  current?: string,
+): Promise<string | undefined> {
+  const ticked = await pick(ui, message, choices, current ? [current] : []);
+  return ticked.find((v) => v !== current) ?? ticked[0];
 }
 
-/** One line of text; null when dismissed or left empty. */
+/** One line of text; null when left empty. */
 export async function ask(
   ui: Ui,
   message: string,
@@ -86,8 +112,7 @@ export async function ask(
   const answer = await form(ui, message, {
     value: { type: "string", ...field },
   }, ["value"]);
-  const value = (answer?.value as string | undefined)?.trim();
-  return value || null;
+  return (answer.value as string | undefined)?.trim() || null;
 }
 
 function withTimeout<T>(p: Promise<T>, ms: number, msg: string): Promise<T> {
@@ -156,7 +181,8 @@ async function race<T>(
  * close it as soon as `done` lands. A `url` not `opened` yet is offered in a
  * URL dialog when the client takes them, which only opens it: a waiting
  * dialog follows. Otherwise this process opens it (unless `opened`) and the
- * waiting dialog shows it. Dismissing a dialog calls `cancel` and rejects.
+ * waiting dialog shows it. Leaving a dialog calls `cancel` and throws Back
+ * or Stopped.
  */
 export async function waitFor<T>(
   ui: Ui,
@@ -174,9 +200,9 @@ export async function waitFor<T>(
     return await opts.done;
   }
 
-  const dismissed = (): never => {
+  const dismissed = (action: string): never => {
     opts.cancel("Cancelled by the user");
-    throw new Error("Cancelled by the user");
+    leave(action);
   };
 
   let message = opts.message;
@@ -188,7 +214,7 @@ export async function waitFor<T>(
       message: opts.message,
     }, opts.done);
     if (opened.landed) return opened.value;
-    if (opened.action !== "accept") dismissed();
+    if (opened.action !== "accept") dismissed(opened.action);
     message += `\nThe page: ${opts.url}`;
   } else if (opts.url) {
     if (!opts.opened) openBrowser(opts.url);
@@ -209,7 +235,7 @@ export async function waitFor<T>(
     },
   }, opts.done);
   if (waited.landed) return waited.value;
-  if (waited.action !== "accept") dismissed();
+  if (waited.action !== "accept") dismissed(waited.action);
 
   // The user says it's done: give it a moment to land.
   return await withTimeout(

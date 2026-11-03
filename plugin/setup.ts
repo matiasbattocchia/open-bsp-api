@@ -1,22 +1,27 @@
 /**
  * First run, in TUI menus: sign in, create or join an organization, connect
- * accounts, choose how Claude answers messages and how often it checks. Each
- * step also runs on its own, contacts (the allowlist) among them.
+ * accounts, choose how often Claude checks. Each step also runs on its own,
+ * contacts (the allowlist) among them. How, when and what to answer is the
+ * user's to tell Claude, not a setting.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { callFunction } from "./api.ts";
-import { type AnswerMode, loadConfig, updateConfig } from "./config.ts";
+import { loadConfig, updateConfig } from "./config.ts";
 import {
   ask,
+  Back,
   type Choice,
   choose,
-  form,
+  pick,
   poll,
+  Stopped,
   type Ui,
   waitFor,
 } from "./menus.ts";
 import { normalizeAddress, sameAddress } from "./messages.ts";
+import { PERMISSIONS } from "./permission.ts";
+import type { Permission } from "./config.ts";
 import {
   acceptInvitation,
   accountLabel,
@@ -31,7 +36,7 @@ export const STEPS = [
   "organization",
   "accounts",
   "contacts",
-  "answering",
+  "permissions",
   "checking",
 ] as const;
 
@@ -39,7 +44,12 @@ export type Step = typeof STEPS[number];
 
 // The allowlist is for the channel and group chats: the inbox reads every
 // one-to-one conversation without it, so a first setup skips it.
-const FIRST_RUN: Step[] = ["organization", "accounts", "answering", "checking"];
+const FIRST_RUN: Step[] = [
+  "organization",
+  "accounts",
+  "permissions",
+  "checking",
+];
 
 export type SetupContext = {
   ui: Ui;
@@ -51,9 +61,13 @@ export type SetupContext = {
   useOrg: (orgId: string) => Promise<void>;
 };
 
-// A step's line for the summary, or null when the user dismissed a menu,
-// which ends the setup there.
-type Runner = (ctx: SetupContext, explicit: boolean) => Promise<string | null>;
+// A step's line for the summary. Its menus throw Back (Decline) and Stopped
+// (Esc). `explicit`: the user asked for it, or came back to it.
+type Runner = (ctx: SetupContext, explicit: boolean) => Promise<string>;
+
+// The last line of a menu. The TUI shows a dialog's first three lines, each
+// cut to the terminal's width.
+const KEYS = "Accept goes on, Decline goes back.";
 
 const message = (err: unknown) =>
   err instanceof Error ? err.message : String(err);
@@ -63,7 +77,7 @@ const message = (err: unknown) =>
 async function organizationStep(
   ctx: SetupContext,
   explicit: boolean,
-): Promise<string | null> {
+): Promise<string> {
   const [orgs, invitations] = await Promise.all([
     listOrgs(ctx.supabase),
     listInvitations(ctx.supabase),
@@ -75,66 +89,76 @@ async function organizationStep(
     return `Organization: ${current.orgName}.`;
   }
 
-  let pick = "new";
-  if (orgs.length > 0 || invitations.length > 0) {
-    const choices: Choice[] = [
-      ...orgs.map((o) => ({
-        value: `org:${o.orgId}`,
-        title: o.orgId === current?.orgId
-          ? `${o.orgName} (current)`
-          : o.orgName,
-      })),
-      ...invitations.map((i) => ({
-        value: `invitation:${i.id}`,
-        title: `Join ${i.organization_name ?? "an organization"}${
-          i.invited_by_name ? `, invited by ${i.invited_by_name}` : ""
-        }`,
-      })),
-      { value: "new", title: "Create a new organization" },
-    ];
+  const choices: Choice[] = [
+    ...orgs.map((o) => ({
+      value: `org:${o.orgId}`,
+      title: o.orgId === current?.orgId ? `${o.orgName} (current)` : o.orgName,
+    })),
+    ...invitations.map((i) => ({
+      value: `invitation:${i.id}`,
+      title: `Join ${i.organization_name ?? "an organization"}${
+        i.invited_by_name ? `, invited by ${i.invited_by_name}` : ""
+      }`,
+    })),
+    { value: "new", title: "Create a new organization" },
+  ];
 
-    const picked = await choose(
+  while (true) {
+    // With none to pick from, straight to creating one: Decline there
+    // leaves the step.
+    const picked = choices.length === 1 ? "new" : await choose(
       ctx.ui,
-      orgs.length > 0
-        ? "Which organization should Claude work in?"
-        : "You've been invited to an organization. Join it, or create your own.",
+      [
+        orgs.length > 0
+          ? "Which organization should Claude work in? Tick one."
+          : "You've been invited to an organization. Join it, or create your own.",
+        KEYS,
+      ].join("\n"),
       choices,
-      {
-        title: "Organization",
-        preselected: current ? `org:${current.orgId}` : undefined,
-      },
+      current ? `org:${current.orgId}` : undefined,
     );
-    if (!picked) return null;
-    pick = picked;
+
+    if (!picked) {
+      if (current) return `Organization: ${current.orgName}.`;
+      continue; // there's none to keep: one must be ticked
+    }
+
+    if (picked.startsWith("org:")) {
+      const org = orgs.find((o) => `org:${o.orgId}` === picked)!;
+      if (org.orgId !== current?.orgId) await ctx.useOrg(org.orgId);
+      return `Organization: ${org.orgName}.`;
+    }
+
+    if (picked.startsWith("invitation:")) {
+      const invitation = invitations.find((i) =>
+        `invitation:${i.id}` === picked
+      )!;
+      await ctx.useOrg(await acceptInvitation(ctx.supabase, invitation));
+      return `Organization: joined ${invitation.organization_name ?? "it"}.`;
+    }
+
+    const {
+      data: { user },
+    } = await ctx.supabase.auth.getUser();
+    let name: string | null;
+    try {
+      name = await ask(
+        ctx.ui,
+        "Create your organization. It holds your connected accounts, your conversations and your team.",
+        {
+          title: "Organization name",
+          default: user?.user_metadata?.full_name ?? "",
+        },
+      );
+    } catch (err) {
+      if (err instanceof Back && choices.length > 1) continue;
+      throw err;
+    }
+    if (!name) continue;
+
+    await ctx.useOrg(await createOrg(ctx.supabase, name));
+    return `Organization: created ${name}.`;
   }
-
-  if (pick.startsWith("org:")) {
-    const org = orgs.find((o) => `org:${o.orgId}` === pick)!;
-    if (org.orgId !== current?.orgId) await ctx.useOrg(org.orgId);
-    return `Organization: ${org.orgName}.`;
-  }
-
-  if (pick.startsWith("invitation:")) {
-    const invitation = invitations.find((i) => `invitation:${i.id}` === pick)!;
-    await ctx.useOrg(await acceptInvitation(ctx.supabase, invitation));
-    return `Organization: joined ${invitation.organization_name ?? "it"}.`;
-  }
-
-  const {
-    data: { user },
-  } = await ctx.supabase.auth.getUser();
-  const name = await ask(
-    ctx.ui,
-    "Create your organization. It holds your connected accounts, your conversations and your team.",
-    {
-      title: "Organization name",
-      default: user?.user_metadata?.full_name ?? "",
-    },
-  );
-  if (!name) return null;
-
-  await ctx.useOrg(await createOrg(ctx.supabase, name));
-  return `Organization: created ${name}.`;
 }
 
 // ── Accounts ────────────────────────────────────────────────────────────
@@ -142,21 +166,18 @@ async function organizationStep(
 type Connectable = "whatsapp" | "whatsapp-web" | "instagram" | "tiktok";
 
 const SERVICES: { value: Connectable; title: string }[] = [
-  {
-    value: "whatsapp",
-    title: "WhatsApp Business (official API, through Meta)",
-  },
+  { value: "whatsapp", title: "WhatsApp — business account, official API" },
   {
     value: "whatsapp-web",
-    title: "WhatsApp, linked as a device like WhatsApp Web",
+    title: "WhatsApp Web — any account, unofficial API",
   },
-  { value: "instagram", title: "Instagram (professional account)" },
-  { value: "tiktok", title: "TikTok (business account)" },
+  { value: "instagram", title: "Instagram — professional account" },
+  { value: "tiktok", title: "TikTok — business account" },
 ];
 
 const SERVICE_NAMES: Record<Connectable, string> = {
   whatsapp: "WhatsApp Business",
-  "whatsapp-web": "WhatsApp",
+  "whatsapp-web": "WhatsApp Web",
   instagram: "Instagram",
   tiktok: "TikTok",
 };
@@ -243,16 +264,21 @@ type Pairing = {
 async function linkWhatsAppWeb(
   ctx: SetupContext,
   org: Org,
-): Promise<string | null> {
+): Promise<string> {
   const phone = await ask(
     ctx.ui,
-    "Link your WhatsApp as a device, the way WhatsApp Web does: you'll type a code on your phone. Note that WhatsApp's terms don't allow this, and the number could be banned.",
+    // Three lines, under 100 characters each: the TUI cuts the rest.
+    [
+      "Unofficial API: WhatsApp may ban this number, above all for messaging people who haven't saved it.",
+      "Campaigns and cold outreach belong on a business account, through the official API.",
+      "Type the number to link; you'll then type a code on your phone.",
+    ].join("\n"),
     {
       title: "Phone number",
       description: "With the country code, e.g. +54 9 11 5555 1234",
     },
   );
-  if (!phone) return null;
+  if (!phone) throw new Back();
 
   let pairing = await callFunction<Pairing>(
     ctx.supabase,
@@ -291,10 +317,10 @@ async function linkWhatsAppWeb(
   }
 
   const address = await waitFor(ctx.ui, {
-    // Two lines: the TUI folds a longer message away.
     message: [
       `Type the code ${pairing.pairing_code} on your phone.`,
-      "WhatsApp › Settings › Linked devices › Link a device › Link with phone number instead. This closes by itself once it's linked.",
+      "WhatsApp › Settings › Linked devices › Link a device › Link with phone number instead.",
+      "This closes by itself once it's linked.",
     ].join("\n"),
     done: poll(
       async () => {
@@ -311,7 +337,7 @@ async function linkWhatsAppWeb(
   return `whatsapp-web +${address}`;
 }
 
-async function accountsStep(ctx: SetupContext): Promise<string | null> {
+async function accountsStep(ctx: SetupContext): Promise<string> {
   const org = ctx.org();
   if (!org) return "Accounts: skipped, no organization.";
 
@@ -320,42 +346,41 @@ async function accountsStep(ctx: SetupContext): Promise<string | null> {
     ? SERVICES.filter((s) => s.value === "whatsapp-web")
     : SERVICES;
 
-  let notice = "";
+  let notices: string[] = [];
   while (true) {
     const accounts = await resolveAccounts(ctx.supabase, org.orgId);
     const list = [...accounts.values()]
       .map((a) => `${a.service} ${a.label}`)
       .join(", ");
 
-    const pick = await choose(
+    const picked = await pick(
       ctx.ui,
-      // Two lines: the TUI folds a longer message away.
       [
-        notice,
+        notices.join(" "),
         list
-          ? `Connected: ${list}. Connect another one, or continue.`
-          : "Connect the accounts whose messages Claude will read and answer.",
+          ? `Connected: ${list}. Tick more to connect, or none to go on.`
+          : "Tick the accounts whose messages Claude reads and answers.",
+        KEYS,
       ].filter(Boolean).join("\n"),
-      [
-        ...services,
-        { value: "continue", title: list ? "Continue" : "Skip for now" },
-      ],
-      { title: "Connect", preselected: list ? "continue" : undefined },
+      services,
     );
-    if (!pick) return null;
-    if (pick === "continue") return `Accounts: ${list || "none connected"}.`;
+    if (!picked.length) return `Accounts: ${list || "none connected"}.`;
 
-    try {
-      const connected = pick === "whatsapp-web"
-        ? await linkWhatsAppWeb(ctx, org)
-        : await connectWithLink(
-          ctx,
-          org,
-          pick as Exclude<Connectable, "whatsapp-web">,
+    notices = [];
+    for (const service of picked as Connectable[]) {
+      try {
+        const connected = service === "whatsapp-web"
+          ? await linkWhatsAppWeb(ctx, org)
+          : await connectWithLink(ctx, org, service);
+        notices.push(`Connected ${connected}.`);
+      } catch (err) {
+        if (err instanceof Stopped) throw err;
+        notices.push(
+          err instanceof Back
+            ? `${SERVICE_NAMES[service]}: not connected.`
+            : `${SERVICE_NAMES[service]} not connected: ${message(err)}.`,
         );
-      notice = connected ? `Connected ${connected}.` : "";
-    } catch (err) {
-      notice = `Not connected: ${message(err)}.`;
+      }
     }
   }
 }
@@ -438,7 +463,7 @@ async function searchContacts(
   }));
 }
 
-async function contactsStep(ctx: SetupContext): Promise<string | null> {
+async function contactsStep(ctx: SetupContext): Promise<string> {
   const org = ctx.org();
   if (!org) return "Contacts: skipped, no organization.";
 
@@ -447,142 +472,108 @@ async function contactsStep(ctx: SetupContext): Promise<string | null> {
     const allowed = loadConfig().allowedContacts;
     const recent = await recentConversations(ctx, org, allowed);
 
-    const pick = await choose(
+    // The allowlist comes ticked: unticking an entry removes it.
+    const choices: Choice[] = [
+      ...allowed.map((a) => ({ value: `address:${a}`, title: a })),
+      ...recent.map((c) => ({ value: `address:${c.address}`, title: c.title })),
+      { value: "search", title: "Search my contacts by name" },
+      { value: "type", title: "Type a phone number or address" },
+    ];
+    const picked = await pick(
       ctx.ui,
       [
-        notice,
-        `Group chats reach the inbox, and anyone the live channel, only when allowlisted. ${
-          allowed.length
-            ? `Allowed: ${allowed.join(", ")}.`
-            : "The allowlist is empty."
-        }`,
-      ].filter(Boolean).join("\n"),
-      [
-        ...recent.map((c) => ({
-          value: `address:${c.address}`,
-          title: c.title,
-        })),
-        { value: "search", title: "Search my contacts by name" },
-        { value: "type", title: "Type a phone number or address" },
-        {
-          value: "continue",
-          title: allowed.length ? "Continue" : "Skip for now",
-        },
-      ],
-      { title: "Allow", preselected: allowed.length ? "continue" : undefined },
+        `${notice}Group chats reach the inbox, and anyone the live channel, only when ticked here.`,
+        KEYS,
+      ].join("\n"),
+      choices,
+      allowed.map((a) => `address:${a}`),
     );
-    if (!pick) return null;
-    if (pick === "continue") {
-      return `Contacts: ${
-        allowed.length ? allowed.join(", ") : "none allowed"
-      }.`;
-    }
 
-    let address: string | null = null;
-    if (pick.startsWith("address:")) {
-      address = pick.slice("address:".length);
-    } else if (pick === "type") {
-      address = await ask(ctx.ui, "Who should Claude read?", {
-        title: "Phone number or address",
-        description:
-          "A phone with its country code, an Instagram or TikTok id, a WhatsApp group (…@g.us), a Slack user or channel id",
-      });
-    } else {
-      const query = await ask(ctx.ui, "Search your contacts", {
-        title: "Name",
-      });
-      if (query) {
-        const found = await searchContacts(ctx, org, query);
-        const chosen = found.length
-          ? await choose(
+    const addresses = picked
+      .filter((v) => v.startsWith("address:"))
+      .map((v) => normalizeAddress(v.slice("address:".length)));
+    notice = "";
+    try {
+      if (picked.includes("type")) {
+        const typed = await ask(ctx.ui, "Who should Claude read?", {
+          title: "Phone number or address",
+          description:
+            "A phone with its country code, an Instagram or TikTok id, a WhatsApp group (…@g.us), a Slack user or channel id",
+        });
+        if (typed) addresses.push(normalizeAddress(typed));
+      }
+      if (picked.includes("search")) {
+        const query = await ask(ctx.ui, "Search your contacts", {
+          title: "Name",
+        });
+        const found = query ? await searchContacts(ctx, org, query) : [];
+        if (found.length) {
+          const chosen = await pick(
             ctx.ui,
-            `Contacts matching "${query}"`,
-            [
-              ...found.map((c) => ({
-                value: `address:${c.address}`,
-                title: c.title,
-              })),
-              { value: "back", title: "None of these" },
-            ],
-          )
-          : null;
-        if (chosen?.startsWith("address:")) {
-          address = chosen.slice("address:".length);
+            [`Contacts matching "${query}". Tick the ones to allow.`, KEYS]
+              .join("\n"),
+            found.map((c) => ({ value: c.address, title: c.title })),
+          );
+          addresses.push(...chosen.map(normalizeAddress));
+        } else if (query) {
+          notice = `No contact matches "${query}". `;
         }
-        if (!found.length) notice = `No contact matches "${query}".`;
       }
+    } catch (err) {
+      if (!(err instanceof Back)) throw err;
     }
 
-    if (address) {
-      const entry = normalizeAddress(address);
-      if (!allowed.some((a) => sameAddress(a, entry))) {
-        updateConfig({ allowedContacts: [...allowed, entry] });
-      }
-      notice = `Allowed ${entry}.`;
+    const next = addresses.filter((a, i) =>
+      addresses.findIndex((b) => sameAddress(a, b)) === i
+    );
+    updateConfig({ allowedContacts: next });
+
+    // Ticking and unticking alone ends the step; a search or a typed
+    // address comes back to the list.
+    if (!picked.includes("type") && !picked.includes("search")) {
+      return `Contacts: ${next.length ? next.join(", ") : "none allowed"}.`;
     }
   }
 }
 
-// ── Answering ───────────────────────────────────────────────────────────
+// ── Permissions ─────────────────────────────────────────────────────────
 
-export const ANSWER_MODES: Record<AnswerMode, string> = {
-  draft: "Draft each answer and ask me before sending it",
-  reply: "Answer on my behalf",
-  notify: "Only tell me what arrived",
-};
-
-async function answeringStep(ctx: SetupContext): Promise<string | null> {
-  const { answering } = loadConfig();
-  const answer = await form(
+async function permissionsStep(ctx: SetupContext): Promise<string> {
+  const current = loadConfig().permission;
+  const mode = (await choose(
     ctx.ui,
-    "How should Claude handle a new message?",
-    {
-      mode: {
-        type: "string",
-        title: "When a message arrives",
-        oneOf: Object.entries(ANSWER_MODES).map(([value, title]) => ({
-          const: value,
-          title,
-        })),
-        default: answering.mode,
-      },
-      instructions: {
-        type: "string",
-        title: "How to answer (optional)",
-        description:
-          'Who you are, tone, language, what never to promise. E.g. "I\'m Ana, a dentist; answer in Spanish, short and warm; never confirm appointments."',
-        default: answering.instructions ?? "",
-      },
-    },
-    ["mode"],
-  );
-  if (!answer) return null;
+    [
+      "May Claude send messages and change things, like contacts or templates? Tick one.",
+      KEYS,
+    ].join("\n"),
+    Object.entries(PERMISSIONS).map(([value, title]) => ({ value, title })),
+    current,
+  ) ?? current) as Permission;
 
-  const mode = answer.mode as AnswerMode;
-  const instructions = (answer.instructions as string | undefined)?.trim();
-  updateConfig({
-    answering: { mode, ...(instructions ? { instructions } : {}) },
-  });
-  return `Answering: ${ANSWER_MODES[mode].toLowerCase()}.${
-    instructions ? ` Instructions: ${instructions}` : ""
-  }`;
+  updateConfig({ permission: mode });
+  return `Permissions: ${PERMISSIONS[mode].toLowerCase()}.`;
 }
 
 // ── Checking ────────────────────────────────────────────────────────────
 
-async function checkingStep(ctx: SetupContext): Promise<string | null> {
+const EVERY: Choice[] = [
+  { value: "5m", title: "Every 5 minutes" },
+  { value: "15m", title: "Every 15 minutes" },
+  { value: "1h", title: "Every hour" },
+  { value: "ask", title: "Only when I ask" },
+];
+
+async function checkingStep(ctx: SetupContext): Promise<string> {
+  const current = loadConfig().checkEvery ?? "15m";
   const every = await choose(
     ctx.ui,
-    "How often should Claude check for new messages? It checks while this Claude Code session is open.",
     [
-      { value: "5m", title: "Every 5 minutes" },
-      { value: "15m", title: "Every 15 minutes" },
-      { value: "1h", title: "Every hour" },
-      { value: "ask", title: "Only when I ask" },
-    ],
-    { title: "Check", preselected: loadConfig().checkEvery ?? "15m" },
-  );
-  if (!every) return null;
+      "How often should Claude check for new messages, while this session is open? Tick one.",
+      KEYS,
+    ].join("\n"),
+    EVERY,
+    current,
+  ) ?? current;
 
   if (every === "ask") {
     updateConfig({ checkEvery: undefined });
@@ -599,27 +590,56 @@ const RUNNERS: Record<Step, Runner> = {
   organization: organizationStep,
   accounts: accountsStep,
   contacts: contactsStep,
-  answering: answeringStep,
+  permissions: permissionsStep,
   checking: checkingStep,
 };
+
+const ANSWERING =
+  "Next: the user tells Claude how, when and what to answer — who they are, the tone, what never to promise. Tell them so, and offer to keep it in CLAUDE.md for later sessions.";
 
 export async function runSetup(
   ctx: SetupContext,
   only?: Step,
 ): Promise<string> {
-  const user = await ctx.signIn();
-  const lines = [`Signed in as ${user}.`];
-
-  for (const step of only ? [only] : FIRST_RUN) {
-    const line = await RUNNERS[step](ctx, !!only);
-    if (line === null) {
-      lines.push(
-        `Stopped at the ${step} step (dismissed). /openbsp:setup ${step} picks it up again.`,
-      );
-      break;
+  let user: string;
+  try {
+    user = await ctx.signIn();
+  } catch (err) {
+    if (err instanceof Back || err instanceof Stopped) {
+      return "The user cancelled the sign-in. /openbsp:setup starts again.";
     }
-    lines.push(line);
+    throw err;
+  }
+  const steps = only ? [only] : FIRST_RUN;
+  const lines = new Map<Step, string>();
+
+  let i = 0;
+  let back = false;
+  while (i < steps.length) {
+    const step = steps[i];
+    try {
+      lines.set(step, await RUNNERS[step](ctx, !!only || back));
+      back = false;
+      i++;
+    } catch (err) {
+      if (!(err instanceof Back || err instanceof Stopped)) throw err;
+      // Back from the first step leaves, like Esc.
+      if (err instanceof Back && i > 0) {
+        back = true;
+        i--;
+        continue;
+      }
+      return [
+        `Signed in as ${user}.`,
+        ...lines.values(),
+        `Stopped at the ${step} step. /openbsp:setup ${step} picks it up again.`,
+      ].join("\n");
+    }
   }
 
-  return lines.join("\n");
+  return [
+    `Signed in as ${user}.`,
+    ...lines.values(),
+    ...(only ? [] : [ANSWERING]),
+  ].join("\n");
 }

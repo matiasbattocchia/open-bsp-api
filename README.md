@@ -188,8 +188,8 @@ The official n8n community node package for OpenBSP.
 ## Claude Code plugin
 
 With the OpenBSP plugin, Claude Code reads and answers your WhatsApp, Instagram,
-TikTok and Slack messages — drafting each answer for you to approve, or
-answering on its own — and reaches the whole API through its `query` tool.
+TikTok and Slack messages — asking you before each answer goes out, or answering
+on its own — and reaches the whole API through its `query` tool.
 
 ```bash
 claude plugin install openbsp --marketplace matiasbattocchia/open-bsp-api
@@ -197,8 +197,8 @@ claude plugin install openbsp --marketplace matiasbattocchia/open-bsp-api
 
 Then, in Claude Code, `/openbsp:setup` walks you through menus in the terminal:
 Google or GitHub sign-in (a first one creates your account), creating or joining
-an organization, connecting accounts, how Claude answers and how often it
-checks. No visit to the web app is needed. See
+an organization, connecting accounts, whether Claude may send (read only, ask
+first, allow) and how often it checks. No visit to the web app is needed. See
 [`plugin/README.md`](plugin/README.md) for full documentation.
 
 ## Description

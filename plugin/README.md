@@ -1,9 +1,9 @@
 # OpenBSP Plugin for Claude Code
 
 Claude reads and answers your WhatsApp, Instagram, TikTok and Slack messages
-from Claude Code. It drafts each answer for you to approve, or answers on its
-own, or only tells you what arrived — your choice. It also reaches the whole
-OpenBSP API: contacts, conversations, templates and more.
+from Claude Code — it asks you before each one goes out, or sends on its own, or
+only tells you what arrived. It also reaches the whole OpenBSP API: contacts,
+conversations, templates and more.
 
 ## Get started
 
@@ -24,29 +24,42 @@ start Claude Code and run:
 ```
 
 Setup walks you through menus in the terminal; you never need the OpenBSP web
-app:
+app. Each menu is a list of checkboxes: Space ticks one, Accept goes on (with
+nothing ticked, it moves on), Decline goes back a step, Esc stops.
 
 1. **Sign in with Google or GitHub.** Your browser opens once. A first sign-in
    creates your OpenBSP account.
 2. **Organization.** Create one, pick one you belong to, or join one you were
    invited to.
-3. **Accounts.** Connect WhatsApp Business, Instagram or TikTok (their own
-   sign-in opens in the browser), or link your WhatsApp as a device with a code
-   you type on your phone. Connect another one, or continue.
-4. **Answering.** Draft each answer and ask you first, answer on your behalf, or
-   only tell you what arrived — plus your own instructions (who you are, tone,
-   language, what never to promise).
+3. **Accounts.** WhatsApp through the official API (a business account),
+   Instagram or TikTok: their own sign-in opens in the browser. Or WhatsApp Web,
+   any account through an unofficial API: you type a code on your phone.
+   WhatsApp may ban a number linked this way, above all one messaging people who
+   haven't saved it — campaigns belong on the official API. Connect more, or go
+   on.
+4. **Permissions.** Read only (Claude never sends or changes anything), ask
+   before each send or change (the default), or allow them.
 5. **Checking.** Every 5 minutes, 15 minutes, an hour, or only when you ask.
    Claude starts `/loop` for you.
 
+Then tell Claude how, when and what to answer: who you are, the tone, what never
+to promise. That's yours to say, not a setting — keep it in your `CLAUDE.md` for
+later sessions.
+
+The permission mode is the plugin's, enforced whatever Claude Code's own mode
+(bypass included). In ask mode, Claude writes each answer in the chat and a
+dialog asks before it goes out: Accept sends it, Decline doesn't (then tell
+Claude what to change). A change through the `query` tool (anything but a read)
+asks the same way.
+
 Any step runs again on its own: `/openbsp:setup accounts`,
-`/openbsp:setup answering`… `/openbsp:setup contacts`, which first runs never
+`/openbsp:setup permissions`… `/openbsp:setup contacts`, which first runs never
 show, allowlists group chats and the live channel (below).
 
 ## Reading and answering
 
 `/openbsp:inbox` reads what people wrote since the last check, on every
-connected account, and handles it the way you set up. Every one-to-one
+connected account, and handles it the way you told Claude. Every one-to-one
 conversation counts, strangers included — the replies to a campaign, say.
 Setup's checking step runs it on a loop for you:
 
@@ -151,7 +164,7 @@ automatically.
 ## Configuration
 
 `/openbsp:config` shows the state: sign-in, organization, accounts, allowlist,
-answering and checking. It also signs in and out (`/openbsp:config login`,
+permissions and checking. It also signs in and out (`/openbsp:config login`,
 `/openbsp:config logout`) and manages the allowlist.
 
 Settings live in `~/.claude/channels/openbsp/config.json`:
@@ -160,15 +173,15 @@ Settings live in `~/.claude/channels/openbsp/config.json`:
 {
   "orgId": "uuid",
   "allowedContacts": ["5491155551234", "C0123ABCD"],
-  "answering": { "mode": "draft", "instructions": "I'm Ana; short and warm." },
+  "permission": "ask",
   "checkEvery": "5m"
 }
 ```
 
-All fields are optional. `allowedContacts` is the allowlist; `answering.mode` is
-`draft`, `reply` or `notify`; without `checkEvery`, Claude checks when asked.
-The session lives in `session.json` beside it (0600) and refreshes itself;
-`inbox.json` keeps the inbox's place per organization.
+All fields are optional. `allowedContacts` is the allowlist; `permission` is
+`read`, `ask` (default) or `allow`; without `checkEvery`, Claude checks when
+asked. The session lives in `session.json` beside it (0600) and refreshes
+itself; `inbox.json` keeps the inbox's place per organization.
 
 Environment variables override the file (for self-hosting, CI or scripting):
 
@@ -186,6 +199,7 @@ Environment variables override the file (for self-hosting, CI or scripting):
 plugin/
 ├── server.ts              # MCP server: tools, resource, Realtime channel
 ├── setup.ts               # The setup steps
+├── permission.ts          # Read only, ask, allow: enforced on reply and query
 ├── menus.ts               # Menus and dialogs (MCP elicitation)
 ├── inbox.ts               # What arrived since the last check
 ├── messages.ts            # Allowlist and message formatting

@@ -34,14 +34,8 @@ const DEFAULT_APP_URL = "https://web.openbsp.dev";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
-// What Claude does with a new message: write a draft for the user to approve,
-// send the answer itself, or only tell the user about it.
-export type AnswerMode = "draft" | "reply" | "notify";
-
-export type Answering = {
-  mode: AnswerMode;
-  instructions?: string; // tone, language, who the user is
-};
+// What Claude may do beyond reading (permission.ts enforces it).
+export type Permission = "read" | "ask" | "allow";
 
 export type Config = {
   supabaseUrl: string;
@@ -49,7 +43,7 @@ export type Config = {
   appUrl: string;
   orgId?: string;
   allowedContacts: string[];
-  answering: Answering;
+  permission: Permission;
   checkEvery?: string; // a /loop interval (5m, 1h); absent = on request
 };
 
@@ -59,7 +53,7 @@ export type ConfigFile = {
   appUrl?: string;
   orgId?: string;
   allowedContacts?: string[];
-  answering?: Answering;
+  permission?: Permission;
   checkEvery?: string;
 };
 
@@ -91,7 +85,7 @@ export function loadConfig(): Config {
     appUrl: Deno.env.get("OPENBSP_APP_URL") ?? file.appUrl ?? DEFAULT_APP_URL,
     orgId: Deno.env.get("ORG_ID") ?? file.orgId ?? undefined,
     allowedContacts: file.allowedContacts ?? [],
-    answering: file.answering ?? { mode: "draft" },
+    permission: file.permission ?? "ask",
     checkEvery: file.checkEvery,
   };
 }
