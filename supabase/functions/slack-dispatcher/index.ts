@@ -149,6 +149,30 @@ async function encodeMentions(
   return text;
 }
 
+/** The Slack ts in an external id: `${team}:${channel}:${ts}`, a file row's
+ * with a `:f${index}` after it. */
+const tsOf = (external_id: string) => external_id.split(":")[2];
+
+/**
+ * Where a reply goes: the thread of the message it answers. Slack threads are
+ * one level deep, under the root's ts, so a referent that is itself a thread
+ * reply hands over the root it points at. A referent out of reach is taken
+ * as the root.
+ */
+async function threadTs(
+  client: SupabaseClient,
+  re_message_id: string,
+): Promise<string> {
+  const { data } = await client
+    .from("messages")
+    .select("content->>re_message_id")
+    .eq("external_id", re_message_id)
+    .maybeSingle()
+    .throwOnError();
+
+  return tsOf(data?.re_message_id ?? re_message_id);
+}
+
 /**
  * Sends the message; returns the Slack ts of the posted message when there is
  * one to track (text posts). Reactions and file uploads yield none — their
@@ -161,6 +185,10 @@ async function send(
 ): Promise<string | undefined> {
   const content = message.content as OutgoingMessage;
   const channel = message.conversation_address!;
+  const thread: Record<string, string> =
+    content.re_message_id && content.kind !== "reaction"
+      ? { thread_ts: await threadTs(client, content.re_message_id) }
+      : {};
 
   switch (content.kind) {
     case "text": {
@@ -171,7 +199,7 @@ async function send(
           message,
           markdownToSlack(content.text),
         ),
-        ...(message.thread_id ? { thread_ts: message.thread_id } : {}),
+        ...thread,
       });
 
       return payload.ts as string;
@@ -209,9 +237,8 @@ async function send(
         );
       }
 
-      // external ids are `${team}:${channel}:${ts}`; the reactions API wants
-      // the bare ts.
-      const timestamp = content.re_message_id.split(":").pop()!;
+      // The reactions API wants the bare ts.
+      const timestamp = tsOf(content.re_message_id);
 
       await slackApi(
         action === "added" ? "reactions.add" : "reactions.remove",
@@ -279,7 +306,7 @@ async function send(
       const payload = await slackApi("chat.postMessage", token, {
         channel,
         text: `${caption}<${permalink}| >`,
-        ...(message.thread_id ? { thread_ts: message.thread_id } : {}),
+        ...thread,
       });
 
       return payload.ts as string;

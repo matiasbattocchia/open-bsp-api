@@ -8,15 +8,9 @@ create table public.messages (
   -- denormalized properties
   service public.service not null,
   organization_address text not null,
-  -- Logical partition of a conversation (Slack/Discord-style threads): the
-  -- external_id of the thread's root message, shared by the root (which points
-  -- to itself) and all of its replies. null = top-level / main channel
-  -- timeline. Soft reference like content.re_message_id — not a FK, so it
-  -- tolerates out-of-order arrival and out-of-window roots.
-  thread_id text,
   -- Unified peer addressing:
   -- conversation_address — the peer the conversation is with (individual or
-  --   group/channel). Soft reference, like thread_id.
+  --   group/channel). Soft reference, like content.re_message_id.
   -- sender_address — the CONTACT who authored the message (a WhatsApp
   --   phone/BSUID, a Slack workspace member — ties to contacts_addresses,
   --   soft reference), or null when the account itself spoke (UI/AI sends,

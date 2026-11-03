@@ -78,7 +78,6 @@ export type MessageRow = {
   organization_address: string;
   conversation_address: string | null;
   sender_address: string | null;
-  thread_id: string | null;
   agent_id: string | null;
   external_id: string | null;
   content: MessageContent;
@@ -110,7 +109,6 @@ export type OutgoingMessageInsert = {
   organization_address: string;
   conversation_address: string;
   sender_address: null;
-  thread_id?: string;
   agent_id: string;
   content: MessageContent;
 };

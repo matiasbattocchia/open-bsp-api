@@ -119,7 +119,6 @@ Addresses are the service's own ids: a phone number or a group JID (\`…@g.us\`
 | external_id | text | provider message ID |
 | conversation_address | text | the peer: individual or group/channel address |
 | sender_address | text | the contact who authored it (ties to contacts_addresses); null = the account itself spoke (sends, echoes, internal) |
-| thread_id | text | Slack thread: the root message's external_id; null = main timeline |
 | timestamp | timestamptz | default: now() |
 | created_at | timestamptz | default: now() |
 | updated_at | timestamptz | default: now() |

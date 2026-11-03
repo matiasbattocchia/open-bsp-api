@@ -20,8 +20,9 @@ Monetization
 
 ## Slack integration (internal comms)
 
-- [ ] Thread panel UI in open-bsp-ui — `messages.thread_id` exists but has no
-      UI; Slack without threads is broken
+- [ ] Thread panel UI in open-bsp-ui — a Slack thread reply names its root in
+      `content.re_message_id`, but the UI shows it in the channel timeline;
+      Slack without threads is broken
 
 - [ ] UI: don't render unechoed Slack sends — a dispatched row has
       sender_address null until the echo fills in the member's Slack user id, so

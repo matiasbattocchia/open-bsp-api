@@ -109,13 +109,12 @@ type Row = Pick<
   | "sender_address"
   | "agent_id"
   | "external_id"
-  | "thread_id"
   | "content"
   | "created_at"
 >;
 
 const COLUMNS =
-  "id, conversation_id, service, organization_id, organization_address, conversation_address, sender_address, agent_id, external_id, thread_id, content, created_at";
+  "id, conversation_id, service, organization_id, organization_address, conversation_address, sender_address, agent_id, external_id, content, created_at";
 
 /** Who spoke for the account: the user, a teammate or AI agent, the phone. */
 function accountAuthor(
@@ -312,6 +311,7 @@ async function renderConversation(
     ? await resolveContact(supabase, first, first.sender_address!)
     : null;
 
+  // A new message shows its id: what the reply tool's reply_to takes.
   const line = async (r: Row, clipAt?: number) => {
     const author = r.sender_address === null
       ? accountAuthor(r, org, agents)
@@ -326,11 +326,11 @@ async function renderConversation(
     const text = formatMessageContent(r.content);
     return `<msg${
       attrs({
+        ...(clipAt ? {} : { id: r.id }),
         ...author,
         at: stamp(r.created_at),
         re: quote(r.content?.re_message_id),
         forwarded: r.content?.forwarded ? "yes" : undefined,
-        thread_id: r.thread_id ?? undefined,
       })
     }>${esc(clipAt ? clip(text, clipAt) : text)}</msg>`;
   };

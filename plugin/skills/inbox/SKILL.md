@@ -15,9 +15,9 @@ user-invocable: true
      with the `reply` tool only once the user approves it (or the edit they ask
      for).
    - **reply**: answer each conversation with the `reply` tool, passing its
-     `conversation_id` (and `thread_id` when the message has one), then report
-     what you sent in a few lines. Skip a conversation marked as already
-     answered.
+     `conversation_id` (and `reply_to` set to the message's `id` when it has a
+     `re`, so a Slack thread reply stays in its thread), then report what you
+     sent in a few lines. Skip a conversation marked as already answered.
    - **notify**: summarize who wrote and what about. Don't reply.
 4. **Only answer what you know.** When you don't have the answer (a price,
    availability, a date, a promise), don't reply and don't draft a guess: leave

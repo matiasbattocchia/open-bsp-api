@@ -10,6 +10,8 @@
   `messages.conversation_address`); use `conversations.type` to distinguish
   between direct, group, channel.
 - `conversations.status` is dropped.
+- `messages.thread_id` is dropped: a thread reply names its root in
+  `content.re_message_id`, and a send with one goes into that thread.
 - Accounts are keyed `(organization_id, service, address)`: add `service` to
   lookups.
 - `conversations` is read-only outside `local` service.

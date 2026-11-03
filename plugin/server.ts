@@ -127,10 +127,31 @@ async function handleReply(
 ): Promise<{ content: { type: "text"; text: string }[] }> {
   const conversationId = args.conversation_id as string;
   const text = args.text as string;
-  const threadId = args.thread_id as string | undefined;
+  const replyTo = args.reply_to as string | undefined;
 
   if (!conversationId) throw new Error("conversation_id is required");
   if (!text) throw new Error("text is required");
+
+  // A reply names what it answers by the service's id for it (a local row,
+  // which has none, by its own id); Slack posts it in that message's thread.
+  let re_message_id: string | undefined;
+
+  if (replyTo) {
+    const { data: answered } = await supabase
+      .from("messages")
+      .select("id, external_id")
+      .eq("organization_id", org.orgId)
+      .eq("conversation_id", conversationId)
+      .eq("id", replyTo)
+      .maybeSingle()
+      .throwOnError();
+
+    if (!answered) {
+      throw new Error(`Message ${replyTo} not found in this conversation`);
+    }
+
+    re_message_id = answered.external_id ?? answered.id;
+  }
 
   // The conversation says where the message goes: its service, the account
   // that holds it, and the peer.
@@ -151,10 +172,15 @@ async function handleReply(
     organization_address: conv.organization_address,
     conversation_address: conv.address,
     sender_address: null,
-    ...(threadId ? { thread_id: threadId } : {}),
     // Sent as the signed-in member: Slack posts it with their own identity.
     agent_id: org.agentId,
-    content: { version: "1", type: "text", kind: "text", text },
+    content: {
+      version: "1",
+      type: "text",
+      kind: "text",
+      text,
+      ...(re_message_id && { re_message_id }),
+    },
   };
 
   // The dispatch trigger routes it to the service (same as open-bsp-ui).
@@ -218,8 +244,8 @@ const mcp = new Server(
       "## Channel (if active)",
       "When Claude Code runs with the channel on, messages also arrive live as",
       '<channel source="openbsp" service="..." account="..." conversation_id="..." sender="..." sender_name="..." message_id="...">.',
-      "A message in a group or channel also carries conversation_name, and one in a thread thread_id.",
-      "Handle them as the user's setting says; reply with conversation_id (and thread_id, when present) from the tag.",
+      'A message in a group or channel also carries conversation_name, and one that answers another (a Slack thread reply among them) reply="yes".',
+      'Handle them as the user\'s setting says; reply with conversation_id from the tag, and reply_to set to its message_id when it has reply="yes", so the answer stays in its Slack thread.',
     ].join("\n"),
   },
 );
@@ -324,10 +350,10 @@ mcp.setRequestHandler(ListToolsRequestSchema, () => {
             type: "string",
             description: "Message text to send",
           },
-          thread_id: {
+          reply_to: {
             type: "string",
             description:
-              "Thread to answer in (from the channel tag's thread_id attribute); omit to write in the main timeline",
+              "The message this answers (the channel tag's message_id, or an inbox line's id): on Slack the reply goes into its thread, elsewhere it quotes it. Omit to write in the main timeline",
           },
         },
         required: ["conversation_id", "text"],
@@ -633,7 +659,8 @@ async function forwardMessage(msg: MessageRow): Promise<void> {
           msg.organization_address,
         conversation_id: msg.conversation_id,
         ...(inContainer && { conversation_name: conv.name ?? conv.address }),
-        ...(msg.thread_id && { thread_id: msg.thread_id }),
+        ...(msg.content?.re_message_id && msg.content.kind !== "reaction" &&
+          { reply: "yes" }),
         sender: msg.sender_address,
         sender_name: senderName,
         message_id: msg.id,

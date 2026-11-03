@@ -1017,7 +1017,6 @@ export type Database = {
           sender_address: string | null
           service: Database["public"]["Enums"]["service"]
           status: NonNullable<Json>
-          thread_id: string | null
           timestamp: string
           updated_at: string
         }
@@ -1035,7 +1034,6 @@ export type Database = {
           sender_address?: string | null
           service: Database["public"]["Enums"]["service"]
           status?: NonNullable<Json>
-          thread_id?: string | null
           timestamp?: string
           updated_at?: string
         }
@@ -1052,7 +1050,6 @@ export type Database = {
           sender_address?: string | null
           service?: Database["public"]["Enums"]["service"]
           status?: NonNullable<Json>
-          thread_id?: string | null
           timestamp?: string
           updated_at?: string
         }

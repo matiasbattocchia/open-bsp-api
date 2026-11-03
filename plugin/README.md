@@ -110,9 +110,9 @@ Hello, I need help with my order
 </channel>
 ```
 
-A message in a group or channel also carries `conversation_name`, and one in a
-Slack thread `thread_id`. Without the flag the channel is silent, and
-`/openbsp:inbox` covers the same messages.
+A message in a group or channel also carries `conversation_name`, and one that
+answers another (a Slack thread reply among them) `reply="yes"`. Without the
+flag the channel is silent, and `/openbsp:inbox` covers the same messages.
 
 ## API access
 

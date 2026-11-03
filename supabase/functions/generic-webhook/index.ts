@@ -23,8 +23,8 @@
 //   {
 //     organization_address: string,     // the connector session's own address
 //     messages?:  [{ external_id, conversation_address, sender_address?,
-//                    sender_name?, conversation_name?, thread_id?, content,
-//                    status?, timestamp, muted?, archived? }],
+//                    sender_name?, conversation_name?, content, status?,
+//                    timestamp, muted?, archived? }],
 //     statuses?:  [{ external_id, conversation_address,
 //                    status }],         // delivery receipts
 //     contacts?:  [{ address, extra? }],// names, avatars
@@ -201,7 +201,6 @@ async function handle(req: Request): Promise<Response> {
       sender_name?: string;
       /** The group's subject, or the peer's name for a direct chat. */
       conversation_name?: string;
-      thread_id?: string;
       content: Json;
       status?: Record<string, Json>;
       timestamp: string;
@@ -335,7 +334,6 @@ async function handle(req: Request): Promise<Response> {
         organization_address,
         external_id: message.external_id,
         conversation_address: message.conversation_address,
-        thread_id: message.thread_id,
         timestamp: message.timestamp,
       };
 

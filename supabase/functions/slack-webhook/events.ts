@@ -587,7 +587,6 @@ async function onMessage(
     conversation_address: channel,
     sender_address: sender,
     agent_id: linked?.agent_id,
-    thread_id: event.thread_ts,
     timestamp: tsToIso(event.ts),
     // Same shape as every other inbound message, and one shape for two cases.
     //
@@ -612,6 +611,12 @@ async function onMessage(
 
   const { text, mentions } = await resolveMentions(ctx, event.text ?? "");
 
+  // A thread is a reply chain in its channel: a thread reply is a reply to the
+  // root. The root itself carries its own ts as thread_ts once it has replies.
+  const re = event.thread_ts && event.thread_ts !== event.ts
+    ? { re_message_id: externalId(ctx.team, channel, event.thread_ts) }
+    : {};
+
   if (files.length === 0) {
     rows.push({
       ...base,
@@ -622,6 +627,7 @@ async function onMessage(
         kind: "text",
         text,
         ...(mentions ? { mentions } : {}),
+        ...re,
       } as IncomingMessage,
     });
   } else {
@@ -651,6 +657,7 @@ async function onMessage(
             size: file.size ?? 0,
           },
           ...caption,
+          ...re,
         } as IncomingMessage,
       };
 
