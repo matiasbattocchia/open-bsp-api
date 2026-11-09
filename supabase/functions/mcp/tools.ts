@@ -64,7 +64,8 @@ function countUnread(messages: MessageRow[] | undefined | null): number {
   // Unread = contact-authored messages since our last send (sender null = us).
   const index = messages.findIndex((m) => m.sender_address === null);
 
-  if (index === -1) return 0;
+  // Never answered: every fetched message is the contact's.
+  if (index === -1) return messages.length;
 
   return index;
 }
