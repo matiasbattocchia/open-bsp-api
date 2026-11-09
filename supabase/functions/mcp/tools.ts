@@ -319,9 +319,10 @@ export async function fetchConversation(params: FetchConversationParams) {
     .throwOnError();
 
   // Service Window Logic
-  // Note: uses only the fetched messages (limited by `limit` param),
+  // Messages come newest first, so the first contact-authored one is the
+  // latest. Uses only the fetched messages (limited by `limit` param),
   // so it may report "closed" if the last incoming is outside the window.
-  const lastIncoming = conversation.messages?.findLast((m) =>
+  const lastIncoming = conversation.messages?.find((m) =>
     m.sender_address !== null
   );
 
