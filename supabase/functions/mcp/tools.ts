@@ -544,7 +544,7 @@ export async function listTemplates(params: ListTemplatesParams) {
     allowedAccounts,
   });
 
-  const templates = await listTemplatesMethod(
+  const { data: templates } = await listTemplatesMethod(
     params.supabase,
     params.orgId,
     account.address,
