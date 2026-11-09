@@ -91,7 +91,7 @@ async function resolveAccount(params: ResolveAccountParams) {
     .eq("status", "connected");
 
   if (allowedAccounts.length) {
-    query = query.in("extra->>'phone_number'", allowedAccounts);
+    query = query.in("extra->>phone_number", allowedAccounts);
   }
 
   const { data: accounts } = await query.throwOnError();
