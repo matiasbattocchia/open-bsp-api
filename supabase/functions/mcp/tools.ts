@@ -64,7 +64,8 @@ function countUnread(messages: MessageRow[] | undefined | null): number {
   // Unread = contact-authored messages since our last send (sender null = us).
   const index = messages.findIndex((m) => m.sender_address === null);
 
-  if (index === -1) return 0;
+  // Never answered: every fetched message is the contact's.
+  if (index === -1) return messages.length;
 
   return index;
 }
@@ -91,7 +92,7 @@ async function resolveAccount(params: ResolveAccountParams) {
     .eq("status", "connected");
 
   if (allowedAccounts.length) {
-    query = query.in("extra->>'phone_number'", allowedAccounts);
+    query = query.in("extra->>phone_number", allowedAccounts);
   }
 
   const { data: accounts } = await query.throwOnError();
@@ -319,9 +320,10 @@ export async function fetchConversation(params: FetchConversationParams) {
     .throwOnError();
 
   // Service Window Logic
-  // Note: uses only the fetched messages (limited by `limit` param),
+  // Messages come newest first, so the first contact-authored one is the
+  // latest. Uses only the fetched messages (limited by `limit` param),
   // so it may report "closed" if the last incoming is outside the window.
-  const lastIncoming = conversation.messages?.findLast((m) =>
+  const lastIncoming = conversation.messages?.find((m) =>
     m.sender_address !== null
   );
 
@@ -544,7 +546,7 @@ export async function listTemplates(params: ListTemplatesParams) {
     allowedAccounts,
   });
 
-  const templates = await listTemplatesMethod(
+  const { data: templates } = await listTemplatesMethod(
     params.supabase,
     params.orgId,
     account.address,

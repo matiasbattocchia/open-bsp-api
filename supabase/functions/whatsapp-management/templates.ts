@@ -33,13 +33,14 @@ export async function listTemplates(
   client: SupabaseClient<Database>,
   organization_id: string,
   organization_address: string,
-): Promise<TemplateData[]> {
+): Promise<{ data: TemplateData[]; paging?: unknown }> {
   const { waba_id, access_token } = await getBusinessCredentials(
     client,
     organization_id,
     organization_address,
   );
 
+  // Meta answers with the edge envelope, { data, paging }.
   const response = await fetch(
     `https://graph.facebook.com/${API_VERSION}/${waba_id}/message_templates`,
     {
