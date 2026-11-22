@@ -28,7 +28,7 @@ Edge Functions and the CI checks).
 
 - Edit schema files in `supabase/schemas/` (never create tables directly via
   SQL)
-- Generate a migration: `npx supabase db diff -f <migration_name>`
+- Generate a migration: `npx supabase db diff --use-migra -f <migration_name>`
 - Apply it locally: `npx supabase migration up`
 - Regenerate types:
   `npx supabase gen types typescript --local > supabase/functions/_shared/db_types.ts`
