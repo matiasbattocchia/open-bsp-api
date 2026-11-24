@@ -103,16 +103,32 @@ export type InstagramEvent = {
   referral?: InstagramReferral;
 };
 
-export type InstagramChange = {
-  field:
-    | "messages"
-    | "messaging_postbacks"
-    | "messaging_seen"
-    | "message_reactions"
-    | "message_edit"
-    | "messaging_referral";
-  value: InstagramEvent;
+/**
+ * A comment on one of the account's own posts or reels (the `comments` field).
+ * `from.id` is the commenter's Instagram-scoped id; a reply in a comment's
+ * thread carries its parent's id. It is not a messaging event: no sender,
+ * recipient or timestamp of its own.
+ */
+export type InstagramComment = {
+  id: string;
+  text: string;
+  parent_id?: string;
+  from: { id: string; username?: string };
+  media: { id: string; media_product_type?: string };
 };
+
+export type InstagramChange =
+  | {
+    field:
+      | "messages"
+      | "messaging_postbacks"
+      | "messaging_seen"
+      | "message_reactions"
+      | "message_edit"
+      | "messaging_referral";
+    value: InstagramEvent;
+  }
+  | { field: "comments"; value: InstagramComment };
 
 export type InstagramEntry = {
   id: string; // IGSID of the IG business account receiving the event

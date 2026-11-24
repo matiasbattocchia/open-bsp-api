@@ -12,7 +12,9 @@
 // separate text message.
 //===================================
 
-export type IgRecipient = { id: string };
+// A person, or a comment: a private reply to a comment is addressed to the
+// comment, and reaches its author as a DM.
+export type IgRecipient = { id: string } | { comment_id: string };
 
 // Media is referenced either by a public URL or by an attachment_id obtained
 // from the Attachment Upload API (we only use `url`).

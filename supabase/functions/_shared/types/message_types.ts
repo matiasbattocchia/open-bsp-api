@@ -268,13 +268,36 @@ export type SharePart = DataPart<"share", {
   item_id?: string;
 }>;
 
+/**
+ * A comment on one of the account's posts or reels, filed in the commenter's
+ * conversation. `external_id` is the service's comment id, and a reply in the
+ * comment's thread names its parent in `re_message_id`, as any reply does.
+ * `post` is what was commented: always its id, and its link and caption when
+ * the service gave them.
+ *
+ * Outgoing, it is the account answering in public, under the comment its
+ * `re_message_id` names. A text naming a comment answers in private instead:
+ * on Instagram, one DM per comment, within 7 days of it.
+ */
+export type CommentPart =
+  & DataPart<"comment", {
+    post: {
+      type: SharePart["data"]["type"];
+      item_id: string;
+      url?: string;
+      title?: string;
+    };
+  }>
+  & { text: string };
+
 // Multi-part messages
 
 export type Part =
   | TextPart
   | DataPart
   | FilePart
-  | SharePart;
+  | SharePart
+  | CommentPart;
 
 // Parts type is not used yet. It is a proof of concept.
 export type Parts = {
@@ -323,6 +346,7 @@ export type IncomingMessage =
     | ReferralPart
     | ReactionPart
     | SharePart
+    | CommentPart
     | Parts
   );
 
@@ -362,6 +386,7 @@ export type OutgoingMessage =
     | TemplatePart
     | ReactionPart
     | SharePart
+    | CommentPart
   );
 
 /**

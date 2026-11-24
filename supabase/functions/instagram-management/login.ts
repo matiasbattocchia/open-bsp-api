@@ -20,20 +20,23 @@ const API_VERSION = "v25.0";
 const APP_ID = Deno.env.get("INSTAGRAM_APP_ID");
 const APP_SECRET = Deno.env.get("INSTAGRAM_APP_SECRET");
 
-// Messaging webhook fields we subscribe each connected account to. Comments /
-// content publishing are intentionally left out for now.
-const SUBSCRIBED_FIELDS = [
+// Webhook fields we subscribe each connected account to: its DMs, and the
+// comments on its posts and reels when it granted us those.
+const MESSAGING_FIELDS = [
   "messages",
   "messaging_postbacks",
   "messaging_seen",
   "message_reactions",
   "messaging_referral",
-].join(",");
+];
+const COMMENTS_SCOPE = "instagram_business_manage_comments";
 
-// OAuth scopes requested during Instagram Business Login.
+// OAuth scopes requested during Instagram Business Login. Comments need their
+// own: to hear of them, and to answer them in public or in private.
 export const SCOPES = [
   "instagram_business_basic",
   "instagram_business_manage_messages",
+  COMMENTS_SCOPE,
 ];
 
 // Refresh long-lived tokens once they are within this window of expiring.
@@ -193,12 +196,21 @@ async function getInstagramAccount(
   return { ...account, user_id: account.user_id || account.id || "" };
 }
 
-// Step 4: subscribe the account to messaging webhooks.
-async function subscribeToWebhooks(access_token: string): Promise<boolean> {
+// Step 4: subscribe the account to webhooks. Comments only when it granted
+// them, or when the grant did not say: the field needs that permission, and a
+// refused subscription fails the whole login.
+async function subscribeToWebhooks(
+  access_token: string,
+  scopes: string[],
+): Promise<boolean> {
   const url = new URL(
     `https://graph.instagram.com/${API_VERSION}/me/subscribed_apps`,
   );
-  url.searchParams.set("subscribed_fields", SUBSCRIBED_FIELDS);
+  const comments = scopes.length === 0 || scopes.includes(COMMENTS_SCOPE);
+  url.searchParams.set(
+    "subscribed_fields",
+    [...MESSAGING_FIELDS, ...(comments ? ["comments"] : [])].join(","),
+  );
   url.searchParams.set("access_token", access_token);
 
   const response = await fetch(url, { method: "POST" });
@@ -368,7 +380,10 @@ export async function performInstagramLogin(
   }
 
   log.info("Step 4: Subscribe the account to webhooks", ctx);
-  await subscribeToWebhooks(longLived.access_token);
+  await subscribeToWebhooks(
+    longLived.access_token,
+    normalizePermissions(shortLived.permissions),
+  );
 
   const ig_user_id = account.user_id || String(shortLived.user_id);
   const now = Date.now();

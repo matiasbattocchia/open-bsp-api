@@ -55,6 +55,146 @@ class InstagramError extends Error {
  */
 const RETRYABLE_META_CODES = new Set([1, 2, 4, 613, 80007]);
 
+// Instagram takes one private reply per comment, within 7 days of it.
+const PRIVATE_REPLY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+type CommentRow = {
+  external_id: string;
+  timestamp: string;
+  re_message_id: string | null;
+};
+
+/** The organization's Instagram comment with this id, if there is one. */
+async function findComment(
+  client: SupabaseClient,
+  organization_id: string,
+  external_id: string,
+): Promise<CommentRow | undefined> {
+  const { data } = await client
+    .from("messages")
+    .select("external_id, timestamp, re_message_id:content->>re_message_id")
+    .eq("organization_id", organization_id)
+    .eq("service", "instagram")
+    .eq("external_id", external_id)
+    .eq("content->>kind", "comment")
+    .maybeSingle()
+    .throwOnError();
+
+  return data ?? undefined;
+}
+
+/**
+ * The comment a text answers in private, as a DM to its author. A text naming
+ * a comment in re_message_id answers that one. A text naming nothing answers
+ * the contact's last word when that is a comment no one answered yet, within
+ * its 7 days: it is what the conversation shows last, and someone who only
+ * commented can be written to no other way.
+ */
+async function privateReplyTarget(
+  client: SupabaseClient,
+  message: MessageRow,
+  content: OutgoingMessage,
+): Promise<string | undefined> {
+  if (content.kind !== "text") return undefined;
+
+  if (content.re_message_id) {
+    const comment = await findComment(
+      client,
+      message.organization_id,
+      content.re_message_id,
+    );
+
+    if (!comment) return undefined;
+
+    if (Date.now() - Date.parse(comment.timestamp) > PRIVATE_REPLY_WINDOW_MS) {
+      throw new InstagramError(
+        "Instagram answers a comment in private only within 7 days of it",
+      );
+    }
+
+    return comment.external_id;
+  }
+
+  const { data: last } = await client
+    .from("messages")
+    .select("external_id, timestamp, kind:content->>kind")
+    .eq("conversation_id", message.conversation_id)
+    .not("sender_address", "is", null)
+    .order("timestamp", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+    .throwOnError();
+
+  if (
+    last?.kind !== "comment" || !last.external_id ||
+    Date.now() - Date.parse(last.timestamp) > PRIVATE_REPLY_WINDOW_MS
+  ) {
+    return undefined;
+  }
+
+  // Anything the account sent since answered it already.
+  const { count } = await client
+    .from("messages")
+    .select("id", { count: "exact", head: true })
+    .eq("conversation_id", message.conversation_id)
+    .is("sender_address", null)
+    .is("content->>internal", null)
+    .is("status->>failed", null)
+    .gt("timestamp", last.timestamp)
+    .neq("id", message.id)
+    .throwOnError();
+
+  return count ? undefined : last.external_id;
+}
+
+/**
+ * Answers a comment in public, under it. Instagram threads go one level deep,
+ * so an answer to a reply goes under the comment the reply is in.
+ */
+async function replyInPublic({
+  client,
+  message,
+  content,
+  access_token,
+}: {
+  client: SupabaseClient;
+  message: MessageRow;
+  content: OutgoingMessage;
+  access_token: string;
+}): Promise<string> {
+  if (!content.re_message_id || !content.text) {
+    throw new InstagramError(
+      "A comment answers another: it needs a text and the comment in re_message_id",
+    );
+  }
+
+  const comment = await findComment(
+    client,
+    message.organization_id,
+    content.re_message_id,
+  );
+
+  const url = new URL(
+    `https://graph.instagram.com/${API_VERSION}/${
+      comment?.re_message_id ?? content.re_message_id
+    }/replies`,
+  );
+  url.searchParams.set("message", content.text);
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${access_token}` },
+  });
+
+  if (!response.ok) {
+    throw new InstagramError("Could not reply to the Instagram comment", {
+      cause: await response.json().catch(() => ({})),
+    });
+  }
+
+  return ((await response.json()) as { id: string }).id;
+}
+
 /**
  * Checks if a URI uses an external protocol (http/https). Internal storage
  * URIs (`internal://media/...`) must be resolved to a signed public URL before
@@ -114,17 +254,23 @@ function toInstagramAttachmentType(kind: string): IgAttachmentType {
 async function outgoingMessageToPayloads({
   content,
   to,
+  comment_id,
   client,
 }: {
   content: OutgoingMessage;
   to: string;
+  // A text answering this comment in private.
+  comment_id?: string;
   client: SupabaseClient;
 }): Promise<Array<IgEndpointMessage | IgReactionAction>> {
   const recipient = { id: to };
 
   switch (content.kind) {
     case "text": {
-      return [{ recipient, message: { text: content.text } }];
+      return [{
+        recipient: comment_id ? { comment_id } : recipient,
+        message: { text: content.text },
+      }];
     }
     case "reaction": {
       if (!content.re_message_id) {
@@ -261,9 +407,28 @@ Deno.serve(async (req) => {
     try {
       const content = message.content as OutgoingMessage;
 
+      if (content.kind === "comment") {
+        await commitDispatchedMessage({
+          client,
+          messageId: message.id,
+          externalId: await replyInPublic({
+            client,
+            message,
+            content,
+            access_token,
+          }),
+          status: { accepted: new Date().toISOString() },
+        });
+
+        return new Response();
+      }
+
+      const comment_id = await privateReplyTarget(client, message, content);
+
       const payloads = await outgoingMessageToPayloads({
         content,
         to: message.conversation_address,
+        comment_id,
         client,
       });
 
@@ -276,6 +441,15 @@ Deno.serve(async (req) => {
             access_token,
           }),
         );
+      }
+
+      if (comment_id) {
+        // Whether a commenter's id is the one their DMs come from.
+        log.info("Answered a comment in private", {
+          comment_id,
+          recipient_id: responses[0]?.recipient_id,
+          conversation_address: message.conversation_address,
+        });
       }
 
       // Reactions and sender actions do not return a message id to track; only

@@ -1,6 +1,9 @@
 import type { Part, ReferralInfo } from "../../_shared/supabase.ts";
 import { inspect } from "node:util";
 
+const clip = (text: string, max: number) =>
+  text.length > max ? `${text.slice(0, max - 1)}…` : text;
+
 /**
  * Recursively serializes Parts (including artifacts) as XML.
  * This provides a text representation of structured data and files
@@ -43,7 +46,21 @@ export function serializePartAsXML(part: Part & Partial<ReferralInfo>): string {
     }
 
     case "data": {
-      if (part.text) {
+      if (part.kind === "comment") {
+        // A comment on a post: which post, and what was said.
+        const { post } = part.data;
+
+        lines.push(`<comment on="${post.type}">`);
+        if (post.url) lines.push(`<post_url>`, post.url, `</post_url>`);
+        if (post.title) {
+          lines.push(
+            `<post_caption>`,
+            clip(post.title, 500),
+            `</post_caption>`,
+          );
+        }
+        lines.push(part.text, `</comment>`);
+      } else if (part.text) {
         lines.push(`<${part.kind}>`, part.text, `</${part.kind}>`);
       } else {
         lines.push(

@@ -77,6 +77,7 @@ export type {
 } from "./types/whatsapp_endpoint_types.ts";
 export { isInternal, isToolTrace, MediaTypes } from "./types/message_types.ts";
 export type {
+  CommentPart,
   DataPart,
   FilePart,
   IncomingMessage,
@@ -134,6 +135,7 @@ export type {
   InstagramAttachmentPayload,
   InstagramAttachmentType,
   InstagramChange,
+  InstagramComment,
   InstagramEntry,
   InstagramEvent,
   InstagramMessage,

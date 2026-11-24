@@ -2,15 +2,19 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import * as log from "../_shared/logger.ts";
 import { flagExpiredToken } from "../_shared/instagram.ts";
 import {
+  type CommentPart,
   type ContactAddressInsert,
   createUnsecureClient,
   type Database,
   type IncomingMessage,
   type InstagramAttachment,
   type InstagramAttachmentType,
+  type InstagramComment,
   type InstagramContactAddressExtra,
+  type InstagramEntry,
   type InstagramEvent,
   type InstagramMessage,
+  type InstagramOrganizationAddressExtra,
   type InstagramReferral,
   type InstagramWebhookPayload,
   type MessageInsert,
@@ -99,13 +103,39 @@ function extractEvents(
     ]);
 
     for (const change of entry.changes) {
-      if (eventFields.has(change.field) && change.value) {
+      if (
+        change.field !== "comments" && eventFields.has(change.field) &&
+        change.value
+      ) {
         events.push(change.value);
       }
     }
   }
 
   return events;
+}
+
+/** An entry's comments on the account's posts and reels. */
+function extractComments(entry: InstagramEntry): InstagramComment[] {
+  return (entry.changes ?? []).flatMap((change) =>
+    change.field === "comments" && change.value ? [change.value] : []
+  );
+}
+
+/**
+ * Whether the account wrote the comment itself: on its own post, it is
+ * answering someone.
+ */
+function isOwnComment(
+  entry: InstagramEntry,
+  comment: InstagramComment,
+  account: OrganizationAddressRow,
+): boolean {
+  const username = (account.extra as InstagramOrganizationAddressExtra | null)
+    ?.username;
+
+  return comment.from.id === entry.id ||
+    (!!username && comment.from.username === username);
 }
 
 /**
@@ -120,6 +150,9 @@ function collectOrgAddresses(payload: InstagramWebhookPayload): string[] {
       ids.add(event.recipient.id);
       ids.add(event.sender.id);
     }
+
+    // A comment names no recipient: the entry is the account.
+    if (extractComments(entry).length) ids.add(entry.id);
   }
 
   return Array.from(ids);
@@ -540,6 +573,155 @@ function instagramMessageToContent(
   };
 }
 
+type CommentPost = CommentPart["data"]["post"];
+
+/**
+ * The post or reel a comment is on. The webhook names only its id and type;
+ * the link and caption come from Graph, and without them the comment still
+ * keeps the id.
+ */
+async function fetchPost(
+  media: InstagramComment["media"],
+  accessToken: string | undefined,
+): Promise<CommentPost> {
+  const post: CommentPost = {
+    type: media.media_product_type === "REELS" ? "ig_reel" : "ig_post",
+    item_id: media.id,
+  };
+
+  if (!accessToken) return post;
+
+  try {
+    const response = await fetch(
+      `https://graph.instagram.com/${API_VERSION}/${media.id}?fields=permalink,caption,media_product_type&access_token=${accessToken}`,
+    );
+
+    if (!response.ok) {
+      log.warn(`Failed to fetch IG media ${media.id}: ${response.status}`, {
+        error: await response.text().catch(() => ""),
+      });
+      return post;
+    }
+
+    const { permalink, caption, media_product_type } = await response
+      .json() as {
+        permalink?: string;
+        caption?: string;
+        media_product_type?: string;
+      };
+
+    return {
+      ...post,
+      ...(media_product_type === "REELS" && { type: "ig_reel" as const }),
+      ...(permalink && { url: permalink }),
+      ...(caption && { title: caption }),
+    };
+  } catch (error) {
+    log.warn(`Error fetching IG media ${media.id}`, {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return post;
+  }
+}
+
+/**
+ * Files each comment in its author's conversation, with the post it is on.
+ *
+ * The account's own comments are its answers. One sent from here is a row
+ * already, and stays as it is; one written in the Instagram app is filed as
+ * sent, in the conversation of whoever wrote the comment it answers. A
+ * top-level one answers nobody, and is not filed.
+ */
+async function commentsToMessages(
+  client: SupabaseClient<Database>,
+  comments: { entry: InstagramEntry; comment: InstagramComment }[],
+  orgAddressMap: Map<string, OrganizationAddressRow>,
+): Promise<MessageInsert[]> {
+  if (comments.length === 0) return [];
+
+  // The rows these comments may already be, or answer.
+  const { data: known } = await client
+    .from("messages")
+    .select("external_id, conversation_address, sender_address")
+    .eq("service", "instagram")
+    .in(
+      "external_id",
+      comments.flatMap(({ comment }) =>
+        comment.parent_id ? [comment.id, comment.parent_id] : [comment.id]
+      ),
+    )
+    .throwOnError();
+
+  const rows = new Map(known.map((row) => [row.external_id, row]));
+
+  // One post often brings several comments at once.
+  const posts = new Map<string, Promise<CommentPost>>();
+
+  const filed = await Promise.all(comments.map(async ({ entry, comment }) => {
+    const account = orgAddressMap.get(entry.id);
+
+    if (!account) {
+      log.warn("No organization address for Instagram comment", {
+        organization_address: entry.id,
+      });
+      return [];
+    }
+
+    const own = isOwnComment(entry, comment, account);
+
+    // An answer from here (already a row), or to no one we know of.
+    const answered = comment.parent_id ? rows.get(comment.parent_id) : null;
+    if (own && (rows.has(comment.id) || !answered?.sender_address)) return [];
+
+    if (!posts.has(comment.media.id)) {
+      posts.set(
+        comment.media.id,
+        fetchPost(comment.media, account.extra?.access_token ?? undefined),
+      );
+    }
+
+    const content: IncomingMessage = {
+      version: "1",
+      type: "data",
+      kind: "comment",
+      data: { post: await posts.get(comment.media.id)! },
+      text: comment.text,
+      ...(comment.parent_id && { re_message_id: comment.parent_id }),
+    };
+
+    // Meta stamps comment entries in seconds, messaging events in ms.
+    const timestamp = new Date(
+      entry.time < 1e12 ? entry.time * 1000 : entry.time,
+    ).toISOString();
+
+    const base = {
+      organization_id: account.organization_id,
+      external_id: comment.id,
+      service: "instagram" as const,
+      organization_address: account.address,
+      timestamp,
+    };
+
+    return [
+      own
+        ? {
+          ...base,
+          conversation_address: answered!.conversation_address,
+          content: content as OutgoingMessage,
+          status: { sent: timestamp },
+        }
+        : {
+          ...base,
+          conversation_address: comment.from.id,
+          sender_address: comment.from.id,
+          content,
+        },
+    ];
+  }));
+
+  return filed.flat();
+}
+
 async function processMessage(request: Request): Promise<Response> {
   const body = await request.text();
 
@@ -571,6 +753,9 @@ async function processMessage(request: Request): Promise<Response> {
     organization_id: string;
     igsid: string;
     orgAddress: OrganizationAddressRow;
+    // A commenter's username, from the comment: the profile of someone who
+    // never wrote a DM may not be ours to fetch.
+    username?: string;
   };
   const contactNeeds = new Map<ContactKey, ContactNeed>();
 
@@ -590,6 +775,22 @@ async function processMessage(request: Request): Promise<Response> {
           organization_id: orgAddress.organization_id,
           igsid: contactAddress,
           orgAddress,
+        });
+      }
+    }
+
+    for (const comment of extractComments(entry)) {
+      const orgAddress = orgAddressMap.get(entry.id);
+      if (!orgAddress || isOwnComment(entry, comment, orgAddress)) continue;
+
+      const key =
+        `${orgAddress.organization_id}|${orgAddress.address}|${comment.from.id}`;
+      if (!contactNeeds.has(key)) {
+        contactNeeds.set(key, {
+          organization_id: orgAddress.organization_id,
+          igsid: comment.from.id,
+          orgAddress,
+          username: comment.from.username,
         });
       }
     }
@@ -686,7 +887,8 @@ async function processMessage(request: Request): Promise<Response> {
       name_fetched_at: fetchedAtIso,
     };
     if (profile?.name) extra.name = profile.name;
-    if (profile?.username) extra.username = profile.username;
+    const username = profile?.username ?? contact.username;
+    if (username) extra.username = username;
     if (profile?.profile_pic) {
       extra.profile_picture_url = profile.profile_pic;
     }
@@ -909,6 +1111,16 @@ async function processMessage(request: Request): Promise<Response> {
       log.info("Unhandled Instagram event shape", event);
     }
   }
+
+  messages.push(
+    ...await commentsToMessages(
+      client,
+      payload.entry.flatMap((entry) =>
+        extractComments(entry).map((comment) => ({ entry, comment }))
+      ),
+      orgAddressMap,
+    ),
+  );
 
   log.info("Webhook processing summary", {
     messages: messages.length,

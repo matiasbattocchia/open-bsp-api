@@ -791,6 +791,7 @@ Configure the Instagram app
    - **Instagram**
      - `instagram_business_basic`
      - `instagram_business_manage_messages`
+     - `instagram_business_manage_comments`
 3. App review > Requests > Click **Next**
 
 ### Allowed usage
@@ -854,6 +855,19 @@ We request this permission to view, manage and respond to messages.
 #### Screen recording
 
 https://github.com/user-attachments/assets/d86cf719-250d-4e3d-8c15-873daa6707d6
+
+</details>
+
+<details>
+<summary>
+instagram_business_manage_comments
+</summary>
+
+#### Description
+
+We request this permission to show the comments on a business's posts and reels
+in its inbox, and to answer them: in public, under the comment, or in private,
+with a direct message to the person who commented.
 
 </details>
 
