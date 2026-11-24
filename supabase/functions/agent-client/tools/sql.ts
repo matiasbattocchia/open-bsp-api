@@ -499,8 +499,9 @@ class BaseClient {
     return Promise.reject(new Error("Not implemented"));
   }
 
+  // An embedded quote is doubled, so the identifier cannot close its quotes.
   quoteIdentifier(identifier: string): string {
-    return '"' + identifier + '"';
+    return '"' + identifier.replaceAll('"', '""') + '"';
   }
 
   /** Bind-parameter placeholder for the 1-based position `n`. */
@@ -634,7 +635,7 @@ class MySQLClient extends BaseClient {
   }
 
   override quoteIdentifier(identifier: string): string {
-    return "`" + identifier + "`";
+    return "`" + identifier.replaceAll("`", "``") + "`";
   }
 }
 
@@ -1047,6 +1048,17 @@ export async function bulkInsertImplementation(
     throw new Error(
       `Number of types in 'types' must match the number of columns in 'columns' or the number of columns in the CSV file`,
     );
+  }
+
+  // Types are spliced into CREATE TABLE as-is, so only a plain type name is
+  // accepted: words, an optional (precision[, scale]) and an optional [].
+  const typePattern =
+    /^[A-Za-z_][A-Za-z0-9_]*( [A-Za-z_][A-Za-z0-9_]*)*(\s*\(\s*\d+(\s*,\s*\d+)?\s*\))?(\[\])?$/;
+
+  for (const type of input.types ?? []) {
+    if (!typePattern.test(type.trim())) {
+      throw new Error(`Unsupported column type '${type}'`);
+    }
   }
 
   const target: string[] = [];
