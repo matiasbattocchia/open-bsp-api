@@ -6,10 +6,11 @@ import {
 
 const config = {
   url: "https://openbsp.example.test",
-  anonKey: "example-anon-key",
+  publishableKey: "sb_publishable_example",
   apiKey: "example-openbsp-key",
-  organizationId: "00000000-0000-0000-0000-000000000001",
 };
+
+const organizationId = "00000000-0000-0000-0000-000000000001";
 
 function equal(actual: unknown, expected: unknown) {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
@@ -19,7 +20,41 @@ function equal(actual: unknown, expected: unknown) {
   }
 }
 
-Deno.test("reads messages with API-key auth and a bounded incoming query", async () => {
+async function rejects(promise: Promise<unknown>, message: string) {
+  try {
+    await promise;
+  } catch (error) {
+    equal((error as Error).message, message);
+    return;
+  }
+  throw new Error(`Expected "${message}"`);
+}
+
+// Answers each table with its rows, or with a response when given one.
+function server(
+  tables: Record<string, unknown[] | Response>,
+  seen: string[] = [],
+) {
+  return (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input));
+    const headers = new Headers(init?.headers);
+    equal(init?.method, "GET");
+    equal(url.origin, config.url);
+    equal(headers.get("apikey"), config.publishableKey);
+    equal(headers.get("api-key"), config.apiKey);
+    equal(headers.get("authorization"), `Bearer ${config.publishableKey}`);
+
+    const table = url.pathname.replace("/rest/v1/", "");
+    seen.push(`${table}?${url.searchParams}`);
+    const answer = tables[table];
+    if (!answer) throw new Error(`Unexpected request to ${url.pathname}`);
+    return Promise.resolve(
+      answer instanceof Response ? answer : Response.json(answer),
+    );
+  };
+}
+
+Deno.test("reads the key's organization, then its latest incoming messages", async () => {
   const rows = [{
     id: "message-1",
     timestamp: "2026-01-01T00:00:00Z",
@@ -27,72 +62,73 @@ Deno.test("reads messages with API-key auth and a bounded incoming query", async
     sender_address: "15550000001",
     content: { version: "1", type: "text", kind: "text", text: "Hello" },
   }];
-  let requests = 0;
-  const client = createOpenBspClient(config, (input, init) => {
-    requests++;
-    const url = new URL(String(input));
-    const headers = new Headers(init?.headers);
-    equal(init?.method, "GET");
-    equal(url.origin, config.url);
-    equal(url.pathname, "/rest/v1/messages");
-    equal(headers.get("apikey"), config.anonKey);
-    equal(headers.get("api-key"), config.apiKey);
-    equal(headers.get("authorization"), `Bearer ${config.anonKey}`);
-    equal(
-      url.searchParams.get("organization_id"),
-      `eq.${config.organizationId}`,
-    );
-    equal(url.searchParams.get("service"), "eq.whatsapp");
-    equal(url.searchParams.get("sender_address"), "not.is.null");
-    equal(url.searchParams.get("order"), "timestamp.desc");
-    equal(url.searchParams.get("limit"), "20");
-    equal(
-      url.searchParams.get("select"),
-      "id,timestamp,conversation_address,sender_address,content",
-    );
-    return Promise.resolve(Response.json(rows));
-  });
+  const seen: string[] = [];
+  const client = createOpenBspClient(
+    config,
+    server({ organizations: [{ id: organizationId }], messages: rows }, seen),
+  );
 
-  equal(await recentIncoming(client, config.organizationId), rows);
-  equal(requests, 1);
+  equal(await recentIncoming(client), rows);
+
+  const messages = new URLSearchParams(seen[1].split("?")[1]);
+  equal(seen.length, 2);
+  equal(seen[0], "organizations?select=id");
+  equal(messages.get("organization_id"), `eq.${organizationId}`);
+  equal(messages.get("service"), "eq.whatsapp");
+  equal(messages.get("sender_address"), "not.is.null");
+  equal(messages.get("order"), "timestamp.desc");
+  equal(messages.get("limit"), "20");
+  equal(
+    messages.get("select"),
+    "id,timestamp,conversation_address,sender_address,content",
+  );
 });
 
 Deno.test("an empty inbox returns an empty array", async () => {
   const client = createOpenBspClient(
     config,
-    () => Promise.resolve(Response.json([])),
+    server({ organizations: [{ id: organizationId }], messages: [] }),
   );
-  equal(await recentIncoming(client, config.organizationId), []);
+  equal(await recentIncoming(client), []);
+});
+
+Deno.test("an unknown key is reported, not read as an empty inbox", async () => {
+  const seen: string[] = [];
+  const client = createOpenBspClient(
+    config,
+    server({ organizations: [], messages: [] }, seen),
+  );
+  await rejects(
+    recentIncoming(client),
+    "The OpenBSP API key matches no organization on this deployment",
+  );
+  equal(seen, ["organizations?select=id"]);
 });
 
 Deno.test("a PostgREST error is not reported as an empty inbox", async () => {
   const client = createOpenBspClient(
     config,
-    () =>
-      Promise.resolve(Response.json({
+    server({
+      organizations: [{ id: organizationId }],
+      messages: Response.json({
         code: "42501",
         message: "permission denied for table messages",
         details: null,
         hint: null,
-      }, { status: 403 })),
+      }, { status: 403 }),
+    }),
   );
-  try {
-    await recentIncoming(client, config.organizationId);
-    throw new Error("Expected the request to fail");
-  } catch (error) {
-    equal(
-      (error as Error).message,
-      "Could not read messages: permission denied for table messages",
-    );
-  }
+  await rejects(
+    recentIncoming(client),
+    "Could not read messages: permission denied for table messages",
+  );
 });
 
 Deno.test("requires every environment variable without exposing its values", () => {
   const values: Record<string, string> = {
     SUPABASE_URL: config.url,
-    SUPABASE_ANON_KEY: config.anonKey,
+    SUPABASE_PUBLISHABLE_KEY: config.publishableKey,
     OPENBSP_API_KEY: config.apiKey,
-    OPENBSP_ORGANIZATION_ID: config.organizationId,
   };
   equal(readConfig((name) => values[name]), config);
   for (const missing of Object.keys(values)) {

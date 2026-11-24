@@ -14,7 +14,11 @@ deno fmt --check
 cd supabase/functions && deno lint && deno check .
 cd plugin && deno lint && deno check *.ts
 cd plugin && deno task bundle && git diff --exit-code dist
+cd examples && deno lint && deno check *.ts && deno test
 ```
+
+`examples/` imports `_shared/db_types.ts` and the functions' import map, so a
+schema change or a supabase-js bump that breaks the example fails CI.
 
 **The plugin runs on Node from `plugin/dist/`, a bundle committed with the
 sources.** After changing anything bundled under `plugin/` (a `.ts`,

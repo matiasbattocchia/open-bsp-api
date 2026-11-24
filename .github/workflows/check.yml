@@ -19,6 +19,8 @@ jobs:
       - run: cd plugin && deno lint && deno check *.ts
       # The plugin runs on Node from plugin/dist, committed with the sources.
       - run: cd plugin && deno task bundle && git diff --exit-code dist
+      # The example types against the schema and takes supabase-js from the functions.
+      - run: cd examples && deno lint && deno check *.ts && deno test
       - name: Plugin starts on Node
         run: |
           out=$(printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}}' \

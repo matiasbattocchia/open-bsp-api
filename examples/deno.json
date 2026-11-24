@@ -1,6 +1,4 @@
 {
-  "imports": {
-    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.54.0"
-  },
+  "importMap": "../supabase/functions/deno.json",
   "lock": false
 }
