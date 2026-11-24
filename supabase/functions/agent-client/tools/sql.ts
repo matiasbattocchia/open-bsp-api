@@ -503,6 +503,11 @@ class BaseClient {
     return '"' + identifier + '"';
   }
 
+  /** Bind-parameter placeholder for the 1-based position `n`. */
+  placeholder(_n: number): string {
+    return "?";
+  }
+
   sanitizeIdentifier(identifier: string): string {
     return (
       identifier
@@ -544,6 +549,11 @@ class PostgresClient extends BaseClient {
 
   override async close() {
     return await this.conn.end();
+  }
+
+  // postgres.js `unsafe` only binds numbered parameters.
+  override placeholder(n: number): string {
+    return `$${n}`;
   }
 
   override async constraints(): Promise<ConstraintRow[]> {
@@ -1080,12 +1090,17 @@ export async function bulkInsertImplementation(
 
   const values = csv.map((row) => source.map((col) => row[col] || null));
 
+  let param = 0;
+
   const insertQuery = `
     INSERT INTO ${table} (${target.map(client.quoteIdentifier).join(", ")})
     VALUES
       ${
     csv
-      .map((_row) => "(" + source.map((_col) => "?").join(", ") + ")")
+      .map((_row) =>
+        "(" + source.map((_col) => client.placeholder(++param)).join(", ") +
+        ")"
+      )
       .join(",\n      ")
   }
     ;
