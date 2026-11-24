@@ -1,5 +1,6 @@
 // Minimal TikTok API for Business client: the TikTok account holder OAuth
-// (tt_user), the account profile and the Business Messaging calls.
+// (tt_user), the account profile, the Business Messaging calls and the
+// comments on the account's posts.
 //
 // Every response comes in one envelope — `{ code, message, request_id, data }`
 // — and a refusal is a non-zero `code`, usually on an HTTP 200.
@@ -79,12 +80,36 @@ export function isRateLimited(error: unknown): boolean {
       (error.code !== undefined && RATE_LIMIT_CODES.has(error.code)));
 }
 
+/**
+ * Whether trying again later may work: throttled, TikTok down, or out of
+ * reach (fetch's TypeError).
+ */
+export function isTransient(error: unknown): boolean {
+  return isRateLimited(error) ||
+    error instanceof TypeError ||
+    (error instanceof TikTokError && error.code === undefined &&
+      (error.status === undefined || error.status >= 500));
+}
+
 type Envelope<T> = {
   code: number;
   message: string;
   request_id?: string;
   data?: T;
 };
+
+/**
+ * Quotes the ids TikTok writes as bare numbers (comments' and posts', 19
+ * digits, past what a JSON number keeps exact) so they parse as strings.
+ * Inside a serialized `content` the quotes are escaped, and so are the ones
+ * it adds.
+ */
+export function quoteIds(json: string): string {
+  return json.replace(
+    /(\\?")(comment_id|parent_comment_id|video_id|item_id)\1(\s*:\s*)(\d+)/g,
+    "$1$2$1$3$1$4$1",
+  );
+}
 
 /**
  * Calls an API for Business endpoint. A body makes it a JSON POST, a form a
@@ -120,9 +145,9 @@ export async function tiktokApi<T>(
     redirect: "error",
   });
 
-  const envelope = await response.json().catch(() => null) as
-    | Envelope<T>
-    | null;
+  const envelope = await response.text()
+    .then((text) => JSON.parse(quoteIds(text)) as Envelope<T>)
+    .catch(() => null);
 
   if (!response.ok || !envelope) {
     throw new TikTokError(`TikTok ${path} answered HTTP ${response.status}`, {
@@ -463,34 +488,176 @@ export async function listParticipants(
   return data?.participants ?? [];
 }
 
+// Comments
+
+/** A comment, or a reply under one, as /business/comment/list/ has it. */
+export type TikTokComment = {
+  comment_id?: string;
+  video_id?: string;
+  /** Replies only: the comment it sits under. */
+  parent_comment_id?: string;
+  unique_identifier?: string;
+  create_time?: string; // seconds
+  text?: string;
+  /** Whether the account itself wrote it. */
+  owner?: boolean;
+  status?: "PUBLIC" | "HIDDEN";
+  username?: string;
+  display_name?: string;
+  profile_image?: string; // expires
+};
+
+/** One comment or reply on one of the account's posts. */
+export async function getComment(
+  business_id: string,
+  video_id: string,
+  comment_id: string,
+  access_token: string,
+): Promise<TikTokComment | undefined> {
+  const data = await tiktokApi<{ comments?: TikTokComment[] }>(
+    "/business/comment/list/",
+    {
+      access_token,
+      query: { business_id, video_id, comment_ids: [comment_id] },
+    },
+  );
+
+  return data?.comments?.[0];
+}
+
+/** A post of the account's, as /business/video/list/ has it. */
+export type TikTokVideo = {
+  item_id?: string;
+  share_url?: string;
+  caption?: string;
+};
+
+/** One of the account's posts, videos and photos alike. */
+export async function getVideo(
+  business_id: string,
+  video_id: string,
+  access_token: string,
+): Promise<TikTokVideo | undefined> {
+  const data = await tiktokApi<{ videos?: TikTokVideo[] }>(
+    "/business/video/list/",
+    {
+      access_token,
+      query: {
+        business_id,
+        fields: ["item_id", "share_url", "caption"],
+        filters: { video_ids: [video_id] },
+      },
+    },
+  );
+
+  return data?.videos?.[0];
+}
+
 /**
- * Points the app's DIRECT_MESSAGE webhook at `callback_url`. There is one per
- * app, not per account: every authorized account's messages go there.
+ * Answers a comment in public, under it (text up to 1,200 characters), and
+ * returns the reply's comment id. Not idempotent: each call posts a reply.
  */
-export async function updateWebhook(callback_url: string) {
+export async function replyToComment(
+  business_id: string,
+  video_id: string,
+  comment_id: string,
+  text: string,
+  access_token: string,
+): Promise<string | undefined> {
+  const data = await tiktokApi<{ comment_id?: string }>(
+    "/business/comment/reply/create/",
+    { access_token, body: { business_id, video_id, comment_id, text } },
+  );
+
+  return data?.comment_id || undefined;
+}
+
+/**
+ * The app's webhook subscriptions: DMs (DIRECT_MESSAGE) and comments on the
+ * accounts' posts (COMMENT). Each is one per app, not per account: every
+ * authorized account's events go there.
+ */
+export const WEBHOOK_EVENT_TYPES = ["DIRECT_MESSAGE", "COMMENT"] as const;
+
+export type TikTokWebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number];
+
+/**
+ * Points one of the app's webhook subscriptions at `callback_url`. A COMMENT
+ * one takes no post list, so it covers every post of every account.
+ */
+export async function updateWebhook(
+  event_type: TikTokWebhookEventType,
+  callback_url: string,
+) {
   const { client_id, client_secret } = credentials();
 
   return await tiktokApi<unknown>("/business/webhook/update/", {
     body: {
       app_id: client_id,
       secret: client_secret,
-      event_type: "DIRECT_MESSAGE",
+      event_type,
       callback_url,
     },
   });
 }
 
-/** The app's DIRECT_MESSAGE webhook, as TikTok has it. */
-export async function getWebhook() {
+/** One of the app's webhook subscriptions, as /business/webhook/list/ has it. */
+export type TikTokWebhook = {
+  app_id?: string;
+  event_type?: string;
+  /** Absent while the subscription points nowhere. */
+  callback_url?: string;
+  item_list?: string[];
+};
+
+export async function getWebhook(
+  event_type: TikTokWebhookEventType,
+): Promise<TikTokWebhook | undefined> {
   const { client_id, client_secret } = credentials();
 
-  return await tiktokApi<unknown>("/business/webhook/list/", {
+  return await tiktokApi<TikTokWebhook>("/business/webhook/list/", {
     query: {
       app_id: client_id,
       secret: client_secret,
-      event_type: "DIRECT_MESSAGE",
+      event_type,
     },
   });
+}
+
+/** Where this deployment takes TikTok's webhooks. */
+export function webhookUrl(): string {
+  return `${Deno.env.get("SUPABASE_URL")}/functions/v1/tiktok-webhook`;
+}
+
+/**
+ * Points the app's webhook subscriptions that point nowhere at this
+ * deployment, and returns the ones it pointed. One that points somewhere is
+ * left alone: a host in front of the functions, or another deployment of the
+ * same app; moving it is updateWebhook's job. Does nothing without the app's
+ * credentials, or at an address TikTok can't call (not https: a local stack,
+ * a self-hosted one whose SUPABASE_URL is internal).
+ */
+export async function ensureWebhooks(): Promise<TikTokWebhookEventType[]> {
+  const callback_url = webhookUrl();
+
+  if (!APP_ID || !APP_SECRET || !callback_url.startsWith("https://")) {
+    return [];
+  }
+
+  const pointed: TikTokWebhookEventType[] = [];
+
+  for (const event_type of WEBHOOK_EVENT_TYPES) {
+    if ((await getWebhook(event_type))?.callback_url) continue;
+
+    await updateWebhook(event_type, callback_url);
+    pointed.push(event_type);
+  }
+
+  if (pointed.length) {
+    log.info("Pointed the TikTok webhooks here", { pointed, callback_url });
+  }
+
+  return pointed;
 }
 
 /**

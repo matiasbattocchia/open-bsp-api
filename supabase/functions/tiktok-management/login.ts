@@ -7,6 +7,7 @@ import {
 } from "../_shared/connections.ts";
 import {
   ensureFreshToken,
+  ensureWebhooks,
   exchangeCode,
   getProfile,
   refreshToken,
@@ -146,6 +147,12 @@ export async function performTikTokLogin(
   }
 
   log.info("Account connected", ctx);
+
+  // The app's webhooks bring the account's messages and comments: the first
+  // account connected points them here, when they point nowhere yet.
+  await ensureWebhooks().catch((error) =>
+    log.warn("Could not check the TikTok webhooks", error)
+  );
 
   // Record the connection to public.logs (best-effort) so the org's
   // tech-provider sees good events too, not just failures.

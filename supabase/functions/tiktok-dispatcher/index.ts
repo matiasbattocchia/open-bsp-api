@@ -15,7 +15,8 @@ import {
   ensureFreshToken,
   flagExpiredToken,
   isDeadToken,
-  isRateLimited,
+  isTransient,
+  replyToComment,
   sendMessage,
   TikTokError,
   type TikTokSendBody,
@@ -133,6 +134,56 @@ async function toSends({
   }
 }
 
+/**
+ * Answers a comment in public, under it, and returns the reply's id. TikTok's
+ * threads are one level deep: answering a reply posts under the comment that
+ * reply sits under.
+ */
+async function replyInPublic({
+  client,
+  message,
+  content,
+  business_id,
+  access_token,
+}: {
+  client: Client;
+  message: MessageRow;
+  content: OutgoingMessage;
+  business_id: string;
+  access_token: string;
+}): Promise<string | undefined> {
+  if (!content.re_message_id || !content.text) {
+    throw new UnsendableError(
+      "A comment answers another: it needs a text and the comment in re_message_id",
+    );
+  }
+
+  const { data: comment } = await client
+    .from("messages")
+    .select(
+      "video_id:content->data->post->>item_id, parent_id:content->>re_message_id",
+    )
+    .eq("organization_id", message.organization_id)
+    .eq("external_id", content.re_message_id)
+    .eq("content->>kind", "comment")
+    .maybeSingle()
+    .throwOnError();
+
+  if (!comment?.video_id) {
+    throw new UnsendableError(
+      `re_message_id names no comment on a TikTok post: ${content.re_message_id}`,
+    );
+  }
+
+  return await replyToComment(
+    business_id,
+    comment.video_id,
+    comment.parent_id ?? content.re_message_id,
+    content.text,
+    access_token,
+  );
+}
+
 Deno.serve(async (req) => {
   const token = req.headers.get("Authorization")?.replace("Bearer ", "");
 
@@ -171,7 +222,9 @@ Deno.serve(async (req) => {
   // is a send; a contact's row only ever comes here for read receipts.
   if (message.sender_address === null) {
     try {
-      if (!conversation_id) {
+      const content = message.content as OutgoingMessage;
+
+      if (content.kind !== "comment" && !conversation_id) {
         throw new UnsendableError(
           "The conversation has no TikTok conversation id: TikTok only lets a business answer a customer who wrote first",
         );
@@ -188,9 +241,27 @@ Deno.serve(async (req) => {
           : new UnsendableError(error.message);
       });
 
+      if (content.kind === "comment") {
+        // Posted once TikTok answers with its id; no later status follows.
+        await commitDispatchedMessage({
+          client,
+          messageId: message.id,
+          externalId: await replyInPublic({
+            client,
+            message,
+            content,
+            business_id,
+            access_token,
+          }),
+          status: { sent: new Date().toISOString() },
+        });
+
+        return new Response();
+      }
+
       const sends = await toSends({
         client,
-        content: message.content as OutgoingMessage,
+        content,
         business_id,
         access_token,
       });
@@ -198,7 +269,7 @@ Deno.serve(async (req) => {
       const ids: (string | undefined)[] = [];
       for (const body of sends) {
         ids.push(
-          await sendMessage(business_id, conversation_id, access_token, body),
+          await sendMessage(business_id, conversation_id!, access_token, body),
         );
       }
 
@@ -216,14 +287,7 @@ Deno.serve(async (req) => {
         ? error.cause as Json
         : errorMessage;
 
-      // Throttled, TikTok down or out of reach (fetch's TypeError): worth
-      // another try.
-      const retryable = isRateLimited(error) ||
-        error instanceof TypeError ||
-        (error instanceof TikTokError && error.code === undefined &&
-          (error.status === undefined || error.status >= 500));
-
-      if (retryable) {
+      if (isTransient(error)) {
         // Keep the row armed (no `failed`); the merge_update trigger
         // overwrites the errors array on each retry.
         log.warn("Dispatch failed (transient, will retry)", {

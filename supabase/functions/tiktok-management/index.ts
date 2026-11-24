@@ -12,9 +12,12 @@ import {
 } from "../_shared/supabase.ts";
 import {
   buildAuthorizeUrl,
+  ensureWebhooks,
   getWebhook,
   TikTokError,
   updateWebhook,
+  WEBHOOK_EVENT_TYPES,
+  webhookUrl,
 } from "../_shared/tiktok.ts";
 import {
   disconnect,
@@ -30,7 +33,6 @@ import {
 } from "../_shared/management_auth.ts";
 
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 
 // Routes that do not use the user/API-key auth middleware. Each has its own
 // auth: an onboarding token or the service-role key. `authorize-url` only
@@ -391,39 +393,57 @@ function requireServiceRole(authorization: string | undefined) {
   }
 }
 
-// The app's one webhook (service-role key): where TikTok sends every
-// authorized account's messages. POST points it at this deployment's
-// tiktok-webhook, or at `callback_url` when the functions sit behind another
-// host; GET shows where it points.
+// The app's webhooks (service-role key): where TikTok sends every authorized
+// account's messages and the comments on its posts. They point themselves
+// here when they point nowhere (see ensureWebhooks); POST points both here
+// whatever they point at, or at `callback_url` when the functions sit behind
+// another host; GET shows where they point.
 app.post("/tiktok-management/webhook", async (c) => {
   requireServiceRole(c.req.header("Authorization"));
 
   const body = await c.req.json<{ callback_url?: string }>().catch(() => ({}));
   const callback_url = (body as { callback_url?: string }).callback_url ??
-    `${SUPABASE_URL}/functions/v1/tiktok-webhook`;
+    webhookUrl();
 
-  log.info("Pointing the TikTok webhook", { callback_url });
+  log.info("Pointing the TikTok webhooks", { callback_url });
 
-  return Response.json({
-    callback_url,
-    result: await updateWebhook(callback_url),
-  });
+  const result: Record<string, unknown> = {};
+  for (const event_type of WEBHOOK_EVENT_TYPES) {
+    result[event_type] = await updateWebhook(event_type, callback_url);
+  }
+
+  return Response.json({ callback_url, result });
 });
 
 app.get("/tiktok-management/webhook", async (c) => {
   requireServiceRole(c.req.header("Authorization"));
 
-  return Response.json(await getWebhook());
+  const result: Record<string, unknown> = {};
+  for (const event_type of WEBHOOK_EVENT_TYPES) {
+    result[event_type] = await getWebhook(event_type);
+  }
+
+  return Response.json(result);
 });
 
-// Token refresh (invoked by the cron with the service-role key).
+// Token refresh and webhook check (invoked by the cron with the service-role
+// key). Where accounts are connected, the app's webhooks should bring their
+// events: one that points nowhere (a subscription a new version added, or one
+// deleted at TikTok) is pointed here on the next sweep.
 app.post("/tiktok-management/refresh-tokens", async (c) => {
   requireServiceRole(c.req.header("Authorization"));
 
   const client = createUnsecureClient();
   const summary = await refreshTokens(client);
 
-  return c.json(summary);
+  const webhooks = summary.total
+    ? await ensureWebhooks().catch((error) => {
+      log.warn("Could not check the TikTok webhooks", error);
+      return [];
+    })
+    : [];
+
+  return c.json({ ...summary, webhooks });
 });
 
 Deno.serve(app.fetch);

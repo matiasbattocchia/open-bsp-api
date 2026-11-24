@@ -149,6 +149,7 @@ export type {
   InstagramWebhookPayload,
 } from "./types/instagram_webhook_payload_types.ts";
 export type {
+  TikTokCommentEvent,
   TikTokDirectMessage,
   TikTokWebhookParticipant,
   TikTokWebhookPayload,

@@ -875,7 +875,9 @@ with a direct message to the person who commented.
 
 OpenBSP connects TikTok Business Accounts through TikTok's Business Messaging
 API, part of TikTok API for Business: customers' direct messages arrive in the
-inbox, and the team or an AI agent answers them.
+inbox, and the team or an AI agent answers them. Comments on the account's posts
+arrive too, in the commenter's conversation, and the team answers them in
+public, under the comment; AI agents leave comments alone.
 
 > [!IMPORTANT]
 > TikTok reviews the Business Messaging API separately from the app itself. Only
@@ -902,24 +904,31 @@ Configure the TikTok app
    `{PUBLIC_URL}/oauth/tiktok`. It is the only one: the in-app connect and the
    onboarding links both come back to it.
 4. Apply for the **Business Messaging API** product and, once approved, enable
-   the **TikTok Accounts** scope
+   the **TikTok Accounts** scope, Business Comment included (comments come
+   through it)
 5. Copy the scopes in the portal's **TikTok account holder authorization URL**
    into `SCOPES` in `supabase/functions/_shared/tiktok.ts`
 
-### Configure the webhook
+### The webhooks
 
-TikTok has one webhook per app, not per account. Point it at this deployment
-once the secrets are deployed:
+TikTok has two webhooks per app, not per account: one for direct messages, one
+for comments. They need no setup: the first account connected points them at
+this deployment, and the TikTok cron (every 4 hours, wherever accounts are
+connected) points any that points nowhere, such as one a new version adds.
+
+One that already points somewhere is left alone, so point them by hand to move
+them, when the functions sit behind another host, or when `SUPABASE_URL` is not
+a public `https` address (a self-hosted Supabase):
 
 ```bash
 curl -X POST 'https://{SUPABASE_PROJECT_ID}.supabase.co/functions/v1/tiktok-management/webhook' \
   -H 'Authorization: Bearer {SUPABASE_SERVICE_ROLE_KEY}'
 ```
 
-Pass `{"callback_url": "…"}` in the body when the functions sit behind another
-host. A `GET` to the same URL shows where it points. As there is one per app, a
+Pass `{"callback_url": "…"}` in the body to point them at another host. A `GET`
+to the same URL shows where they point. As there is one of each per app, a
 second environment (say, a staging project) needs a TikTok app of its own to
-receive messages.
+receive messages and comments.
 
 </details>
 

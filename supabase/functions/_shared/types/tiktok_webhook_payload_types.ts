@@ -1,5 +1,6 @@
-// TikTok API for Business webhooks (DIRECT_MESSAGE subscription), the subset
-// we read. Field names follow TikTok's; `content` arrives as serialized JSON.
+// TikTok API for Business webhooks (DIRECT_MESSAGE and COMMENT subscriptions),
+// the subset we read. Field names follow TikTok's; `content` arrives as
+// serialized JSON.
 
 /** The envelope every webhook POST carries. */
 export type TikTokWebhookPayload = {
@@ -62,4 +63,28 @@ export type TikTokDirectMessage = {
   auto_message_type?: string;
   is_follower?: boolean;
   message_tag?: { source?: "APP" | "WEB" | "API" | "OTHERS" | string };
+};
+
+/**
+ * The `content` of comment.update: a comment on one of the account's posts,
+ * or a reply under one, was written, deleted or changed visibility. TikTok
+ * writes the ids as bare numbers past what a JSON number keeps exact; they
+ * are quoted before parsing (see quoteIds), so they read as strings.
+ */
+export type TikTokCommentEvent = {
+  comment_id?: string;
+  video_id?: string;
+  /** The comment a reply sits under; "0" on a top-level comment. */
+  parent_comment_id?: string;
+  comment_type?: "comment" | "reply";
+  comment_action?:
+    | "insert"
+    | "delete"
+    | "set_to_hidden"
+    | "set_to_friends_only"
+    | "set_to_public";
+  timestamp?: number; // milliseconds
+  /** The author: the same id their DMs carry. */
+  unique_identifier?: string;
+  text?: string;
 };

@@ -147,6 +147,18 @@ Deno.serve(async (req) => {
 
   const incoming = ((await req.json()) as WebhookPayload<MessageRow>).record!;
 
+  // NO AI ANSWER TO A TIKTOK COMMENT
+  //
+  // TikTok answers a commenter only in public, under the comment (an
+  // Instagram comment, by contrast, is answered in a private DM). What a
+  // business says in public is left to its members.
+
+  if (incoming.service === "tiktok" && incoming.content.kind === "comment") {
+    log.info(`Message ${incoming.id} is a TikTok comment. Skipping response.`);
+
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   // RETRIEVE CONVERSATION + ORGANIZATION + AGENTS (via organization, one-hop join)
 
   const { data: conv } = await client

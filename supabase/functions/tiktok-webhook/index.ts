@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import * as log from "../_shared/logger.ts";
 import {
+  type CommentPart,
   type ContactAddressInsert,
   createUnsecureClient,
   type Database,
@@ -8,6 +9,7 @@ import {
   type MessageInsert,
   type OrganizationAddressRow,
   type OutgoingMessage,
+  type TikTokCommentEvent,
   type TikTokContactAddressExtra,
   type TikTokDirectMessage,
   type TikTokOrganizationAddressExtra,
@@ -18,8 +20,14 @@ import {
   downloadMedia,
   ensureFreshToken,
   flagExpiredToken,
+  getComment,
+  getVideo,
   isDeadToken,
+  isTransient,
   listParticipants,
+  quoteIds,
+  type TikTokComment,
+  type TikTokVideo,
   verifySignature,
 } from "../_shared/tiktok.ts";
 import {
@@ -72,8 +80,13 @@ Deno.serve(async (request) => {
     return new Response("Invalid signature", { status: 403 });
   }
 
-  const payload = JSON.parse(body) as TikTokWebhookPayload;
+  const payload = JSON.parse(quoteIds(body)) as TikTokWebhookPayload;
   const client = createUnsecureClient();
+
+  if (payload.event === "comment.update") {
+    await persistComment(client, payload);
+    return new Response();
+  }
 
   const event = await readEvent(client, payload);
   if (!event) return new Response();
@@ -85,6 +98,40 @@ Deno.serve(async (request) => {
 
 function isPersonal(participant?: TikTokWebhookParticipant): boolean {
   return participant?.role?.toLowerCase() === "personal_account";
+}
+
+function readContent<T>(payload: TikTokWebhookPayload): T {
+  return (
+    typeof payload.content === "string"
+      ? JSON.parse(payload.content)
+      : payload.content ?? {}
+  ) as T;
+}
+
+/** The connected account an event is for, if any. */
+async function findAccount(
+  client: Client,
+  payload: TikTokWebhookPayload,
+): Promise<OrganizationAddressRow | undefined> {
+  const { data: account } = await client
+    .from("organizations_addresses")
+    .select()
+    .eq("service", "tiktok")
+    .eq("address", payload.user_openid ?? "")
+    .eq("status", "connected")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+    .throwOnError();
+
+  if (!account) {
+    log.warn("No connected TikTok account for webhook", {
+      user_openid: payload.user_openid,
+      event: payload.event,
+    });
+  }
+
+  return account ?? undefined;
 }
 
 /**
@@ -103,30 +150,10 @@ async function readEvent(
     return undefined;
   }
 
-  const message = (
-    typeof payload.content === "string"
-      ? JSON.parse(payload.content)
-      : payload.content ?? {}
-  ) as TikTokDirectMessage;
+  const message = readContent<TikTokDirectMessage>(payload);
 
-  const { data: account } = await client
-    .from("organizations_addresses")
-    .select()
-    .eq("service", "tiktok")
-    .eq("address", payload.user_openid ?? "")
-    .eq("status", "connected")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle()
-    .throwOnError();
-
-  if (!account) {
-    log.warn("No connected TikTok account for webhook", {
-      user_openid: payload.user_openid,
-      event: name,
-    });
-    return undefined;
-  }
+  const account = await findAccount(client, payload);
+  if (!account) return undefined;
 
   const outgoing = name === "im_send_msg";
   const peer = outgoing ? message.to_user : message.from_user;
@@ -628,4 +655,215 @@ async function persist(client: Client, event: Event) {
       .upsert(rows, { onConflict: "external_id" })
       .throwOnError();
   }
+}
+
+// Comments
+
+/**
+ * The comment as TikTok's API has it (who wrote it, whether the account did)
+ * and the post it is on. Throttled, or with TikTok down, the webhook fails
+ * and TikTok sends it again; refused otherwise, it is read as the webhook
+ * has it.
+ */
+async function readComment(
+  client: Client,
+  account: OrganizationAddressRow,
+  comment_id: string,
+  video_id: string,
+): Promise<{ comment?: TikTokComment; video?: TikTokVideo }> {
+  try {
+    const access_token = await ensureFreshToken(
+      client,
+      account.organization_id,
+      account.address,
+      account.extra as TikTokOrganizationAddressExtra,
+    );
+
+    const [comment, video] = await Promise.all([
+      getComment(account.address, video_id, comment_id, access_token),
+      getVideo(account.address, video_id, access_token).catch((error) => {
+        log.warn("Could not read the TikTok post", {
+          video_id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return undefined;
+      }),
+    ]);
+
+    return { comment, video };
+  } catch (error) {
+    if (isTransient(error)) throw error;
+
+    log.warn("Could not read the TikTok comment; taking the webhook's word", {
+      comment_id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    if (isDeadToken(error)) {
+      await flagExpiredToken(client, account.organization_id, account.address);
+    }
+
+    return {};
+  }
+}
+
+/**
+ * A comment on one of the account's posts, or a reply under one, lands in its
+ * author's conversation (where their DMs land too) with the post it is on.
+ * The account's own replies from the TikTok app land in the conversation of
+ * the comment they sit under; the ones sent from here are rows already, and
+ * its own top-level comments sit under nobody's. A deleted comment is marked
+ * deleted; a change of visibility changes nothing here.
+ */
+async function persistComment(client: Client, payload: TikTokWebhookPayload) {
+  const event = readContent<TikTokCommentEvent>(payload);
+  const { comment_id, video_id, comment_action } = event;
+
+  if (comment_action !== "insert" && comment_action !== "delete") {
+    log.info("Unhandled TikTok comment action", { comment_action, comment_id });
+    return;
+  }
+
+  if (!comment_id || !video_id) {
+    log.warn("TikTok comment webhook without a comment or a post", {
+      comment_action,
+    });
+    return;
+  }
+
+  const account = await findAccount(client, payload);
+  if (!account) return;
+
+  const ms = event.timestamp ??
+    (payload.create_time ? payload.create_time * 1000 : Date.now());
+  const timestamp = new Date(ms).toISOString();
+
+  // Delivered again, or one sent from here coming back.
+  const { data: known } = await client
+    .from("messages")
+    .select("id")
+    .eq("organization_id", account.organization_id)
+    .eq("external_id", comment_id)
+    .maybeSingle()
+    .throwOnError();
+
+  if (comment_action === "delete") {
+    if (known) {
+      await client
+        .from("messages")
+        .update({ status: { deleted: timestamp } })
+        .eq("id", known.id)
+        .throwOnError();
+    }
+    return;
+  }
+
+  if (known) return;
+
+  const { comment, video } = await readComment(
+    client,
+    account,
+    comment_id,
+    video_id,
+  );
+
+  // A top-level comment says "0" for its parent.
+  const parent_id = [event.parent_comment_id, comment?.parent_comment_id]
+    .find((id) => id && id !== "0");
+
+  const content = {
+    version: "1",
+    type: "data",
+    kind: "comment",
+    data: {
+      post: {
+        type: "tiktok_post",
+        item_id: video_id,
+        ...(video?.share_url && { url: video.share_url }),
+        ...(video?.caption && { title: video.caption }),
+      },
+    },
+    text: comment?.text ?? event.text ?? "",
+    ...(parent_id && { re_message_id: parent_id }),
+  } satisfies CommentPart & { version: "1"; re_message_id?: string };
+
+  const addressing = {
+    organization_id: account.organization_id,
+    service: "tiktok" as const,
+    organization_address: account.address,
+  };
+
+  if (comment?.owner) {
+    const { data: parent } = parent_id
+      ? await client
+        .from("messages")
+        .select("conversation_address")
+        .eq("organization_id", account.organization_id)
+        .eq("external_id", parent_id)
+        .maybeSingle()
+        .throwOnError()
+      : { data: null };
+
+    if (!parent) {
+      log.info("Own TikTok comment under no known comment, skipped", {
+        comment_id,
+      });
+      return;
+    }
+
+    await client
+      .from("messages")
+      .upsert({
+        ...addressing,
+        conversation_address: parent.conversation_address,
+        external_id: comment_id,
+        content,
+        status: { sent: timestamp },
+        timestamp,
+      }, { onConflict: "external_id" })
+      .throwOnError();
+
+    return;
+  }
+
+  const author = event.unique_identifier || comment?.unique_identifier;
+
+  if (!author) {
+    log.warn("TikTok comment without an author", { comment_id });
+    return;
+  }
+
+  const extra: TikTokContactAddressExtra = {
+    ...(comment?.username && { username: comment.username }),
+    ...(comment?.display_name && { name: comment.display_name }),
+    ...(comment?.profile_image && {
+      profile_picture_url: comment.profile_image,
+    }),
+  };
+
+  // merge_update keeps the keys the DMs wrote.
+  if (Object.keys(extra).length) {
+    await client
+      .from("contacts_addresses")
+      .upsert({ ...addressing, address: author, extra })
+      .throwOnError();
+  }
+
+  await client
+    .from("messages")
+    .upsert({
+      ...addressing,
+      conversation_address: author,
+      sender_address: author,
+      external_id: comment_id,
+      content,
+      timestamp,
+    }, { onConflict: "external_id" })
+    .throwOnError();
+
+  log.info("TikTok comment persisted", {
+    organization_id: account.organization_id,
+    comment_id,
+    reply: !!parent_id,
+  });
 }
