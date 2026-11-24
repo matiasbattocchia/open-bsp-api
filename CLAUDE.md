@@ -23,10 +23,11 @@ prints **false** `Import "@supabase/supabase-js" not a dependency` /
 `"ky"`/`"zod"`/`"postgres"` errors. These are an artifact of the wrong CWD, not
 real errors — don't treat them as a pre-existing baseline.
 
-> The `.claude/settings.json` PostToolUse hook runs `deno check <file>` without
-> `cd` and swallows output with `|| true`, so it always "passes" for functions
-> files and verifies nothing there. Run the CI command yourself to actually
-> verify.
+> The PostToolUse hook (`.claude/hooks/check-edited.sh`) formats each edited
+> file and runs `deno lint` / `deno check` on it from its owning package dir,
+> reporting failures back. It checks only the edited file, so a change that
+> breaks an importer elsewhere passes it: run the CI commands above before
+> pushing.
 
 **`deno fmt` output is deno-version-dependent.** The repo pins fmt _config_
 (lineWidth 80, semicolons, double quotes) but not the deno _binary_ (CI uses
