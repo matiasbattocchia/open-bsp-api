@@ -107,10 +107,16 @@ type ForeignKeyConstraintDef = {
 
 // Schema definitions
 
+// When true, every statement runs in a read-only transaction and bulkInsert
+// is refused. A guardrail against an agent being talked into writing; the
+// security boundary is still a database user granted read access only.
+const ReadOnlySchema = z.boolean().optional();
+
 export const LibSQLConfigSchema = z.object({
   driver: z.literal("libsql"),
   url: z.string(),
   token: z.string().optional(),
+  read_only: ReadOnlySchema,
 });
 type LibSQLConfig = z.infer<typeof LibSQLConfigSchema>;
 
@@ -121,6 +127,7 @@ export const SQLConfigSchema = z.object({
   user: z.string().optional(),
   password: z.string().optional(),
   database: z.string().optional(),
+  read_only: ReadOnlySchema,
 });
 type SQLConfig = z.infer<typeof SQLConfigSchema>;
 
@@ -438,6 +445,7 @@ function getPostgresEnumsQuery(quotedSchemas: string) {
 
 class BaseClient {
   driver: Driver;
+  readOnly: boolean;
   quotedSchemas: string = "";
 
   private getQuotedSchemas(schemas: string[]): string {
@@ -458,6 +466,7 @@ class BaseClient {
 
   constructor(config: LocalSQLToolConfig["config"]) {
     this.driver = config.driver;
+    this.readOnly = config.read_only === true;
 
     this.setSchemas();
   }
@@ -528,6 +537,11 @@ class PostgresClient extends BaseClient {
       user: config.user,
       password: config.password,
       database: config.database,
+      // Read-only also as the session default, so a COMMIT smuggled into the
+      // query does not leave the statements after it free to write.
+      ...(this.readOnly && {
+        connection: { default_transaction_read_only: true },
+      }),
     };
     this.conn = postgres(connectionConfig);
   }
@@ -536,10 +550,21 @@ class PostgresClient extends BaseClient {
     query: string,
     args?: unknown[],
   ): Promise<T[]> {
-    return await this.conn.unsafe(
-      query,
-      args as postgres.ParameterOrJSON<never>[],
-    );
+    const params = args as postgres.ParameterOrJSON<never>[];
+
+    if (this.readOnly) {
+      // postgres.js sends a query without parameters through the simple
+      // protocol, which runs several statements: `SET … ; COMMIT; INSERT …`
+      // would end the read-only transaction and write after it. The extended
+      // protocol takes a single statement.
+      const extended = { simple: false } as postgres.UnsafeQueryOptions;
+      return await this.conn.begin(
+        "read only",
+        (sql) => sql.unsafe(query, params ?? [], extended),
+      ) as T[];
+    }
+
+    return await this.conn.unsafe(query, params);
   }
 
   override async close() {
@@ -592,8 +617,23 @@ class MySQLClient extends BaseClient {
     query: string,
     args?: unknown[],
   ): Promise<T[]> {
+    const conn = await this.conn;
+
+    if (this.readOnly) {
+      // Rejects DML. MySQL commits implicitly before DDL, so a read-only
+      // transaction cannot stop DDL; that takes a read-only database user.
+      await conn.query("START TRANSACTION READ ONLY");
+      try {
+        // @ts-ignore Connection does have a query method
+        const [results, _fields] = await conn.query(query, args);
+        return results as T[];
+      } finally {
+        await conn.query("ROLLBACK");
+      }
+    }
+
     // @ts-ignore Connection does have a query method
-    const [results, _fields] = await (await this.conn).query(query, args);
+    const [results, _fields] = await conn.query(query, args);
     return results as T[];
   }
 
@@ -646,6 +686,20 @@ class LibSQLClient extends BaseClient {
     query: string,
     args?: unknown[],
   ): Promise<T[]> {
+    if (this.readOnly) {
+      // A "read" transaction rejects any statement that writes.
+      const tx = await this.conn.transaction("read");
+      try {
+        const result = await tx.execute({
+          sql: query,
+          args: (args ?? []) as libsql.InArgs,
+        });
+        return result.rows as T[];
+      } finally {
+        tx.close();
+      }
+    }
+
     const result = await this.conn.execute(query, args as libsql.InArgs);
     return result.rows as T[];
   }
@@ -1002,6 +1056,10 @@ export async function bulkInsertImplementation(
   _context: RequestContext,
   supabaseClient: SupabaseClient,
 ): Promise<z.infer<typeof BulkInsertOutputSchema>> {
+  if (config.read_only) {
+    throw new Error("This database is configured as read-only");
+  }
+
   const client = createDBClient(config);
 
   const file = await downloadFromStorage(supabaseClient, input.file_uri);
