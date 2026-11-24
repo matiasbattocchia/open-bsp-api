@@ -452,12 +452,19 @@ export class ChatCompletionsHandler
     const audio_in = usage.prompt_tokens_details?.audio_tokens ?? 0;
     const audio_out = usage.completion_tokens_details?.audio_tokens ?? 0;
     const reasoning = usage.completion_tokens_details?.reasoning_tokens ?? 0;
+    // Google's OpenAI-compatible endpoint counts thinking in total_tokens
+    // alone, in neither completion_tokens nor reasoning_tokens; it bills it as
+    // output. Elsewhere the total is exactly prompt plus completion.
+    const unreported = Math.max(
+      0,
+      (usage.total_tokens ?? 0) - prompt - completion,
+    );
 
     const cost = (prompt - cached - audio_in) * (pricing.input ?? 0) +
       cached * (pricing.cache_read ?? pricing.input ?? 0) +
       audio_in * (pricing.audio_input ?? pricing.input ?? 0) +
       (completion - reasoning - audio_out) * (pricing.output ?? 0) +
-      reasoning * (pricing.reasoning ?? pricing.output ?? 0) +
+      (reasoning + unreported) * (pricing.reasoning ?? pricing.output ?? 0) +
       audio_out * (pricing.audio_output ?? pricing.output ?? 0);
 
     return cost / quantity;

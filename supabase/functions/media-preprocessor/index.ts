@@ -26,7 +26,9 @@ function calculateCost(
   if (!usage) return 0;
 
   const cached = usage.cachedContentTokenCount ?? 0;
-  const completion = usage.candidatesTokenCount ?? 0;
+  // Google bills thinking as output; the candidates count leaves it out.
+  const completion = (usage.candidatesTokenCount ?? 0) +
+    (usage.thoughtsTokenCount ?? 0);
 
   let inputCost = 0;
   const promptDetails = usage.promptTokensDetails as
