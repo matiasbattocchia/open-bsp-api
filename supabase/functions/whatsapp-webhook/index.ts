@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import * as log from "../_shared/logger.ts";
+import { timingSafeEqual } from "../_shared/crypto.ts";
 import {
   type ContactAddressInsert,
   createUnsecureClient,
@@ -180,13 +181,12 @@ async function validateWebhookSignature(
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
 
-    const isValid = signatureValue === expectedSignature;
+    const isValid = timingSafeEqual(signatureValue, expectedSignature);
 
+    // Never log the expected signature: it is a valid signature for this
+    // body, and anyone reading the logs could replay the request with it.
     if (!isValid) {
-      log.warn("Invalid webhook signature", {
-        expected: expectedSignature,
-        received: signatureValue,
-      });
+      log.warn("Invalid webhook signature", { received: signatureValue });
     }
 
     return isValid;

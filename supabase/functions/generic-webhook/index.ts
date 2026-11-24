@@ -53,6 +53,7 @@
 // _shared/types/message_types.ts). Legacy TextPart kind 'reaction' payloads
 // from older bridge builds are still stored as-is; readers accept both.
 import * as log from "../_shared/logger.ts";
+import { timingSafeEqual } from "../_shared/crypto.ts";
 import {
   type ContactAddressInsert,
   createUnsecureClient,
@@ -129,9 +130,9 @@ async function handle(req: Request): Promise<Response> {
   }
 
   const authHeader = req.headers.get("Authorization");
-  const token = authHeader?.replace("Bearer ", "");
+  const token = authHeader?.replace(/^Bearer\s+/i, "") ?? "";
 
-  if (!expectedToken || token !== expectedToken) {
+  if (!expectedToken || !timingSafeEqual(token, expectedToken)) {
     return new Response("Unauthorized", { status: 401 });
   }
 
