@@ -25,6 +25,7 @@ import {
 
 import {
   fetchMedia,
+  logUnstored,
   MAX_STORAGE_UPLOAD_SIZE,
   uploadToStorage,
   withoutMedia,
@@ -1158,10 +1159,13 @@ async function processMessage(request: Request): Promise<Response> {
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
 
-        log.warn("Failed to download IG media, storing a placeholder", {
-          error: reason,
-          message_id: message.external_id,
-        });
+        logUnstored(
+          "Failed to download IG media, storing a placeholder",
+          error,
+          {
+            message_id: message.external_id,
+          },
+        );
 
         return withoutMedia(message, reason);
       }

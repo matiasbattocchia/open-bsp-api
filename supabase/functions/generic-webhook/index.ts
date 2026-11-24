@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
       const body = path.endsWith("/media")
         ? "Usage limit reached for storage"
         : message;
-      log.warn("Connector request rejected by billing cap", { message, path });
+      log.info("Connector request rejected by billing cap", { message, path });
       return new Response(body, { status: 402 });
     }
 

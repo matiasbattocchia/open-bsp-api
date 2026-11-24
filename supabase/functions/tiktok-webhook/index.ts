@@ -32,6 +32,7 @@ import {
 } from "../_shared/tiktok.ts";
 import {
   fetchMedia,
+  logUnstored,
   MAX_STORAGE_UPLOAD_SIZE,
   uploadToStorage,
   withoutMedia,
@@ -603,10 +604,13 @@ async function downloadMediaItem(
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
 
-    log.warn("Failed to download TikTok media, storing a placeholder", {
-      error: reason,
-      message_id: message.external_id,
-    });
+    logUnstored(
+      "Failed to download TikTok media, storing a placeholder",
+      error,
+      {
+        message_id: message.external_id,
+      },
+    );
 
     if (isDeadToken(error)) {
       await flagExpiredToken(

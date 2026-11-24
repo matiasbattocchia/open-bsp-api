@@ -2,6 +2,8 @@ import ky from "ky";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { decodeBase64 } from "jsr:@std/encoding/base64";
 import { encodeBase64Url } from "jsr:@std/encoding/base64url";
+import { isQuotaError } from "./connections.ts";
+import * as log from "./logger.ts";
 import type { MessageInsert } from "./types/database_types.ts";
 import type { IncomingMessage } from "./types/message_types.ts";
 import type { IncomingStatus } from "./types/status_types.ts";
@@ -53,6 +55,22 @@ export async function uploadToStorage(
   }
 
   return BASE_URI + key;
+}
+
+/**
+ * Logs why a medium's bytes were not stored. A full storage quota is the plan
+ * at work, which the organization hears of by email, so it logs as info;
+ * anything else (a failed download, the service refusing) may need a look.
+ */
+export function logUnstored(
+  message: string,
+  error: unknown,
+  details: Record<string, unknown>,
+) {
+  (isQuotaError(error) ? log.info : log.warn)(message, {
+    error: error instanceof Error ? error.message : String(error),
+    ...details,
+  });
 }
 
 /**

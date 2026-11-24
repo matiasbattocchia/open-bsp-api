@@ -21,6 +21,7 @@ import type {
   MessageInsert,
 } from "../_shared/supabase.ts";
 import {
+  logUnstored,
   MAX_STORAGE_UPLOAD_SIZE,
   uploadToStorage,
   withoutMedia,
@@ -706,7 +707,7 @@ async function downloadFile(
       ),
     };
   } catch (error) {
-    log.warn(`Slack file download failed`, { file: file.id, error });
+    logUnstored("Slack file download failed", error, { file: file.id });
     return { error: error instanceof Error ? error.message : String(error) };
   }
 }

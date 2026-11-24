@@ -628,7 +628,11 @@ app.all("*", async (c) => {
       .then((m) => Array.isArray(m) ? m.map((x) => x?.method) : m?.method)
       .catch(() => "<unparseable body>");
 
-    log.warn("MCP request rejected", {
+    // A client probes server/discover with a protocol version newer than the
+    // SDK speaks, and falls back to initialize when refused: expected.
+    const probe = response.status === 400 && rpcMethod === "server/discover";
+
+    (probe ? log.info : log.warn)("MCP request rejected", {
       status: response.status,
       method: c.req.method,
       contentType: c.req.header("Content-Type"),
