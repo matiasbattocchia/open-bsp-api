@@ -189,12 +189,15 @@ set search_path to ''
 as $$
 declare
   _org_id uuid;
-  _size_gb numeric;
 begin
   _org_id := (string_to_array(new.name, '/'))[2]::uuid;
-  _size_gb := coalesce((new.metadata->>'size')::numeric, 0) / 1000000000.0;
 
-  perform billing.check_limit(_org_id, 'storage', _size_gb);
+  -- A file is refused once storage is past the cap, not for crossing it: the
+  -- one that crosses is kept (at most one file over). Refusing it instead
+  -- would stall usage just short of the cap, where it never reads as capped,
+  -- so the 'capped' alert would never go out — a refusal rolls back, and
+  -- records nothing.
+  perform billing.check_limit(_org_id, 'storage', 0);
   return new;
 end;
 $$;
