@@ -50,7 +50,10 @@ esac
 case "$file" in
   *.ts | *.tsx)
     # Type checking needs the package import map; outside a package it only
-    # yields false "not a dependency" errors, so skip it there.
+    # yields false "not a dependency" errors, so skip it there. The plugin's
+    # hooks module runs inside Claude Code, against types only it has
+    # (`claude plugin validate`, `claude plugin test`).
+    case "$file" in "$CLAUDE_PROJECT_DIR"/plugin/hooks/*) pkg="" ;; esac
     if [ -n "$pkg" ] && ! out=$(cd "$pkg" && deno check "$file" 2>&1); then
       problems+="[deno check]"$'\n'"$out"$'\n'
     fi

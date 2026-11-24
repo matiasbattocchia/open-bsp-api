@@ -20,3 +20,6 @@ package-lock.json
 mise.toml
 
 .mcp.json
+
+# Claude Code writes it into the plugin when it loads it with --plugin-dir
+plugin/tsconfig.json

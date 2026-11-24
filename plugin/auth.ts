@@ -9,7 +9,17 @@
  */
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { spawn } from "node:child_process";
+import {
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+import process from "node:process";
 import { loadConfig, SESSION_FILE, STATE_DIR } from "./config.ts";
 
 type SavedSession = {
@@ -34,7 +44,7 @@ function saveSession(session: SavedSession): void {
   writeFileSync(tmp, JSON.stringify(session, null, 2) + "\n", {
     mode: 0o600,
   });
-  Deno.renameSync(tmp, SESSION_FILE);
+  renameSync(tmp, SESSION_FILE);
 }
 
 export function clearSavedSession(): void {
@@ -59,11 +69,6 @@ export function createSupabaseClient(): SupabaseClient {
       persistSession: false, // we manage persistence ourselves
     },
   });
-
-  // Reconnect strategy (from open-bsp-ui)
-  supabase.realtime.reconnectAfterMs = (attempt: number) => {
-    return Math.min(10 * 1000, attempt * 1000);
-  };
 
   // Persist refreshed tokens
   supabase.auth.onAuthStateChange((_event, session) => {
@@ -104,13 +109,15 @@ export async function restoreSession(
 
 /** Best-effort: the user can always visit the URL by hand. */
 export function openBrowser(url: string): void {
-  const openCmd = Deno.build.os === "darwin"
-    ? "open"
-    : Deno.build.os === "windows"
-    ? "start"
-    : "xdg-open";
+  const [command, args] = process.platform === "darwin"
+    ? ["open", [url]]
+    : process.platform === "win32"
+    ? ["cmd", ["/c", "start", "", url]]
+    : ["xdg-open", [url]];
   try {
-    new Deno.Command(openCmd, { args: [url] }).spawn();
+    spawn(command, args, { detached: true, stdio: "ignore" })
+      .on("error", () => {}) // no browser to open
+      .unref();
   } catch {
     // no browser to open
   }
@@ -148,9 +155,7 @@ export async function startLogin(
 
   let settled = false;
 
-  const server = Deno.serve({ port: 0, onListen() {} }, async (request) => {
-    const url = new URL(request.url);
-
+  const handle = async (url: URL): Promise<Response> => {
     if (url.pathname === "/callback") {
       const code = url.searchParams.get("code");
 
@@ -221,9 +226,21 @@ export async function startLogin(
     }
 
     return new Response("not found", { status: 404 });
-  });
+  };
 
-  const port = (server.addr as Deno.NetAddr).port;
+  const server = createServer(async (req, res) => {
+    const response = await handle(new URL(req.url ?? "/", "http://localhost"))
+      .catch(() => new Response("error", { status: 500 }));
+    res.writeHead(response.status, Object.fromEntries(response.headers));
+    res.end(await response.text());
+  });
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const shutdown = () => {
+    server.close();
+    server.closeAllConnections();
+  };
+
+  const port = (server.address() as AddressInfo).port;
   const redirectTo = `http://localhost:${port}/callback`;
 
   const { data, error } = await supabase.auth.signInWithOAuth({
@@ -235,7 +252,7 @@ export async function startLogin(
   });
 
   if (error || !data.url) {
-    await server.shutdown();
+    shutdown();
     throw new Error(`Failed to get OAuth URL: ${error?.message ?? "no url"}`);
   }
 
@@ -259,19 +276,26 @@ export async function startLogin(
 
   const session = sessionPromise
     .then(async (s) => {
-      saveSession(s);
-      await supabase.auth.setSession({
+      const { error } = await supabase.auth.setSession({
         access_token: s.access_token,
         refresh_token: s.refresh_token,
       });
+      if (error) throw new Error(`the session was refused: ${error.message}`);
       const {
         data: { user },
+        error: userError,
       } = await supabase.auth.getUser();
-      return user?.email ?? user?.id ?? "unknown";
+      if (!user) {
+        throw new Error(
+          `the session has no user: ${userError?.message ?? "none returned"}`,
+        );
+      }
+      saveSession(s);
+      return user.email ?? user.id;
     })
     .finally(() => {
       clearTimeout(timeout);
-      server.shutdown().catch(() => {});
+      shutdown();
     });
 
   return { url: data.url, session, cancel };

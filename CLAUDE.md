@@ -12,8 +12,24 @@ CI (`.github/workflows/check.yml`) runs:
 ```bash
 deno fmt --check
 cd supabase/functions && deno lint && deno check .
-cd plugin && deno lint && deno check .
+cd plugin && deno lint && deno check *.ts
+cd plugin && deno task bundle && git diff --exit-code dist
 ```
+
+**The plugin runs on Node from `plugin/dist/`, a bundle committed with the
+sources.** After changing anything bundled under `plugin/` (a `.ts`,
+`deno.json`, `deno.lock`), run `cd plugin && deno task bundle` and commit
+`dist/` with it; CI rebuilds it and fails on any difference. The task bundles
+with a pinned deno through npx (each deno version bundles a little differently),
+so it needs Node and gives the same output whatever deno you have.
+
+**`plugin/hooks/register.ts` is a Claude Code mod, not part of the bundle.**
+Claude Code loads it as it is (no Node: everything outside goes through `$`),
+and its types come with Claude Code, so `deno check` skips `hooks/` (hence
+`deno check *.ts`). Check it with `claude plugin validate plugin` and
+`claude plugin test plugin`; the API types for the installed Claude Code are in
+the `plugin-authoring` skill. It imports only `plugin/modes.ts`, which must stay
+free of Node imports.
 
 **`deno check` only works from inside the package dir.** Run
 `cd supabase/functions && deno check .` — NOT `deno check <file>` from the repo

@@ -9,7 +9,7 @@ import type { ConversationRow, MessageContent, MessageRow } from "./types.ts";
 // ── Access control ──────────────────────────────────────────────────────
 
 // A phone number written any way: +54 9 11 5555-1234, 5491155551234.
-const PHONE = /^\+?[\d\s().-]+$/;
+export const PHONE = /^\+?[\d\s().-]+$/;
 
 /** How an allowlist entry is stored: a phone as its digits, else verbatim. */
 export function normalizeAddress(address: string): string {
@@ -26,9 +26,9 @@ export function sameAddress(entry: string, address: string): boolean {
 }
 
 /**
- * Whether a message reaches Claude: its author, or the conversation it was
- * written in, is on the allowlist. An allowed conversation forwards everyone
- * in it; an allowed person is forwarded wherever they write.
+ * Whether a group's message reaches the inbox: its author, or the group it
+ * was written in, is on the allowlist. An allowed group counts everyone in
+ * it; an allowed person counts wherever they write.
  */
 export function isAllowed(addresses: (string | null)[]): boolean {
   const { allowedContacts } = loadConfig();
@@ -85,14 +85,6 @@ export async function resolveContact(
   };
   contactCache.set(key, contact);
   return contact;
-}
-
-export async function resolveContactName(
-  supabase: SupabaseClient,
-  msg: MessageRow,
-  address: string,
-): Promise<string> {
-  return (await resolveContact(supabase, msg, address)).name;
 }
 
 export async function resolveConversation(

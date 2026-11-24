@@ -1,7 +1,7 @@
 {
   "name": "openbsp",
-  "description": "Claude reads and answers your WhatsApp, Instagram, TikTok and Slack messages, and reaches the whole OpenBSP API. /openbsp:setup gets you started.",
-  "version": "0.6.0",
+  "description": "Claude reads and answers your WhatsApp, Instagram, TikTok and Slack messages, and reaches the whole OpenBSP API. Ask Claude to set it up.",
+  "version": "0.8.0",
   "author": {
     "name": "Matías Battocchia",
     "url": "https://github.com/matiasbattocchia"
@@ -15,5 +15,18 @@
     "api",
     "mcp",
     "openbsp"
-  ]
+  ],
+  "userConfig": {
+    "permission": {
+      "type": "string",
+      "title": "Permission mode",
+      "description": "What Claude may do beyond reading your messages: read (never send or change anything), ask (approve each send or change), or allow.",
+      "default": "ask",
+      "options": [
+        "read",
+        "ask",
+        "allow"
+      ]
+    }
+  }
 }

@@ -7,16 +7,16 @@ user-invocable: true
 # /openbsp:inbox
 
 1. Call the openbsp `inbox` tool. When it says the user is not signed in or has
-   no organization, tell them to run `/openbsp:setup`.
+   no organization, offer to set it up (the `setup` tool).
 2. Nothing new: say so in one short line, nothing else — this runs on a loop.
 3. New messages: handle them as the user told you — how, when and what to answer
-   (their CLAUDE.md, this conversation) — within the permission mode the result
-   names:
+   (their CLAUDE.md, this conversation) — within their OpenBSP permission mode
+   (a line in your instructions, or the result):
    - **read only**: `reply` is refused. Summarize who wrote and what about, with
      a draft answer when the user wants one.
-   - **ask**: write each answer in the chat, then send it with `reply`: the user
-     approves it in a dialog that shows only its start. Don't also ask in chat.
-     A declined one stays theirs; they may tell you what to change.
+   - **ask**: send it with `reply`: the user approves each one in a dialog.
+     Don't also ask in chat. A declined one stays theirs; they may tell you what
+     to change.
    - **allow**: `reply` sends at once.
 
    Call `reply` with the conversation's `conversation_id` (and `reply_to` set to

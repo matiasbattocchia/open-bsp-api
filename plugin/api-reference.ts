@@ -226,7 +226,7 @@ Template routes take a JSON body \`{"organization_id": "<uuid>", "organization_a
 | /functions/v1/whatsapp-management/templates | PATCH | Edit a template |
 | /functions/v1/whatsapp-management/templates | DELETE | Delete a template |
 
-Connecting accounts runs in the \`setup\` tool's menus (WhatsApp Business, Instagram and TikTok through an onboarding link, WhatsApp Web through a pairing code) or in the OpenBSP app (Slack too).
+Connecting accounts runs in the \`setup\` tool (WhatsApp Business, Instagram and TikTok through an onboarding link, WhatsApp Web through a pairing code) or in the OpenBSP app (Slack too).
 
 ---
 

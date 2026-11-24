@@ -1,4 +1,13 @@
 {
+  "exclude": [
+    "dist/"
+  ],
+  "compilerOptions": {
+    "strict": true
+  },
+  "tasks": {
+    "bundle": "npx -y deno@2.9.6 bundle --platform deno --minify --quiet -o dist/server.mjs server.ts"
+  },
   "fmt": {
     "lineWidth": 80,
     "indentWidth": 2,
@@ -8,7 +17,10 @@
   },
   "lint": {
     "rules": {
-      "exclude": ["no-unversioned-import", "no-import-prefix"]
+      "exclude": [
+        "no-unversioned-import",
+        "no-import-prefix"
+      ]
     }
   },
   "imports": {

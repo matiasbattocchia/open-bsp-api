@@ -7,7 +7,7 @@ conversations, templates and more.
 
 ## Get started
 
-You need [Deno](https://deno.com) v2+ and
+You need [Node.js](https://nodejs.org) v20+ and
 [Claude Code](https://claude.com/claude-code) v2.1.292+.
 
 ```bash
@@ -16,45 +16,62 @@ claude plugin install openbsp --marketplace matiasbattocchia/open-bsp-api
 
 (Inside a session:
 `/plugin install openbsp --marketplace
-matiasbattocchia/open-bsp-api`.) Then
-start Claude Code and run:
+matiasbattocchia/open-bsp-api`.) The
+install asks for the [permission mode](#the-permission-mode). Then Claude offers
+to set OpenBSP up: say yes, or ask it any time ("set up OpenBSP", "connect my
+Instagram").
 
-```
-/openbsp:setup
-```
-
-Setup walks you through menus in the terminal; you never need the OpenBSP web
-app. Each menu is a list of checkboxes: Space ticks one, Accept goes on (with
-nothing ticked, it moves on), Decline goes back a step, Esc stops.
+Setup asks one question at a time in Claude Code's picker, straight from the
+plugin — Claude only gets the summary — and you never need the OpenBSP web app.
+Arrows move, Enter picks and goes on, "Type something" takes a name or anything
+not listed, and Esc stops. Actions are marked apart from the names around them:
+`+` creates, connects or allows, `−` removes, `←` goes back, `↑`/`↓` page, `✓`
+goes on.
 
 1. **Sign in with Google or GitHub.** Your browser opens once. A first sign-in
    creates your OpenBSP account.
 2. **Organization.** Create one, pick one you belong to, or join one you were
-   invited to.
+   invited to. Many page down (`↓ Down`, `↑ Up`), or type part of a name to find
+   one.
 3. **Accounts.** WhatsApp through the official API (a business account),
    Instagram or TikTok: their own sign-in opens in the browser. Or WhatsApp Web,
    any account through an unofficial API: you type a code on your phone.
    WhatsApp may ban a number linked this way, above all one messaging people who
    haven't saved it — campaigns belong on the official API. Connect more, or go
    on.
-4. **Permissions.** Read only (Claude never sends or changes anything), ask
-   before each send or change (the default), or allow them.
-5. **Checking.** Every 5 minutes, 15 minutes, an hour, or only when you ask.
-   Claude starts `/loop` for you.
+4. **Checking.** Every 3 or 10 minutes, or only when you ask. Claude starts
+   `/loop` for you.
 
 Then tell Claude how, when and what to answer: who you are, the tone, what never
 to promise. That's yours to say, not a setting — keep it in your `CLAUDE.md` for
 later sessions.
 
-The permission mode is the plugin's, enforced whatever Claude Code's own mode
-(bypass included). In ask mode, Claude writes each answer in the chat and a
-dialog asks before it goes out: Accept sends it, Decline doesn't (then tell
-Claude what to change). A change through the `query` tool (anything but a read)
-asks the same way.
+Any step runs again on its own: ask Claude to connect another account, switch
+organization, change how often it checks, or allow a group chat in the inbox
+(below).
 
-Any step runs again on its own: `/openbsp:setup accounts`,
-`/openbsp:setup permissions`… `/openbsp:setup contacts`, which first runs never
-show, allowlists group chats and the live channel (below).
+## The permission mode
+
+Whether Claude may send messages and change things is set in `/config` (search
+OpenBSP), and at install:
+
+- **read** — Claude never sends or changes anything; it shows you drafts.
+- **ask** (the default) — Claude Code asks you to approve each message Claude
+  sends, showing all of it, and each change through the `query` tool (anything
+  but a read). "No" stops Claude there; "No, tell Claude what to do differently"
+  (Tab) lets it go on with the rest.
+- **allow** — Claude sends and changes things on its own.
+
+The plugin enforces it whatever Claude Code's own permission mode, bypass
+included, and a change takes effect at once. Only `/config` changes it: an edit
+to Claude Code's settings files made some other way (by hand, or by a tool
+Claude ran) can't loosen it — the plugin refuses it and keeps refusing it in
+later sessions, until the mode is set in `/config`.
+
+Where Claude Code doesn't run the plugin's hooks (`disableAllHooks`,
+`--safe-mode`, an organization policy), the plugin's server enforces the mode it
+started with, in a dialog of its own; after changing the mode there, run
+`/reload-plugins`.
 
 ## Reading and answering
 
@@ -64,7 +81,7 @@ conversation counts, strangers included — the replies to a campaign, say.
 Setup's checking step runs it on a loop for you:
 
 ```
-/loop 5m /openbsp:inbox
+/loop 3m /openbsp:inbox
 ```
 
 A loop runs while the session is open and doesn't outlive it. In a new session,
@@ -87,45 +104,18 @@ promise — it doesn't reply, and leaves that conversation for you.
 ## Groups and the allowlist
 
 The inbox leaves group chats and channels out — a personal WhatsApp's family
-group, a busy Slack channel — unless they are on the allowlist. The live channel
-(below) forwards only allowlisted people and conversations. An entry is an
+group, a busy Slack channel — unless they are on the allowlist. An entry is an
 address on any service: a phone number (WhatsApp, WhatsApp Web), an Instagram or
 TikTok user id, a Slack user id, or a conversation's own address — a WhatsApp
 group JID, a Slack channel id. A message counts when its author or its
 conversation is allowed. Phone numbers match on their digits; other addresses
-verbatim. `/openbsp:setup contacts` finds them by name, or:
+verbatim.
 
-```
-/openbsp:config contacts add 5491155551234          # a WhatsApp contact
-/openbsp:config contacts add 17841400000000000      # an Instagram user
-/openbsp:config contacts add C0123ABCD              # a whole Slack channel
-/openbsp:config contacts                            # show who's allowed
-/openbsp:config contacts remove 5491155551234       # remove one
-```
+Ask Claude to allow a group or a contact: setup's contacts step offers your
+latest conversations, finds one by name, or takes an address, and removes one
+too.
 
 The `query` tool reaches whatever your role in the organization allows.
-
-## Live messages (channel)
-
-Instead of checking on a loop, messages can arrive the moment they're written,
-as a [channel](https://code.claude.com/docs/en/channels). During the research
-preview, a channel outside Anthropic's allowlist needs a flag on every session:
-
-```bash
-claude --dangerously-load-development-channels plugin:openbsp@openbsp
-```
-
-Messages then appear as:
-
-```xml
-<channel source="openbsp" service="instagram" account="@acme" conversation_id="uuid" sender="17841400000000000" sender_name="John" message_id="uuid">
-Hello, I need help with my order
-</channel>
-```
-
-A message in a group or channel also carries `conversation_name`, and one that
-answers another (a Slack thread reply among them) `reply="yes"`. Without the
-flag the channel is silent, and `/openbsp:inbox` covers the same messages.
 
 ## API access
 
@@ -153,54 +143,79 @@ automatically.
 
 ## Tools
 
-| Tool    | What it does                                              |
-| ------- | --------------------------------------------------------- |
-| `setup` | The menus above; `step` runs one of them                  |
-| `inbox` | New messages since the last check, and how to handle them |
-| `reply` | Sends a text in a conversation, on its service            |
-| `query` | Any API call                                              |
-| `login` | Google or GitHub sign-in; `force` switches accounts       |
+| Tool     | What it does                                              |
+| -------- | --------------------------------------------------------- |
+| `setup`  | The questions above; `step` runs one of them              |
+| `status` | What is set up: sign-in, organization, accounts, checking |
+| `inbox`  | New messages since the last check, and how to handle them |
+| `reply`  | Sends a text in a conversation, on its service            |
+| `query`  | Any API call                                              |
+| `login`  | Google or GitHub sign-in; `force` switches accounts       |
+| `logout` | Signs out on this computer                                |
+
+(`hooks` is the plugin's own handshake; Claude can't call it.)
 
 ## Configuration
 
-`/openbsp:config` shows the state: sign-in, organization, accounts, allowlist,
-permissions and checking. It also signs in and out (`/openbsp:config login`,
-`/openbsp:config logout`) and manages the allowlist.
-
-Settings live in `~/.claude/channels/openbsp/config.json`:
+The plugin keeps its files in the folder Claude Code gives it,
+`~/.claude/plugins/data/openbsp-openbsp/`, kept across updates and removed when
+you uninstall. (Versions up to 0.7 used `~/.claude/channels/openbsp/`; the
+plugin moves the files over on its first start.) Setup's answers are in
+`config.json`:
 
 ```json
 {
   "orgId": "uuid",
   "allowedContacts": ["5491155551234", "C0123ABCD"],
-  "permission": "ask",
   "checkEvery": "5m"
 }
 ```
 
-All fields are optional. `allowedContacts` is the allowlist; `permission` is
-`read`, `ask` (default) or `allow`; without `checkEvery`, Claude checks when
-asked. The session lives in `session.json` beside it (0600) and refreshes
-itself; `inbox.json` keeps the inbox's place per organization.
+All fields are optional. `allowedContacts` is the allowlist; without
+`checkEvery`, Claude checks when asked. The permission mode isn't here: it's in
+Claude Code's settings (`/config`). The session lives in `session.json` beside
+it (0600) and refreshes itself; `inbox.json` keeps the inbox's place per
+organization. A working copy loaded with `--plugin-dir` gets a folder of its
+own, `openbsp-inline`: delete its files to start over.
 
-Environment variables override the file (for self-hosting, CI or scripting):
+## Self-hosting
 
-| Variable            | Description                                                      |
-| ------------------- | ---------------------------------------------------------------- |
-| `SUPABASE_URL`      | Supabase project URL                                             |
-| `SUPABASE_ANON_KEY` | Supabase anonymous key                                           |
-| `OPENBSP_APP_URL`   | OpenBSP app, where account connection pages open                 |
-| `ORG_ID`            | Organization ID                                                  |
-| `OPENBSP_STATE_DIR` | Override state directory (default: `~/.claude/channels/openbsp`) |
+The plugin talks to the hosted OpenBSP at
+[web.openbsp.dev](https://web.openbsp.dev) with nothing to set. To point it at
+your own deployment, add three environment variables to the `env` block of your
+Claude Code settings (`~/.claude/settings.json`), which the plugin's server
+inherits in every session:
+
+```json
+{
+  "env": {
+    "SUPABASE_URL": "https://<project-ref>.supabase.co",
+    "SUPABASE_ANON_KEY": "<the project's anon or publishable key>",
+    "OPENBSP_APP_URL": "https://<your OpenBSP web app>"
+  }
+}
+```
+
+| Variable            | What it is                                               |
+| ------------------- | -------------------------------------------------------- |
+| `SUPABASE_URL`      | Your Supabase project's URL                              |
+| `SUPABASE_ANON_KEY` | Its anon (publishable) key, the one the web app uses     |
+| `OPENBSP_APP_URL`   | Your web app, where the pages that connect accounts open |
+
+For one session only, a local stack say, set them on the command line instead:
+`SUPABASE_URL=http://127.0.0.1:54321 SUPABASE_ANON_KEY=… claude`. A change takes
+effect in a new session or after `/reload-plugins`. A sign-in belongs to the
+deployment it was made on: after switching, ask Claude to sign you in again.
 
 ## File structure
 
 ```
 plugin/
-├── server.ts              # MCP server: tools, resource, Realtime channel
+├── server.ts              # MCP server: tools and resource
 ├── setup.ts               # The setup steps
-├── permission.ts          # Read only, ask, allow: enforced on reply and query
-├── menus.ts               # Menus and dialogs (MCP elicitation)
+├── modes.ts               # The permission modes, shared with the hooks module
+├── permission.ts          # The mode where Claude Code's hooks don't run
+├── dialogs.ts             # Dialogs that wait (MCP elicitation)
 ├── inbox.ts               # What arrived since the last check
 ├── messages.ts            # Allowlist and message formatting
 ├── org.ts                 # Organizations, invitations, accounts
@@ -210,15 +225,27 @@ plugin/
 ├── config.ts              # Config type, load/save helpers, constants
 ├── types.ts               # OpenBSP types (subset from _shared/types/)
 ├── hooks/
-│   ├── hooks.json         # SessionStart hook
-│   └── session-start.ts   # Offers setup once; restarts the inbox loop on request
+│   ├── hooks.json         # Names the hooks module
+│   ├── register.ts        # The mode, the setup questions, what Claude knows
+│   └── register.test.ts   # Its tests (claude plugin test)
+├── dist/                  # What Node runs: server.ts, bundled
+├── deno.json              # Dev tooling, and `deno task bundle`
 ├── skills/
-│   ├── setup/SKILL.md     # /openbsp:setup
-│   ├── inbox/SKILL.md     # /openbsp:inbox
-│   └── configure/SKILL.md # /openbsp:config
+│   └── inbox/SKILL.md     # /openbsp:inbox
 └── .claude-plugin/
-    └── plugin.json        # Plugin metadata
+    └── plugin.json        # Plugin metadata, and the permission mode setting
 ```
+
+The server is TypeScript, checked and bundled with Deno; the plugin runs the
+bundle on Node. After changing a `.ts` file outside `hooks/`, run
+`deno task bundle` in `plugin/` and commit `dist/` with it — CI fails when they
+differ.
+
+`hooks/register.ts` is a Claude Code
+[mod](https://code.claude.com/docs/en/plugins/mods/create): Claude Code loads it
+as it is, and its types come with Claude Code, so Deno only lints it. Check it
+with `claude plugin validate plugin` and `claude plugin test plugin`, and try it
+with `claude --plugin-dir plugin`, which reloads it on every save.
 
 ## Troubleshooting
 
@@ -233,8 +260,4 @@ organization; connecting its shared accounts takes an admin. You can link your
 own WhatsApp.
 
 **No messages arrive.** The inbox only shows what arrived since its last check,
-and group chats only when allowlisted (`/openbsp:config contacts`).
-
-**"blocked by org policy" (channel).** Your Team or Enterprise admin needs to
-[enable channels](https://code.claude.com/docs/en/channels#enterprise-controls).
-`/openbsp:inbox` works without them.
+and group chats only when allowlisted (ask Claude to allow one).

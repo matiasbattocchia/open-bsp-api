@@ -64,7 +64,7 @@ export type MessageContent =
   }
   & Part;
 
-// ── Row types (as they arrive from Supabase Realtime) ───────────────────
+// ── Row types (as PostgREST returns them) ───────────────────────────────
 
 // The addressing is two columns: conversation_address is the peer the
 // conversation is with (an individual, a group or a channel); sender_address

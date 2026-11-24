@@ -1,39 +1,47 @@
 /**
- * What Claude may do beyond reading, enforced here rather than asked of it:
- * nothing, each send or change once the user approves it in a dialog, or
- * anything. It holds in every Claude Code permission mode, bypass included.
+ * The permission mode where the hooks module can't enforce it. Claude Code
+ * runs hooks/register.ts, which puts each send or change to the user with the
+ * mode they set in /config, and calls the `hooks` tool as this server's first
+ * tool call. Without it (hooks disabled, an older Claude Code, another
+ * client) this server enforces the mode it was started with, in a dialog of
+ * its own.
  */
 
-import { loadConfig, type Permission } from "./config.ts";
-import { Back, canShowMenus, form, Stopped, type Ui } from "./menus.ts";
+import process from "node:process";
+import { Back, canShowDialogs, form, Stopped, type Ui } from "./dialogs.ts";
+import {
+  isChange,
+  parsePermission,
+  type Permission,
+  PERMISSION_NOTES,
+} from "./modes.ts";
 
-export const PERMISSIONS: Record<Permission, string> = {
-  read: "Read only: never send or change anything",
-  ask: "Ask me before each send or change",
-  allow: "Allow sends and changes",
-};
+let byHooks = false;
 
-/** For the inbox and the instructions: how the mode bears on replying. */
-export const PERMISSION_NOTES: Record<Permission, string> = {
-  read:
-    "Permission mode: read only — the reply tool and every change are refused. Summarize, and draft answers in chat if the user wants them.",
-  ask:
-    "Permission mode: ask — each reply opens a dialog where the user approves it, showing only its start: write each answer in the chat as you send it with the reply tool. Don't also ask in chat.",
-  allow: "Permission mode: allow — a reply goes out as soon as you send it.",
-};
+/** Whether the hooks module guards sends and changes in this session. */
+export function guarded(): boolean {
+  return byHooks;
+}
 
-// Reads sent with another method: the template list takes a body.
-const READS = [["PUT", "/functions/v1/whatsapp-management/templates"]];
+/** The hooks module guards from now on; only as the first tool call. */
+export function guardedByHooks(): void {
+  byHooks = true;
+}
 
-export function isChange(method: string, path: string): boolean {
-  if (method === "GET" || method === "HEAD") return false;
-  const route = path.split("?")[0];
-  return !READS.some(([m, p]) => m === method && p === route);
+/** The mode set in /config when Claude Code started this server. */
+const mode: Permission = parsePermission(process.env.OPENBSP_PERMISSION);
+
+/** For the inbox: how the mode bears on replying, unless the hooks say it. */
+export function modeNote(): string | undefined {
+  if (byHooks) return undefined;
+  return mode === "ask"
+    ? "Permission mode: ask — each reply opens a dialog where the user approves it, showing only its start: write each answer in the chat as you send it with the reply tool. Don't also ask in chat."
+    : PERMISSION_NOTES[mode];
 }
 
 function refused(what: string): Error {
   return new Error(
-    `${what}: the user's permission mode is read only. Show them the draft instead; /openbsp:setup permissions changes the mode.`,
+    `${what}: the user's permission mode is read only. Show them the draft instead; they change the mode in /config (OpenBSP).`,
   );
 }
 
@@ -42,7 +50,7 @@ async function approve<T>(
   what: string,
   dialog: () => Promise<T>,
 ): Promise<T> {
-  if (!canShowMenus(ui.mcp)) {
+  if (!canShowDialogs(ui.mcp)) {
     throw new Error(
       `${what}: the user's permission mode asks before each send or change, and this client can't show the dialog. Show them the draft instead.`,
     );
@@ -84,8 +92,7 @@ export async function approveReply(
   to: string,
   text: string,
 ): Promise<void> {
-  const mode = loadConfig().permission;
-  if (mode === "allow") return;
+  if (byHooks || mode === "allow") return;
   if (mode === "read") throw refused("Not sent");
 
   await approve(ui, "Not sent", () =>
@@ -106,9 +113,7 @@ export async function approveChange(
   path: string,
   body: unknown,
 ): Promise<void> {
-  if (!isChange(method, path)) return;
-  const mode = loadConfig().permission;
-  if (mode === "allow") return;
+  if (byHooks || !isChange(method, path) || mode === "allow") return;
   if (mode === "read") throw refused("Not done");
 
   const shown = body === undefined ? "" : JSON.stringify(body);

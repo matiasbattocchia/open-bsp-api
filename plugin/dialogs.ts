@@ -1,15 +1,11 @@
 /**
- * Menus and dialogs in the Claude Code TUI, through MCP elicitation.
- *
- * Every dialog has the same three ways out: Accept goes on, Decline goes
- * back, Esc stops. A menu is a list of checkboxes: Claude Code shows a
- * select collapsed behind a key, and checkboxes in full.
+ * Dialogs in the Claude Code TUI, through MCP elicitation: a form, and a
+ * dialog kept open while the user does something elsewhere. Accept goes on,
+ * Decline goes back, Esc stops. Choices are Claude's to ask (setup.ts).
  */
 
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { openBrowser } from "./auth.ts";
-
-export type Choice = { value: string; title: string };
 
 /** Where dialogs show; aborting the signal (the tool call's) retracts them. */
 export type Ui = { mcp: Server; signal?: AbortSignal };
@@ -43,14 +39,14 @@ function support(mcp: Server): Support | undefined {
 }
 
 // A dialog waits on a person: the SDK's default request timeout (60s) would
-// retract a menu the user is still reading.
+// retract a dialog the user is still reading.
 const DIALOG_TIMEOUT_MS = 60 * 60_000;
 
 const signals = (ui: Ui, own: AbortSignal) =>
   ui.signal ? AbortSignal.any([own, ui.signal]) : own;
 
 /** Whether the client shows forms; an empty declaration means forms. */
-export function canShowMenus(mcp: Server): boolean {
+export function canShowDialogs(mcp: Server): boolean {
   const s = support(mcp);
   return !!s && (!!s.form || !s.url);
 }
@@ -68,39 +64,6 @@ export async function form(
   }, { signal: ui.signal, timeout: DIALOG_TIMEOUT_MS });
   if (res.action !== "accept") leave(res.action);
   return (res.content ?? {}) as Record<string, string | boolean>;
-}
-
-/** The choices the user ticks, in order; `ticked` come ticked already. */
-export async function pick(
-  ui: Ui,
-  message: string,
-  choices: Choice[],
-  ticked: string[] = [],
-): Promise<string[]> {
-  const answer = await form(
-    ui,
-    message,
-    Object.fromEntries(choices.map((c, i) => [`c${i}`, {
-      type: "boolean" as const,
-      title: c.title,
-      ...(ticked.includes(c.value) ? { default: true } : {}),
-    }])),
-  );
-  return choices.filter((_, i) => answer[`c${i}`] === true).map((c) => c.value);
-}
-
-/**
- * One of the choices; undefined when none is ticked. The `current` one comes
- * ticked: Accept alone keeps it, and ticking another picks that one.
- */
-export async function choose(
-  ui: Ui,
-  message: string,
-  choices: Choice[],
-  current?: string,
-): Promise<string | undefined> {
-  const ticked = await pick(ui, message, choices, current ? [current] : []);
-  return ticked.find((v) => v !== current) ?? ticked[0];
 }
 
 /** One line of text; null when left empty. */
@@ -156,18 +119,7 @@ async function race<T>(
 
   try {
     return await Promise.race([
-      done.then((value) => {
-        // A URL dialog is dismissed by notification, per MCP spec.
-        if ("mode" in params && params.mode === "url") {
-          ui.mcp
-            .notification({
-              method: "notifications/elicitation/complete",
-              params: { elicitationId: params.elicitationId },
-            })
-            .catch(() => {});
-        }
-        return { landed: true as const, value };
-      }),
+      done.then((value) => ({ landed: true as const, value })),
       answered,
     ]);
   } finally {
@@ -178,11 +130,9 @@ async function race<T>(
 /**
  * Keep a dialog open while the user does something elsewhere — signs in or
  * connects an account in the browser, types a code on their phone — and
- * close it as soon as `done` lands. A `url` not `opened` yet is offered in a
- * URL dialog when the client takes them, which only opens it: a waiting
- * dialog follows. Otherwise this process opens it (unless `opened`) and the
- * waiting dialog shows it. Leaving a dialog calls `cancel` and throws Back
- * or Stopped.
+ * close it as soon as `done` lands. A `url` opens in the browser (unless
+ * already `opened`), and the dialog shows it in case it didn't. Leaving the
+ * dialog calls `cancel` and throws Back or Stopped.
  */
 export async function waitFor<T>(
   ui: Ui,
@@ -206,33 +156,15 @@ export async function waitFor<T>(
   };
 
   let message = opts.message;
-  if (opts.url && s.url && !opts.opened) {
-    const opened = await race(ui, {
-      mode: "url",
-      elicitationId: crypto.randomUUID(),
-      url: opts.url,
-      message: opts.message,
-    }, opts.done);
-    if (opened.landed) return opened.value;
-    if (opened.action !== "accept") dismissed(opened.action);
-    message += `\nThe page: ${opts.url}`;
-  } else if (opts.url) {
+  if (opts.url) {
     if (!opts.opened) openBrowser(opts.url);
     message += `\nIf your browser didn't open, visit: ${opts.url}`;
   }
 
+  // Nothing to fill in: it closes by itself, and Accept says it's done.
   const waited = await race(ui, {
     message,
-    requestedSchema: {
-      type: "object",
-      properties: {
-        done: {
-          type: "boolean",
-          title: "Done",
-          description: "This closes by itself once it's done.",
-        },
-      },
-    },
+    requestedSchema: { type: "object", properties: {} },
   }, opts.done);
   if (waited.landed) return waited.value;
   if (waited.action !== "accept") dismissed(waited.action);

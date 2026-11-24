@@ -1,5 +1,5 @@
 {
   "fmt": {
-    "exclude": ["supabase/functions/_shared/db_types.ts"]
+    "exclude": ["supabase/functions/_shared/db_types.ts", "plugin/dist/"]
   }
 }

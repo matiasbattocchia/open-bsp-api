@@ -1,8 +1,14 @@
 {
   "mcpServers": {
     "openbsp": {
-      "command": "deno",
-      "args": ["run", "--allow-net", "--allow-read", "--allow-write", "--allow-env", "--allow-run", "${CLAUDE_PLUGIN_ROOT}/server.ts"]
+      "command": "node",
+      "args": [
+        "--no-deprecation",
+        "${CLAUDE_PLUGIN_ROOT}/dist/server.mjs"
+      ],
+      "env": {
+        "OPENBSP_PERMISSION": "${user_config.permission}"
+      }
     }
   }
 }

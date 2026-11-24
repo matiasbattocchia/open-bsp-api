@@ -15,4 +15,12 @@ jobs:
           deno-version: v2.x
       - run: deno fmt --check
       - run: cd supabase/functions && deno lint && deno check .
-      - run: cd plugin && deno lint && deno check .
+      # Not plugin/hooks: the hooks module types against Claude Code (claude plugin validate/test).
+      - run: cd plugin && deno lint && deno check *.ts
+      # The plugin runs on Node from plugin/dist, committed with the sources.
+      - run: cd plugin && deno task bundle && git diff --exit-code dist
+      - name: Plugin starts on Node
+        run: |
+          out=$(printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}}' \
+            | CLAUDE_PLUGIN_DATA=$(mktemp -d) timeout 10 node --no-deprecation plugin/dist/server.mjs || true)
+          echo "$out" | grep -q '"serverInfo"'
