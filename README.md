@@ -250,8 +250,12 @@ Interpret and extract information from media and document files, including:
 ### MCP server
 
 The `mcp` Edge Function exposes an [MCP](https://modelcontextprotocol.io) server
-over Streamable HTTP, giving agentic access to the WhatsApp API from clients
-like Claude Code, Claude Desktop, ChatGPT, or other agent platforms.
+over Streamable HTTP: Claude, ChatGPT, Cursor or any other MCP client reads and
+answers your WhatsApp, Instagram, TikTok and Slack messages, and reaches the
+whole OpenBSP API. It reads messages the way the
+[Claude Code plugin](#claude-code-plugin) does; the plugin adds what a local
+server can, such as setup questions in Claude Code's own menus and a permission
+mode.
 
 For the hosted version at [web.openbsp.dev](https://web.openbsp.dev), the MCP
 server URL is:
@@ -262,10 +266,12 @@ https://nheelwshzbgenpavwhcy.supabase.co/functions/v1/mcp
 
 Two authentication methods:
 
-- **OAuth (humans, recommended)** — just add the server URL; the MCP client
+- **OAuth (people, recommended)** — just add the server URL; the MCP client
   discovers Supabase Auth's OAuth 2.1 server (dynamic client registration),
-  opens the browser, and you sign in with your OpenBSP account and approve on
-  the consent page. Access is scoped to your user via RLS.
+  opens the browser, and you sign in with Google or GitHub and approve on the
+  consent page. A first sign-in creates your account; then ask Claude to create
+  your organization (or join one you were invited to) and connect an account.
+  Access is scoped to your user via RLS.
 - **API key (servers and bots)** — send an `api-key: <API_KEY>` header
   (`Authorization: Bearer <API_KEY>` also works). Get it from OpenBSP > Settings
   > API Keys. Optionally, `Allowed-Contacts` and `Allowed-Accounts` headers
@@ -296,6 +302,30 @@ OAuth kicks in automatically. For headless clients, use an API key instead
 
 Available tools:
 
+| Tool               | Description                                                                              |
+| ------------------ | ---------------------------------------------------------------------------------------- |
+| `status`           | What is set up: the organization, its accounts on every service and their state          |
+| `organizations`    | Your organizations and the invitations waiting for you (OAuth only)                      |
+| `set_organization` | Work in one of them, create one, or join one you were invited to (OAuth only)            |
+| `connect`          | A link that connects WhatsApp Business, Instagram or TikTok; a WhatsApp Web pairing code |
+| `inbox`            | What arrived since the last check, every service; opens one conversation                 |
+| `reply`            | Sends a text in a conversation, on its service                                           |
+| `query`            | Reads anything in the API (PostgREST, Edge Functions)                                    |
+| `change`           | Creates, updates or deletes through the API                                              |
+| `api_reference`    | Tables, PostgREST syntax and endpoints, for `query` and `change`                         |
+
+The inbox shows every one-to-one conversation in full, and each group or channel
+where people wrote as one line — how many messages, who wrote — that Claude
+opens when you want it. With OAuth it picks up where your last check left off,
+and the organization you chose stays chosen across chats: both are kept on your
+membership. An API key keeps no place: pass `since`, which each result gives.
+
+Each tool says whether it only reads (MCP annotations), so a client can let
+reads through and ask before each reply or change. Times are in UTC.
+
+API keys also get the WhatsApp tools keyed by phone number, which AI agents
+configured in the app use:
+
 | Tool                 | Description                                                   |
 | -------------------- | ------------------------------------------------------------- |
 | `list_accounts`      | List connected WhatsApp accounts                              |
@@ -305,6 +335,10 @@ Available tools:
 | `send_message`       | Send a text or template message (enforces 24h service window) |
 | `list_templates`     | List available WhatsApp templates                             |
 | `fetch_template`     | Fetch details of a specific template                          |
+
+A key narrowed by `Allowed-Contacts` or `Allowed-Accounts` sees only those in
+`inbox` and `reply`, and gets no `query`, `change` or `api_reference`: no rule
+could keep a raw API call to them.
 
 ## Hosted version
 

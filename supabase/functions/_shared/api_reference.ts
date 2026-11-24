@@ -1,7 +1,6 @@
 /**
- * Curated API reference for the OpenBSP query tool.
- *
- * Registered as MCP resource `openbsp://api-reference`.
+ * Curated API reference for the MCP servers' query tools: the Claude Code
+ * plugin's (a resource, `openbsp://api-reference`) and the remote server's.
  * Source: openapi.json definitions + PostgREST docs + Edge Function endpoints.
  */
 
@@ -226,7 +225,7 @@ Template routes take a JSON body \`{"organization_id": "<uuid>", "organization_a
 | /functions/v1/whatsapp-management/templates | PATCH | Edit a template |
 | /functions/v1/whatsapp-management/templates | DELETE | Delete a template |
 
-Connecting accounts runs in the \`setup\` tool (WhatsApp Business, Instagram and TikTok through an onboarding link, WhatsApp Web through a pairing code) or in the OpenBSP app (Slack too).
+Connecting accounts runs through the MCP server's own tools (WhatsApp Business, Instagram and TikTok through an onboarding link, WhatsApp Web through a pairing code) or in the OpenBSP app (Slack too).
 
 ---
 

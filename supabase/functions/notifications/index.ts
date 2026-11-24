@@ -6,7 +6,8 @@ import {
   type WebhookPayload,
 } from "../_shared/supabase.ts";
 import * as log from "../_shared/logger.ts";
-import { APP_URL, type Email, sendEmails } from "../_shared/email.ts";
+import { type Email, sendEmails } from "../_shared/email.ts";
+import { APP_URL } from "../_shared/urls.ts";
 import { type AlertRow, quotaEmail } from "./quota_email.ts";
 import { type AddressRow, connectionEmail } from "./connection_email.ts";
 

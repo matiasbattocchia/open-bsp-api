@@ -80,13 +80,11 @@ export type Config = {
   supabaseAnonKey: string;
   appUrl: string;
   orgId?: string;
-  allowedContacts: string[];
   checkEvery?: string; // a /loop interval (5m, 1h); absent = on request
 };
 
 export type ConfigFile = {
   orgId?: string;
-  allowedContacts?: string[];
   checkEvery?: string;
 };
 
@@ -110,7 +108,6 @@ export function loadConfig(): Config {
     supabaseAnonKey: process.env.SUPABASE_ANON_KEY ?? DEFAULT_SUPABASE_ANON_KEY,
     appUrl: process.env.OPENBSP_APP_URL ?? DEFAULT_APP_URL,
     orgId: file.orgId,
-    allowedContacts: file.allowedContacts ?? [],
     checkEvery: file.checkEvery,
   };
 }

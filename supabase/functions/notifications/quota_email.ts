@@ -1,5 +1,6 @@
 import type { Database } from "../_shared/supabase.ts";
-import { APP_URL, type Email } from "../_shared/email.ts";
+import type { Email } from "../_shared/email.ts";
+import { APP_URL } from "../_shared/urls.ts";
 
 export type AlertRow = Database["billing"]["Tables"]["alerts"]["Row"];
 

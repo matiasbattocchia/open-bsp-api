@@ -19,7 +19,10 @@ cd plugin && deno task bundle && git diff --exit-code dist
 **The plugin runs on Node from `plugin/dist/`, a bundle committed with the
 sources.** After changing anything bundled under `plugin/` (a `.ts`,
 `deno.json`, `deno.lock`), run `cd plugin && deno task bundle` and commit
-`dist/` with it; CI rebuilds it and fails on any difference. The task bundles
+`dist/` with it; CI rebuilds it and fails on any difference. The bundle also
+takes `supabase/functions/_shared/{inbox,organizations,api_reference}.ts`,
+shared with the remote MCP server (`mcp/`): a change to one of those needs the
+rebundle too, and they must use neither Node nor Deno APIs. The task bundles
 with a pinned deno through npx (each deno version bundles a little differently),
 so it needs Node and gives the same output whatever deno you have.
 

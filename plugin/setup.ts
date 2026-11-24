@@ -1,9 +1,8 @@
 /**
  * First run, question by question: sign in, create or join an organization,
  * connect accounts, choose how often Claude checks. Each step also runs on
- * its own, contacts (the allowlist) among them. What Claude may do is the
- * permission mode, set in /config; how, when and what to answer is the
- * user's to tell Claude, not a setting.
+ * its own. What Claude may do is the permission mode, set in /config; how,
+ * when and what to answer is the user's to tell Claude, not a setting.
  *
  * The hooks module (hooks/register.ts) asks each question in Claude Code's
  * picker, where Enter on an option picks it and goes on, and answers with
@@ -16,7 +15,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { callFunction } from "./api.ts";
 import { loadConfig, updateConfig } from "./config.ts";
 import { ask, Back, poll, Stopped, type Ui, waitFor } from "./dialogs.ts";
-import { normalizeAddress, PHONE, sameAddress } from "./messages.ts";
 import {
   acceptInvitation,
   accountLabel,
@@ -28,18 +26,9 @@ import {
 } from "./org.ts";
 import { type Provider, PROVIDERS } from "./auth.ts";
 
-export const STEPS = [
-  "organization",
-  "accounts",
-  "contacts",
-  "checking",
-] as const;
+export const STEPS = ["organization", "accounts", "checking"] as const;
 
 export type Step = typeof STEPS[number];
-
-// The allowlist is for group chats: the inbox reads every
-// one-to-one conversation without it, so a first setup skips it.
-const FIRST_RUN: Step[] = ["organization", "accounts", "checking"];
 
 export type SetupContext = {
   ui: Ui;
@@ -500,191 +489,6 @@ async function accountsStep(
   };
 }
 
-// ── Contacts ────────────────────────────────────────────────────────────
-
-type Candidate = { address: string; title: string };
-
-function nameOf(extra: Record<string, unknown> | null): string | undefined {
-  const e = (extra ?? {}) as {
-    synced?: { name?: string };
-    name?: string;
-    username?: string;
-  };
-  return e.synced?.name ?? e.name ?? (e.username && `@${e.username}`);
-}
-
-/** The latest conversations, not allowed yet, named. */
-async function recentConversations(
-  ctx: SetupContext,
-  org: Org,
-  allowed: string[],
-): Promise<Candidate[]> {
-  const { data: conversations } = await ctx.supabase
-    .from("conversations")
-    .select("service, organization_address, address, name, type")
-    .eq("organization_id", org.orgId)
-    .neq("service", "local")
-    .order("updated_at", { ascending: false })
-    .limit(20)
-    .throwOnError();
-
-  const fresh = (conversations ?? [])
-    .filter((c) => !allowed.some((a) => sameAddress(a, c.address)))
-    .slice(0, 6);
-
-  const { data: contacts } = await ctx.supabase
-    .from("contacts_addresses")
-    .select("service, organization_address, address, extra")
-    .eq("organization_id", org.orgId)
-    .in("address", fresh.map((c) => c.address));
-
-  return fresh.map((c) => {
-    const contact = (contacts ?? []).find((k) =>
-      k.service === c.service &&
-      k.organization_address === c.organization_address &&
-      k.address === c.address
-    );
-    const name = c.type && c.type !== "direct"
-      ? `${c.name ?? c.address} (${c.type})`
-      : nameOf(contact?.extra);
-    return {
-      address: c.address,
-      title: `${name ? `${name} · ` : ""}${c.address} · ${c.service}`,
-    };
-  });
-}
-
-async function searchContacts(
-  ctx: SetupContext,
-  org: Org,
-  query: string,
-): Promise<Candidate[]> {
-  // PostgREST's or() syntax: no separators or wildcards from the user.
-  const q = query.replace(/[,()*%\\]/g, " ").trim();
-  const { data } = await ctx.supabase
-    .from("contacts_addresses")
-    .select("service, address, extra")
-    .eq("organization_id", org.orgId)
-    .neq("service", "local")
-    .or(
-      `extra->synced->>name.ilike.*${q}*,extra->>name.ilike.*${q}*,extra->>username.ilike.*${q}*,address.ilike.*${q}*`,
-    )
-    .limit(10)
-    .throwOnError();
-
-  return (data ?? []).map((c) => ({
-    address: c.address,
-    title: `${nameOf(c.extra) ?? c.address} · ${c.address} · ${c.service}`,
-  }));
-}
-
-// A Slack user or channel id, a WhatsApp group JID: an address, not a name.
-const ADDRESS = /^([A-Z][A-Z0-9]{7,}|\S+@\S+)$/;
-
-async function contactsStep(
-  ctx: SetupContext,
-  notice = "",
-): Promise<Outcome> {
-  const org = ctx.org();
-  if (!org) return "Contacts: skipped, no organization.";
-
-  const allowed = loadConfig().allowedContacts;
-  // With some allowed, the fourth option removes one.
-  const recent = (await recentConversations(ctx, org, allowed))
-    .slice(0, allowed.length ? 2 : 3);
-
-  const allow = (address: string) => () => {
-    const entry = normalizeAddress(address);
-    if (!allowed.some((a) => sameAddress(a, entry))) {
-      updateConfig({ allowedContacts: [...allowed, entry] });
-    }
-    return contactsStep(ctx, `Allowed ${entry}.`);
-  };
-  const remove = (address: string) => () => {
-    const left = allowed.filter((a) => !sameAddress(a, address.trim()));
-    if (left.length === allowed.length) {
-      return contactsStep(ctx, `${address.trim()} isn't allowed.`);
-    }
-    updateConfig({ allowedContacts: left });
-    return contactsStep(ctx, `Removed ${address.trim()}.`);
-  };
-  const removal: Question = {
-    header: "Contacts",
-    question: "Remove which? Or type its address.",
-    options: [
-      ...allowed.slice(0, 3).map((a) => ({
-        label: `− Remove ${a}`,
-        then: remove(a),
-      })),
-      { label: BACK, then: () => contactsStep(ctx) },
-    ],
-    typed: { hint: "an allowed address", then: (text) => remove(text)() },
-  };
-  const typed = {
-    hint: "a name to search, or a phone number or address to allow",
-    then: async (text: string): Promise<Outcome> => {
-      if (PHONE.test(text.trim()) || ADDRESS.test(text.trim())) {
-        return await allow(text)();
-      }
-      const found = (await searchContacts(ctx, org, text)).slice(0, 3);
-      if (!found.length) {
-        return await contactsStep(ctx, `No contact matches "${text}".`);
-      }
-      return {
-        header: "Contacts",
-        question: `Contacts matching "${text}". Allow which?`,
-        options: [
-          ...found.map((c) => ({
-            label: add(`Allow ${c.title}`),
-            then: allow(c.address),
-          })),
-          { label: `${BACK}: none of these`, then: () => contactsStep(ctx) },
-        ],
-      };
-    },
-  };
-  const done = {
-    label: "✓ Done",
-    then: () =>
-      Promise.resolve(
-        `Contacts: ${allowed.length ? allowed.join(", ") : "none allowed"}.`,
-      ),
-  };
-
-  const question: Question = {
-    header: "Contacts",
-    question: [
-      notice,
-      "Group chats reach the inbox only when allowed.",
-      allowed.length ? `Allowed: ${allowed.join(", ")}.` : "None allowed yet.",
-      "Allow one? Or type a name or address.",
-    ].filter(Boolean).join(" "),
-    options: [
-      done,
-      ...recent.map((c) => ({
-        label: add(`Allow ${c.title}`),
-        then: allow(c.address),
-      })),
-      ...(allowed.length
-        ? [{ label: "− Remove one", then: () => Promise.resolve(removal) }]
-        : []),
-    ],
-    typed,
-  };
-  // The picker takes two options at least.
-  if (question.options.length < 2) {
-    question.options.push({
-      label: "✎ Type a name or address",
-      then: () =>
-        Promise.resolve({
-          ...question,
-          question: "Type a name to search, or a phone number or address.",
-        }),
-    });
-  }
-  return question;
-}
-
 // ── Checking ────────────────────────────────────────────────────────────
 
 const EVERY: Record<string, string> = {
@@ -730,7 +534,6 @@ function checkingStep(): Promise<Outcome> {
 const RUNNERS: Record<Step, Runner> = {
   organization: organizationStep,
   accounts: (ctx) => accountsStep(ctx),
-  contacts: (ctx) => contactsStep(ctx),
   checking: checkingStep,
 };
 
@@ -756,7 +559,7 @@ export class Setup {
     private readonly ctx: SetupContext,
     private readonly only?: Step,
   ) {
-    this.steps = only ? [only] : FIRST_RUN;
+    this.steps = only ? [only] : [...STEPS];
   }
 
   /** The step a question is waiting in. */

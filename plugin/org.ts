@@ -4,8 +4,22 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadConfig } from "./config.ts";
+import {
+  listInvitations as invitationsFor,
+  type Role,
+} from "../supabase/functions/_shared/organizations.ts";
 
-export type Role = "owner" | "admin" | "member";
+export {
+  acceptInvitation,
+  createOrg,
+  type Invitation,
+  type Role,
+} from "../supabase/functions/_shared/organizations.ts";
+export {
+  accountLabel,
+  type Accounts,
+  resolveAccounts,
+} from "../supabase/functions/_shared/inbox.ts";
 
 export type Org = {
   orgId: string;
@@ -13,17 +27,6 @@ export type Org = {
   agentId: string; // the signed-in user in this org; replies are theirs
   role: Role;
 };
-
-export type Invitation = {
-  id: string;
-  organization_id: string;
-  organization_name: string | null;
-  invited_by_name: string | null;
-  role: Role;
-};
-
-// organization_address → how a person names the account
-export type Accounts = Map<string, { service: string; label: string }>;
 
 /** Every organization the user is a member of. */
 export async function listOrgs(supabase: SupabaseClient): Promise<Org[]> {
@@ -71,77 +74,9 @@ export async function resolveOrg(supabase: SupabaseClient): Promise<Org> {
 }
 
 /** The invitations waiting for the user's own answer. */
-export async function listInvitations(
-  supabase: SupabaseClient,
-): Promise<Invitation[]> {
+export async function listInvitations(supabase: SupabaseClient) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user?.email) return [];
-
-  const { data } = await supabase
-    .from("invitations")
-    .select(
-      "id, organization_id, organization_name, invited_by_name, role, email",
-    )
-    .eq("status", "pending")
-    .throwOnError();
-
-  // Members also read their orgs' invitations to others; only the user's own.
-  const email = user.email.toLowerCase();
-  return (data ?? []).filter((i) => i.email.toLowerCase() === email);
-}
-
-/**
- * Create an organization; the database makes the user its owner. The row is
- * readable only once that membership exists, so the id is chosen here rather
- * than read back from the insert.
- */
-export async function createOrg(
-  supabase: SupabaseClient,
-  name: string,
-): Promise<string> {
-  const id = crypto.randomUUID();
-  await supabase.from("organizations").insert({ id, name }).throwOnError();
-  return id;
-}
-
-/** Join the organization an invitation is for. */
-export async function acceptInvitation(
-  supabase: SupabaseClient,
-  invitation: Invitation,
-): Promise<string> {
-  await supabase
-    .rpc("accept_invitation", { invitation_id: invitation.id })
-    .throwOnError();
-  return invitation.organization_id;
-}
-
-export function accountLabel(
-  address: string,
-  extra: Record<string, string | undefined> | null,
-): string {
-  const e = extra ?? {};
-  return e.phone_number ?? (e.username ? `@${e.username}` : undefined) ??
-    e.team_name ?? e.verified_name ?? e.name ?? address;
-}
-
-export async function resolveAccounts(
-  supabase: SupabaseClient,
-  orgId: string,
-): Promise<Accounts> {
-  const { data } = await supabase
-    .from("organizations_addresses")
-    .select("service, address, extra")
-    .eq("organization_id", orgId)
-    .eq("status", "connected")
-    .neq("service", "local")
-    .throwOnError();
-
-  return new Map(
-    (data ?? []).map((a) => [
-      a.address,
-      { service: a.service, label: accountLabel(a.address, a.extra) },
-    ]),
-  );
+  return await invitationsFor(supabase, user?.email);
 }

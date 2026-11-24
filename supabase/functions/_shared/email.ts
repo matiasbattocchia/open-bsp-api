@@ -1,12 +1,9 @@
 import * as log from "./logger.ts";
+import { APP_URL } from "./urls.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const EMAIL_FROM = Deno.env.get("EMAIL_FROM") ||
   "OpenBSP <notifications@openbsp.dev>";
-
-/** Where links in an email point: the app's origin, without a trailing slash. */
-export const APP_URL = (Deno.env.get("APP_URL") || "https://web.openbsp.dev")
-  .replace(/\/+$/, "");
 
 export type Email = {
   to: string;

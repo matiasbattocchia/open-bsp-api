@@ -297,9 +297,18 @@ export type ToolConfig =
   | LocalMCPToolConfig;
 
 /**
- * A human agent has no defined `extra`: `role` is a column (access control,
- * typed), and invitations are their own table.
+ * A human agent's `extra`: `role` is a column (access control, typed), and
+ * invitations are their own table. What is left is what the remote MCP server
+ * (mcp/) remembers for the person in this organization.
  */
+export type HumanAgentExtra = {
+  mcp?: {
+    /** When they last chose to work in this organization: the latest wins. */
+    picked_at?: string;
+    /** created_at of the last message their inbox read here. */
+    inbox_cursor?: string;
+  };
+};
 
 export type AIAgentExtra = {
   /**

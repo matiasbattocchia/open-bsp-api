@@ -22,3 +22,8 @@ export function authBaseUrl(): string {
   }
   return "http://127.0.0.1:54321/auth/v1";
 }
+
+// The OpenBSP web app's origin, without a trailing slash: where links to it
+// point (emails, the pages that connect an account).
+export const APP_URL = (Deno.env.get("APP_URL") || "https://web.openbsp.dev")
+  .replace(/\/+$/, "");

@@ -15,13 +15,14 @@ import type {
   AIAgentExtra,
   ContactAddressExtra,
   ConversationExtra,
+  HumanAgentExtra,
   OrganizationAddressExtra,
   OrganizationExtra,
 } from "./extra_types.ts";
 
 export type { Json, Tables };
 
-type AgentExtra = AIAgentExtra;
+type AgentExtra = AIAgentExtra & HumanAgentExtra;
 
 export type Database = MergeDeep<
   DatabaseGenerated,

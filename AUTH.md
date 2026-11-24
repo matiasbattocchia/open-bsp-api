@@ -67,20 +67,33 @@ No `apikey` header needed. The middleware in each function (e.g.
 
 The MCP server accepts three credential forms:
 
-| Credential                    | Path                                                                   |
-| ----------------------------- | ---------------------------------------------------------------------- |
-| `api-key: <OPENBSP_API_KEY>`  | API-key path (preferred header for servers/bots)                       |
-| `Authorization: Bearer <key>` | API-key path (legacy; token is not JWT-shaped)                         |
-| `Authorization: Bearer <jwt>` | OAuth path — Supabase session JWT, org resolved via the `agents` table |
+| Credential                    | Path                                                                     |
+| ----------------------------- | ------------------------------------------------------------------------ |
+| `api-key: <OPENBSP_API_KEY>`  | API-key path (preferred header for servers/bots)                         |
+| `Authorization: Bearer <key>` | API-key path (legacy; token is not JWT-shaped)                           |
+| `Authorization: Bearer <jwt>` | OAuth path — Supabase session JWT; the person's chosen org, via `agents` |
 
 Humans get the JWT via MCP OAuth: a 401 response carries a `WWW-Authenticate`
 challenge pointing at `/mcp/.well-known/oauth-protected-resource`, which names
 Supabase Auth's native OAuth 2.1 server (dynamic client registration on) as the
-authorization server. Consent UI: `/oauth/consent` in open-bsp-ui.
+authorization server. Consent UI: `/oauth/consent` in open-bsp-ui, which sends a
+signed-out person to sign in first (a first sign-in creates the account) and
+back to the client at once when they approved it before.
+
+A person works in the organization they chose last (`set_organization`), else
+their oldest: the choice, and where their inbox left off, are kept on their
+membership (`agents.extra.mcp`), which they may update under RLS. A person with
+no organization yet is let in: the tools say so, and `set_organization` creates
+or joins one.
 
 Optional `Allowed-Contacts` / `Allowed-Accounts` headers (comma-separated phone
-numbers) restrict which contacts/accounts the caller can touch; empty or absent
-means unrestricted (RLS still applies).
+numbers) restrict which contacts/accounts an API key's caller can touch; empty
+or absent means unrestricted (RLS still applies). A restricted key gets no
+`query` or `change` tool.
+
+`query` and `change` forward to PostgREST and the Edge Functions with the
+caller's own credentials (the person's JWT, or the key in `api-key`); the
+credentials in the tool's arguments are dropped.
 
 ## Supabase JS Client
 

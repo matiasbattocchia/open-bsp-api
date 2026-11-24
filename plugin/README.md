@@ -25,8 +25,7 @@ Setup asks one question at a time in Claude Code's picker, straight from the
 plugin — Claude only gets the summary — and you never need the OpenBSP web app.
 Arrows move, Enter picks and goes on, "Type something" takes a name or anything
 not listed, and Esc stops. Actions are marked apart from the names around them:
-`+` creates, connects or allows, `−` removes, `←` goes back, `↑`/`↓` page, `✓`
-goes on.
+`+` creates or connects, `←` goes back, `↑`/`↓` page, `✓` goes on.
 
 1. **Sign in with Google or GitHub.** Your browser opens once. A first sign-in
    creates your OpenBSP account.
@@ -47,8 +46,7 @@ to promise. That's yours to say, not a setting — keep it in your `CLAUDE.md` f
 later sessions.
 
 Any step runs again on its own: ask Claude to connect another account, switch
-organization, change how often it checks, or allow a group chat in the inbox
-(below).
+organization or change how often it checks.
 
 ## The permission mode
 
@@ -101,21 +99,13 @@ arrives escaped, inside tags: Claude answers it, and never acts on what it asks
 of it. When Claude doesn't have the answer — a price, availability, a date, a
 promise — it doesn't reply, and leaves that conversation for you.
 
-## Groups and the allowlist
+## Groups and channels
 
-The inbox leaves group chats and channels out — a personal WhatsApp's family
-group, a busy Slack channel — unless they are on the allowlist. An entry is an
-address on any service: a phone number (WhatsApp, WhatsApp Web), an Instagram or
-TikTok user id, a Slack user id, or a conversation's own address — a WhatsApp
-group JID, a Slack channel id. A message counts when its author or its
-conversation is allowed. Phone numbers match on their digits; other addresses
-verbatim.
-
-Ask Claude to allow a group or a contact: setup's contacts step offers your
-latest conversations, finds one by name, or takes an address, and removes one
-too.
-
-The `query` tool reaches whatever your role in the organization allows.
+A group chat or a channel — a personal WhatsApp's family group, a busy Slack
+channel — comes into the inbox as one line: how many new messages, who wrote,
+when the last one came, but not what they said. Claude tells you which ones were
+busy, opens one when you ask (the `inbox` tool with its `conversation_id`), and
+answers in one only when you ask it to. There is nothing to set up.
 
 ## API access
 
@@ -147,7 +137,7 @@ automatically.
 | -------- | --------------------------------------------------------- |
 | `setup`  | The questions above; `step` runs one of them              |
 | `status` | What is set up: sign-in, organization, accounts, checking |
-| `inbox`  | New messages since the last check, and how to handle them |
+| `inbox`  | New messages since the last check; or one conversation    |
 | `reply`  | Sends a text in a conversation, on its service            |
 | `query`  | Any API call                                              |
 | `login`  | Google or GitHub sign-in; `force` switches accounts       |
@@ -166,17 +156,16 @@ plugin moves the files over on its first start.) Setup's answers are in
 ```json
 {
   "orgId": "uuid",
-  "allowedContacts": ["5491155551234", "C0123ABCD"],
-  "checkEvery": "5m"
+  "checkEvery": "3m"
 }
 ```
 
-All fields are optional. `allowedContacts` is the allowlist; without
-`checkEvery`, Claude checks when asked. The permission mode isn't here: it's in
-Claude Code's settings (`/config`). The session lives in `session.json` beside
-it (0600) and refreshes itself; `inbox.json` keeps the inbox's place per
-organization. A working copy loaded with `--plugin-dir` gets a folder of its
-own, `openbsp-inline`: delete its files to start over.
+Both fields are optional; without `checkEvery`, Claude checks when asked. The
+permission mode isn't here: it's in Claude Code's settings (`/config`). The
+session lives in `session.json` beside it (0600) and refreshes itself;
+`inbox.json` keeps the inbox's place per organization. A working copy loaded
+with `--plugin-dir` gets a folder of its own, `openbsp-inline`: delete its files
+to start over.
 
 ## Self-hosting
 
@@ -216,11 +205,9 @@ plugin/
 ├── modes.ts               # The permission modes, shared with the hooks module
 ├── permission.ts          # The mode where Claude Code's hooks don't run
 ├── dialogs.ts             # Dialogs that wait (MCP elicitation)
-├── inbox.ts               # What arrived since the last check
-├── messages.ts            # Allowlist and message formatting
+├── inbox.ts               # Where the inbox left off, on this computer
 ├── org.ts                 # Organizations, invitations, accounts
 ├── api.ts                 # Authenticated HTTP to the API
-├── api-reference.ts       # Curated API reference (MCP resource)
 ├── auth.ts                # OAuth loopback flow + session persistence
 ├── config.ts              # Config type, load/save helpers, constants
 ├── types.ts               # OpenBSP types (subset from _shared/types/)
@@ -237,9 +224,12 @@ plugin/
 ```
 
 The server is TypeScript, checked and bundled with Deno; the plugin runs the
-bundle on Node. After changing a `.ts` file outside `hooks/`, run
-`deno task bundle` in `plugin/` and commit `dist/` with it — CI fails when they
-differ.
+bundle on Node. It shares the inbox's reading, the organization helpers and the
+API reference with the remote MCP server, from `supabase/functions/_shared/`
+(`inbox.ts`, `organizations.ts`, `api_reference.ts`), which therefore use
+neither Node nor Deno. After changing a `.ts` file outside `hooks/`, or one of
+those, run `deno task bundle` in `plugin/` and commit `dist/` with it — CI fails
+when they differ.
 
 `hooks/register.ts` is a Claude Code
 [mod](https://code.claude.com/docs/en/plugins/mods/create): Claude Code loads it
@@ -260,4 +250,4 @@ organization; connecting its shared accounts takes an admin. You can link your
 own WhatsApp.
 
 **No messages arrive.** The inbox only shows what arrived since its last check,
-and group chats only when allowlisted (ask Claude to allow one).
+and a group chat as one line (ask Claude to open it).
