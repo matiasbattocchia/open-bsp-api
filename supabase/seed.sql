@@ -145,6 +145,20 @@ insert into billing.costs (provider, product, effective_at, quantity, unit, pric
   ('google', 'gemini-4-carbon',   '2026-01-01T00:00:00Z', 1000000, 'tokens', '{"input": 2.00, "output": 10.00, "cache_read": 0.10}'),
   ('google', 'gemini-4-carbon',   '2026-12-01T00:00:00Z', 1000000, 'tokens', '{"input": 4.00, "output": 20.00, "cache_read": 0.20}');
 
+-- Withdrawn: a row with no price takes a model out of the app's lists and off
+-- our key from its date on. Google reroutes 2.5 Flash to 3.5 Flash-Lite on
+-- 2026-12-01; OpenAI shuts gpt-5-mini down on 2026-12-11, and shut both
+-- chat-latest aliases down on 2026-08-10 (5.2's is priced as gpt-5.2).
+insert into billing.costs (provider, product, effective_at, quantity, unit, pricing) values
+  ('google', 'gemini-2.5-flash',    '2026-01-01T00:00:00Z', 1000000, 'tokens', '{"input": 0.30, "output": 2.50, "cache_read": 0.03, "audio_input": 1.00, "audio_cache_read": 0.10}'),
+  ('google', 'gemini-2.5-flash',    '2026-12-01T00:00:00Z', 1000000, 'tokens', null),
+  ('openai', 'gpt-5-mini',          '2026-01-01T00:00:00Z', 1000000, 'tokens', '{"input": 0.25, "output": 2.00, "cache_read": 0.025}'),
+  ('openai', 'gpt-5-mini',          '2026-12-11T00:00:00Z', 1000000, 'tokens', null),
+  ('openai', 'gpt-5.2-chat-latest', '2026-01-01T00:00:00Z', 1000000, 'tokens', '{"input": 1.75, "output": 14.00, "cache_read": 0.175}'),
+  ('openai', 'gpt-5.2-chat-latest', '2026-08-10T00:00:00Z', 1000000, 'tokens', null),
+  ('openai', 'gpt-5.3-chat-latest', '2026-01-01T00:00:00Z', 1000000, 'tokens', '{"input": 1.75, "output": 14.00, "cache_read": 0.175}'),
+  ('openai', 'gpt-5.3-chat-latest', '2026-08-10T00:00:00Z', 1000000, 'tokens', null);
+
 -- ============================================================================
 -- SEED DATA - Minecraft Creature-Themed Organizations & Users
 -- ============================================================================

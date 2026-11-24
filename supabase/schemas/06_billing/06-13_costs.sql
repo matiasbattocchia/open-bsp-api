@@ -4,7 +4,9 @@ create table billing.costs (
   effective_at timestamp with time zone default now() not null,
   quantity numeric not null,
   unit text not null,
-  pricing jsonb not null,
+  -- The row in effect is the latest one with effective_at <= now. Null
+  -- withdraws the product from effective_at on; earlier rows stay as history.
+  pricing jsonb,
   created_at timestamp with time zone default now() not null,
   updated_at timestamp with time zone default now() not null
 );

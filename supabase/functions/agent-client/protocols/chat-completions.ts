@@ -514,7 +514,7 @@ export class ChatCompletionsHandler
     const billable = !agent.extra.api_key;
 
     // Fetch cost pricing before the LLM call
-    const { data: costs } = await this.client
+    const { data: row } = await this.client
       .schema("billing")
       .from("costs")
       .select("pricing, quantity")
@@ -525,6 +525,8 @@ export class ChatCompletionsHandler
       .limit(1)
       .maybeSingle()
       .throwOnError();
+    // A row with no price withdraws the model from its date on.
+    const costs = row?.pricing ? row : null;
 
     if (billable) {
       // Block if we don't have pricing for this model

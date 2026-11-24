@@ -276,7 +276,7 @@ Deno.serve(async (req) => {
   const billable = !config.api_key;
 
   // Fetch cost pricing before the LLM call
-  const { data: costs } = await client
+  const { data: row } = await client
     .schema("billing")
     .from("costs")
     .select("pricing, quantity")
@@ -287,6 +287,8 @@ Deno.serve(async (req) => {
     .limit(1)
     .maybeSingle()
     .throwOnError();
+  // A row with no price withdraws the model from its date on.
+  const costs = row?.pricing ? row : null;
 
   if (billable) {
     if (!costs) {

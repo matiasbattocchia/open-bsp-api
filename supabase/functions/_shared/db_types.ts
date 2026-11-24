@@ -82,7 +82,7 @@ export type Database = {
         Row: {
           created_at: string
           effective_at: string
-          pricing: NonNullable<Json>
+          pricing: Json | null
           product: string
           provider: string
           quantity: number
@@ -93,7 +93,7 @@ export type Database = {
         Insert: {
           created_at?: string
           effective_at?: string
-          pricing: NonNullable<Json>
+          pricing?: Json | null
           product: string
           provider: string
           quantity: number
@@ -103,7 +103,7 @@ export type Database = {
         Update: {
           created_at?: string
           effective_at?: string
-          pricing?: NonNullable<Json>
+          pricing?: Json | null
           product?: string
           provider?: string
           quantity?: number
