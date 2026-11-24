@@ -132,7 +132,9 @@ async function privateReplyTarget(
     return undefined;
   }
 
-  // Anything the account sent since answered it already.
+  // Anything the account sent between them answered it already. Only before
+  // this one: a reply split in several rows is dispatched all at once, and
+  // its first row must not see the rest.
   const { count } = await client
     .from("messages")
     .select("id", { count: "exact", head: true })
@@ -141,7 +143,7 @@ async function privateReplyTarget(
     .is("content->>internal", null)
     .is("status->>failed", null)
     .gt("timestamp", last.timestamp)
-    .neq("id", message.id)
+    .lt("timestamp", message.timestamp)
     .throwOnError();
 
   return count ? undefined : last.external_id;

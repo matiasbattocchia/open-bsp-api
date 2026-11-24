@@ -115,10 +115,16 @@ function extractEvents(
   return events;
 }
 
-/** An entry's comments on the account's posts and reels. */
+/**
+ * An entry's comments on the account's posts and reels: those that say who
+ * wrote them, the one thing a comment cannot be filed without.
+ */
 function extractComments(entry: InstagramEntry): InstagramComment[] {
   return (entry.changes ?? []).flatMap((change) =>
-    change.field === "comments" && change.value ? [change.value] : []
+    change.field === "comments" && change.value?.id &&
+      change.value.from?.id
+      ? [change.value]
+      : []
   );
 }
 
@@ -691,7 +697,11 @@ async function commentsToMessages(
 
     // Meta stamps comment entries in seconds, messaging events in ms.
     const timestamp = new Date(
-      entry.time < 1e12 ? entry.time * 1000 : entry.time,
+      !entry.time
+        ? Date.now()
+        : entry.time < 1e12
+        ? entry.time * 1000
+        : entry.time,
     ).toISOString();
 
     const base = {

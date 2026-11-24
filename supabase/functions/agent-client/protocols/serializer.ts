@@ -48,18 +48,19 @@ export function serializePartAsXML(part: Part & Partial<ReferralInfo>): string {
     case "data": {
       if (part.kind === "comment") {
         // A comment on a post: which post, and what was said.
-        const { post } = part.data;
+        // An API writer may leave `post` out of an outgoing one.
+        const post = part.data?.post;
 
-        lines.push(`<comment on="${post.type}">`);
-        if (post.url) lines.push(`<post_url>`, post.url, `</post_url>`);
-        if (post.title) {
+        lines.push(post ? `<comment on="${post.type}">` : `<comment>`);
+        if (post?.url) lines.push(`<post_url>`, post.url, `</post_url>`);
+        if (post?.title) {
           lines.push(
             `<post_caption>`,
             clip(post.title, 500),
             `</post_caption>`,
           );
         }
-        lines.push(part.text, `</comment>`);
+        lines.push(part.text ?? "", `</comment>`);
       } else if (part.text) {
         lines.push(`<${part.kind}>`, part.text, `</${part.kind}>`);
       } else {
