@@ -506,7 +506,7 @@ export class ChatCompletionsHandler
         // the client appends it automatically.
         baseURL = baseURL?.replace("/chat/completions", "") || undefined;
         apiKey ||= undefined;
-        model ||= "gpt-5-mini";
+        model ||= "gpt-5.4-mini";
         provider = !!baseURL && baseURL !== "openai" ? "custom" : "openai";
     }
     // Note: for Bedrock, the base URL is https://${bedrock-runtime-endpoint}/openai/v1

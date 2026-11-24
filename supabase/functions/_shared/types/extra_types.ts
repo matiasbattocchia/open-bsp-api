@@ -11,16 +11,13 @@ export type Memory = {
 export type PreprocessingConfig = {
   mode?: "active" | "inactive";
   /**
-   * An org billed on our key is charged from `billing.costs`, which is keyed by
-   * the exact string sent to Google — so a model belongs here only once it has
-   * a cost row, and a floating alias (`gemini-flash-latest`) never can: it
-   * would price whatever Google resolved it to today at yesterday's rate.
+   * A Google model. An org billed on our key may pick one with a current
+   * `billing.costs` row — the app offers exactly those — since it is charged
+   * by the exact string sent to Google; a floating alias
+   * (`gemini-flash-latest`) never gets a row: it would price whatever Google
+   * resolved it to today at yesterday's rate. Unset, gemini-3.8-flash.
    */
-  model?:
-    | "gemini-2.5-flash"
-    | "gemini-3-flash-preview"
-    | "gemini-3.8-flash"
-    | "gemini-3.1-pro-preview";
+  model?: string;
   api_key?: string;
   language?: string;
   extra_prompt?: string;

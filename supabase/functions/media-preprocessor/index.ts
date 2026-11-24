@@ -169,7 +169,7 @@ Deno.serve(async (req) => {
     );
   }
 
-  const model = config.model || "gemini-2.5-flash";
+  const model = config.model || "gemini-3.8-flash";
 
   const language = config.language || "English";
 

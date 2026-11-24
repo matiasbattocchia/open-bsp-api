@@ -98,17 +98,14 @@ insert into billing.plans_products (plan_id, product_id, interval, included, uni
 -- Google: https://ai.google.dev/gemini-api/docs/pricing
 -- Google: text/image/video share the same input rate. Audio has its own rate.
 -- Google: Gemini 3 reports PDF page tokens as IMAGE modality. Native PDF text is free.
--- Groq: https://groq.com/pricing
+-- Groq: https://console.groq.com/docs/models
 -- Anthropic: https://platform.claude.com/docs/en/about-claude/pricing
 -- OpenIA: https://developers.openai.com/api/docs/pricing
 insert into billing.costs (provider, product, quantity, unit, pricing) values
   ('anthropic', 'claude-sonnet-4-6',     1000000, 'tokens',   '{"input": 3.00, "output": 15.00, "cache_read": 0.30, "cache_write": 3.75}'),
   ('groq',      'openai/gpt-oss-20b',   1000000, 'tokens',   '{"input": 0.075, "output": 0.30, "cache_read": 0.037}'),
   ('groq',      'openai/gpt-oss-120b',   1000000, 'tokens',   '{"input": 0.15, "output": 0.60, "cache_read": 0.075}'),
-  ('google',    'gemini-2.5-flash',       1000000, 'tokens',  '{"input": 0.30, "output": 2.50, "cache_read": 0.03, "audio_input": 1.00, "audio_cache_read": 0.10}'),
   ('google',    'gemini-3-flash-preview', 1000000, 'tokens',  '{"input": 0.50, "output": 3.00, "cache_read": 0.05, "audio_input": 1.00, "audio_cache_read": 0.10}'),
-  ('openai',    'gpt-5.3-chat-latest',  1000000, 'tokens',   '{"input": 1.75, "output": 14.00, "cache_read": 0.18}'),
-  ('openai',    'gpt-5-mini',           1000000, 'tokens',   '{"input": 0.25, "output": 2.00, "cache_read": 0.03}'),
   ('whatsapp',  'marketing/ar',          1, 'templates',       '{"price": 0.0618}'),
   ('whatsapp',  'utility/ar',            1, 'templates',       '{"price": 0.026}'),
   ('whatsapp',  'authentication/ar',     1, 'templates',       '{"price": 0.026}');
@@ -122,18 +119,31 @@ insert into billing.costs (provider, product, effective_at, quantity, unit, pric
 -- Anthropic: cache_read is 0.1x input and cache_write (5m) 1.25x on these models.
 -- Google: Gemini 3.1 Pro bills >200k-token prompts at 2x; a cost row has no
 -- tiers, so it carries the <=200k rate. Neither it nor 3.5 Flash-Lite prices
--- audio separately. OpenAI: gpt-5.2-chat-latest is priced as gpt-5.2.
+-- audio separately. Anthropic: Haiku 5.5 bills prompts over 100k tokens at 5x;
+-- it carries the <=100k rate.
 insert into billing.costs (provider, product, quantity, unit, pricing) values
   ('anthropic', 'claude-haiku-4-5',       1000000, 'tokens', '{"input": 1.00, "output": 5.00, "cache_read": 0.10, "cache_write": 1.25}'),
   ('anthropic', 'claude-sonnet-5',        1000000, 'tokens', '{"input": 2.00, "output": 10.00, "cache_read": 0.20, "cache_write": 2.50}'),
   ('anthropic', 'claude-opus-5',          1000000, 'tokens', '{"input": 5.00, "output": 25.00, "cache_read": 0.50, "cache_write": 6.25}'),
+  ('anthropic', 'claude-haiku-5-5',       1000000, 'tokens', '{"input": 0.10, "output": 0.50, "cache_read": 0.01, "cache_write": 0.125}'),
   ('google',    'gemini-3.5-flash-lite',  1000000, 'tokens', '{"input": 0.30, "output": 2.50, "cache_read": 0.03}'),
   ('google',    'gemini-3.1-pro-preview', 1000000, 'tokens', '{"input": 2.00, "output": 12.00, "cache_read": 0.20}'),
   ('openai',    'gpt-5.4-nano',           1000000, 'tokens', '{"input": 0.20, "output": 1.25, "cache_read": 0.02}'),
   ('openai',    'gpt-5.4-mini',           1000000, 'tokens', '{"input": 0.75, "output": 4.50, "cache_read": 0.075}'),
   ('openai',    'gpt-5.4',                1000000, 'tokens', '{"input": 2.50, "output": 15.00, "cache_read": 0.25}'),
-  ('openai',    'gpt-5.5',                1000000, 'tokens', '{"input": 5.00, "output": 30.00, "cache_read": 0.50}'),
-  ('openai',    'gpt-5.2-chat-latest',    1000000, 'tokens', '{"input": 1.75, "output": 14.00, "cache_read": 0.175}');
+  ('openai',    'gpt-5.5',                1000000, 'tokens', '{"input": 5.00, "output": 30.00, "cache_read": 0.50}');
+
+-- Google: Gemini 4 has one rate for every modality and prompt size (no audio_*
+-- keys), thinking billed as output. Argon and Carbon are at a promotional
+-- price through 2026-11-30 and double on 2026-12-01; Google names the day, not
+-- the hour.
+insert into billing.costs (provider, product, effective_at, quantity, unit, pricing) values
+  ('google', 'gemini-4-hydrogen', '2026-01-01T00:00:00Z', 1000000, 'tokens', '{"input": 1.50, "output": 7.50, "cache_read": 0.075}'),
+  ('google', 'gemini-4-neon',     '2026-01-01T00:00:00Z', 1000000, 'tokens', '{"input": 3.00, "output": 15.00, "cache_read": 0.15}'),
+  ('google', 'gemini-4-argon',    '2026-01-01T00:00:00Z', 1000000, 'tokens', '{"input": 2.00, "output": 10.00, "cache_read": 0.10}'),
+  ('google', 'gemini-4-argon',    '2026-12-01T00:00:00Z', 1000000, 'tokens', '{"input": 4.00, "output": 20.00, "cache_read": 0.20}'),
+  ('google', 'gemini-4-carbon',   '2026-01-01T00:00:00Z', 1000000, 'tokens', '{"input": 2.00, "output": 10.00, "cache_read": 0.10}'),
+  ('google', 'gemini-4-carbon',   '2026-12-01T00:00:00Z', 1000000, 'tokens', '{"input": 4.00, "output": 20.00, "cache_read": 0.20}');
 
 -- ============================================================================
 -- SEED DATA - Minecraft Creature-Themed Organizations & Users

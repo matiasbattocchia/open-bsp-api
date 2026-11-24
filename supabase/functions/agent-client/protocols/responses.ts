@@ -408,7 +408,7 @@ export class ResponsesHandler
         // Strip a trailing /responses if present; the client appends it.
         baseURL = baseURL?.replace("/responses", "") || undefined;
         apiKey ||= undefined;
-        model ||= "gpt-5-mini";
+        model ||= "gpt-5.4-mini";
         provider = !!baseURL && baseURL !== "openai" ? "custom" : "openai";
     }
 
