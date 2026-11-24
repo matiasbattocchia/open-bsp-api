@@ -159,9 +159,12 @@ await supabase.from("messages").insert({
 });
 ```
 
-That's it. Media, templates, locations and the full message schema are covered
-in [MIGRATING_FROM_TWILIO.md](MIGRATING_FROM_TWILIO.md); third-party onboarding
-and credential capture in [INTEGRATING.md](INTEGRATING.md).
+That's it. For a runnable, read-only Supabase JS example with error handling,
+see [examples/](examples/README.md).
+
+Media, templates, locations and the full message schema are covered in
+[MIGRATING_FROM_TWILIO.md](MIGRATING_FROM_TWILIO.md); third-party onboarding and
+credential capture in [INTEGRATING.md](INTEGRATING.md).
 
 ## User interface
 
