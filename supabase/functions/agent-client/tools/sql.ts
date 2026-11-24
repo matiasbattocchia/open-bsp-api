@@ -1,41 +1,32 @@
 /**
- * SQL tool
+ * SQL tools
+ *
+ * A `sql` entry in an agent's tools (LocalSQLToolConfig) connects it to an
+ * external database:
  *
  * {
  *   "provider": "local",
  *   "type": "sql",
- *   "database_label": "my_database",
- *   "driver": "postgres",
- *   "host": "localhost",
- *   "username": "my_user",
+ *   "label": "my_database",
+ *   "config": {
+ *     "driver": "postgres", // or "mysql"
+ *     "host": "db.example.com",
+ *     "port": 5432,
+ *     "user": "agent_reader",
+ *     "password": "…",
+ *     "database": "app"
+ *   }
  * }
  *
- * This tool inherits from the base SQL tool. It makes tools based on SQL queries.
- * Instead of accepting a raw SQL query, it accepts parameters.
+ * or, for libsql/Turso: "config": { "driver": "libsql", "url": "libsql://…",
+ * "token": "…" }.
  *
- * Functions has access to the context object internally. References to the context object such as
- * the organization address could be expressed as "$context.conversation.organization_address" in the SQL query.
- *
- * {
- *   "database_label": "my_database", // DB config to use
- *   "name": "get_user_by_organization_address",
- *   "description": "Get a user by organization address",
- *   "input": {
- *     "type": "object",
- *     "properties": {
- *       "name": {
- *         "type": "string",
- *         "description": "The name of the user"
- *       }
- *     },
- *     "required": ["name"]
- *   }, // Will be used as JSON schema for the tool input.
- *   "query": "
- *     SELECT * FROM users
- *     WHERE organization_address = '$context.conversation.organization_address'
- *     AND name = '$input.name'
- *   "
- * }
+ * Every SQL entry gives the agent the whole SQLTools set, labeled with the
+ * entry's label: getDbSchema, executeSql, bulkInsert, selectAsCsv and
+ * sampleTableRows. executeSql and selectAsCsv run the SQL the model writes,
+ * as written: there are no parameterised or templated queries. The model
+ * answers contacts, so give the connection a database user whose grants are
+ * no wider than what any contact may cause it to do.
  */
 
 import * as z from "zod";
