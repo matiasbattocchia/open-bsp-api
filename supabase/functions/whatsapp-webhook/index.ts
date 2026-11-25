@@ -613,7 +613,9 @@ async function processMessage(request: Request): Promise<Response> {
       const orgAddressRow = orgAddressMap.get(value.metadata!.phone_number_id); // WhatsApp business account phone number id
 
       if (!orgAddressRow) {
-        log.warn("No organization address");
+        log.warn("No organization address", {
+          phone_number_id: value.metadata!.phone_number_id,
+        });
         continue;
       }
 
