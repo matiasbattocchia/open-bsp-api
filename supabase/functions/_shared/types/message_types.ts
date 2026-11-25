@@ -278,7 +278,8 @@ export type SharePart = DataPart<"share", {
  * Outgoing, it is the account answering in public, under the comment its
  * `re_message_id` names (TikTok, up to 1,200 characters). A text naming a
  * comment answers in private instead: on Instagram, one DM per comment,
- * within 7 days of it; TikTok answers a commenter only in public.
+ * within 7 days of it; TikTok answers a commenter only in public, and refuses
+ * it.
  */
 export type CommentPart =
   & DataPart<"comment", {

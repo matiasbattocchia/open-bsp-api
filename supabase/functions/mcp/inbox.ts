@@ -8,6 +8,7 @@ import {
   readConversation,
   type Reader,
   readInbox,
+  replyContent,
   resolveAccounts,
 } from "../_shared/inbox.ts";
 import type { MessageInsert } from "../_shared/supabase.ts";
@@ -137,26 +138,13 @@ export async function reply(
   // that holds it, and the peer.
   const conv = await conversation(caller, orgId, args.conversation_id);
 
-  // A reply names what it answers by the service's id for it (a local row,
-  // which has none, by its own id); Slack posts it in that message's thread.
-  let re_message_id: string | undefined;
-  if (args.reply_to) {
-    const { data: answered } = await caller.supabase
-      .from("messages")
-      .select("id, external_id")
-      .eq("organization_id", orgId)
-      .eq("conversation_id", args.conversation_id)
-      .eq("id", args.reply_to)
-      .maybeSingle()
-      .throwOnError();
-
-    if (!answered) {
-      throw new Error(
-        `Message ${args.reply_to} not found in this conversation`,
-      );
-    }
-    re_message_id = answered.external_id ?? answered.id;
-  }
+  const content = await replyContent(
+    caller.supabase,
+    orgId,
+    { id: args.conversation_id, service: conv.service },
+    args.text,
+    args.reply_to,
+  );
 
   const insert = {
     organization_id: orgId,
@@ -168,13 +156,7 @@ export async function reply(
     // Sent as the person: Slack posts it with their own identity. A key's
     // message is the account's.
     agent_id: membership?.agentId ?? null,
-    content: {
-      version: "1",
-      type: "text",
-      kind: "text",
-      text: args.text,
-      ...(re_message_id && { re_message_id }),
-    },
+    content,
   } as MessageInsert;
 
   // The dispatch trigger routes it to the service (same as open-bsp-ui).

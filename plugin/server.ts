@@ -50,7 +50,10 @@ import {
   guardedByHooks,
 } from "./permission.ts";
 import { PERMISSION_NOTES } from "./modes.ts";
-import { createLookup } from "../supabase/functions/_shared/inbox.ts";
+import {
+  createLookup,
+  replyContent,
+} from "../supabase/functions/_shared/inbox.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import process from "node:process";
 import type { MessageContent, OutgoingMessageInsert } from "./types.ts";
@@ -140,37 +143,6 @@ async function handleReply(
   if (!conversationId) throw new Error("conversation_id is required");
   if (!text) throw new Error("text is required");
 
-  // A reply names what it answers by the service's id for it (a local row,
-  // which has none, by its own id); Slack posts it in that message's thread.
-  let re_message_id: string | undefined;
-  // A TikTok comment is answered in public, under it: TikTok has no other way.
-  let post: unknown;
-
-  if (replyTo) {
-    const { data: answered } = await supabase
-      .from("messages")
-      .select("id, external_id, service, content")
-      .eq("organization_id", org.orgId)
-      .eq("conversation_id", conversationId)
-      .eq("id", replyTo)
-      .maybeSingle()
-      .throwOnError();
-
-    if (!answered) {
-      throw new Error(`Message ${replyTo} not found in this conversation`);
-    }
-
-    re_message_id = answered.external_id ?? answered.id;
-
-    const content = answered.content as MessageContent;
-    if (
-      answered.service === "tiktok" && content.type === "data" &&
-      content.kind === "comment"
-    ) {
-      post = (content.data as { post?: unknown } | undefined)?.post;
-    }
-  }
-
   // The conversation says where the message goes: its service, the account
   // that holds it, and the peer.
   const { data: conv } = await supabase
@@ -182,6 +154,14 @@ async function handleReply(
     .throwOnError();
 
   if (!conv) throw new Error(`Conversation ${conversationId} not found`);
+
+  const content = await replyContent(
+    supabase,
+    org.orgId,
+    { id: conversationId, service: conv.service },
+    text,
+    replyTo,
+  );
 
   const to = conv.name ??
     (await createLookup(supabase).contact(
@@ -199,22 +179,7 @@ async function handleReply(
     sender_address: null,
     // Sent as the signed-in member: Slack posts it with their own identity.
     agent_id: org.agentId,
-    content: post
-      ? {
-        version: "1",
-        type: "data",
-        kind: "comment",
-        data: { post },
-        text,
-        re_message_id,
-      }
-      : {
-        version: "1",
-        type: "text",
-        kind: "text",
-        text,
-        ...(re_message_id && { re_message_id }),
-      },
+    content: content as MessageContent,
   };
 
   // The dispatch trigger routes it to the service (same as open-bsp-ui).
@@ -428,7 +393,7 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => {
           reply_to: {
             type: "string",
             description:
-              "The message this answers (an inbox line's id): on Slack the reply goes into its thread, elsewhere it quotes it. A comment is answered only this way: on Instagram in a private message to its author (once per comment, within 7 days), on TikTok in public, under it. Omit to write in the main timeline",
+              "The message this answers (an inbox line's id): on Slack the reply goes into its thread, elsewhere it quotes it. A comment is answered in public, under it, only this way. Omit to write in the main timeline (on Instagram, with the window closed, that is the one private message the contact's latest comment takes)",
           },
         },
         required: ["conversation_id", "text"],

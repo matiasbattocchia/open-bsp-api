@@ -184,6 +184,26 @@ async function replyInPublic({
   );
 }
 
+/** Whether a message's re_message_id names one of the account's comments. */
+async function namesComment(
+  client: Client,
+  message: MessageRow,
+  content: OutgoingMessage,
+): Promise<boolean> {
+  if (!content.re_message_id) return false;
+
+  const { data } = await client
+    .from("messages")
+    .select("id")
+    .eq("organization_id", message.organization_id)
+    .eq("external_id", content.re_message_id)
+    .eq("content->>kind", "comment")
+    .limit(1)
+    .throwOnError();
+
+  return !!data?.length;
+}
+
 Deno.serve(async (req) => {
   const token = req.headers.get("Authorization")?.replace("Bearer ", "");
 
@@ -223,6 +243,17 @@ Deno.serve(async (req) => {
   if (message.sender_address === null) {
     try {
       const content = message.content as OutgoingMessage;
+
+      // A message quoting a comment would go out as a DM quoting an id TikTok
+      // knows as no message.
+      if (
+        content.kind !== "comment" &&
+        await namesComment(client, message, content)
+      ) {
+        throw new UnsendableError(
+          "TikTok answers a comment only in public, under it: as a comment (kind comment) naming it in re_message_id",
+        );
+      }
 
       if (content.kind !== "comment" && !conversation_id) {
         throw new UnsendableError(

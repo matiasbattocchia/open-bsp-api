@@ -1,6 +1,7 @@
 /**
- * The inbox as Claude reads it, shared by the Claude Code plugin
- * (plugin/inbox.ts) and the remote MCP server (mcp/): what people wrote since
+ * The inbox as Claude reads it, and its replies as Claude writes them, shared
+ * by the Claude Code plugin (plugin/inbox.ts) and the remote MCP server
+ * (mcp/): what people wrote since
  * the last check, on every connected account. A one-to-one conversation comes
  * in full, strangers included (a campaign's replies); a group or channel as
  * one line — a personal WhatsApp's family group, a busy Slack channel — that
@@ -26,7 +27,16 @@ const BEFORE_CLIP = 300;
 const OPENED_SHOWN = 20;
 // A group's line names this many of the people who wrote.
 const AUTHORS_NAMED = 3;
-const WINDOW_MS = 24 * 60 * 60 * 1000;
+// The window a service gives to write to a contact, from their last message.
+const WINDOW_HOURS: Record<string, number> = {
+  whatsapp: 24,
+  instagram: 24,
+  tiktok: 48,
+};
+// An Instagram comment takes one private message, within 7 days of it.
+const PRIVATE_MESSAGE_MS = 7 * 24 * 60 * 60 * 1000;
+// How far back a conversation is read to tell how it can be written to.
+const REACH_ROWS = 50;
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -181,6 +191,163 @@ export function createLookup(supabase: SupabaseClient) {
 
 type Lookup = ReturnType<typeof createLookup>;
 
+// ── Replies ─────────────────────────────────────────────────────────────
+
+/**
+ * How a conversation on a service with a window can be written to now: freely
+ * `until` the window closes. Past it, on Instagram, the contact's latest
+ * comment may take its one private message (`privately`, until 7 days after
+ * it); with a comment the last word, an answer under the contact's latest
+ * (`comment`, a messages.id) is all that goes out.
+ */
+export type Reach = {
+  open: boolean;
+  until?: number;
+  privately?: { external_id: string; until: number };
+  comment?: string;
+};
+
+type ReachRow = {
+  id: string;
+  external_id: string | null;
+  sender_address: string | null;
+  timestamp: string;
+  kind: string | null;
+  type: string | null;
+  re: string | null;
+  internal: string | null;
+  failed: string | null;
+};
+
+export async function readReach(
+  supabase: SupabaseClient,
+  organization_id: string,
+  conversation_id: string,
+  service: string,
+): Promise<Reach | undefined> {
+  const hours = WINDOW_HOURS[service];
+  if (!hours) return undefined;
+
+  const { data } = await supabase
+    .from("messages")
+    .select(
+      "id, external_id, sender_address, timestamp, kind:content->>kind, type:content->>type, re:content->>re_message_id, internal:content->>internal, failed:status->>failed",
+    )
+    .eq("organization_id", organization_id)
+    .eq("conversation_id", conversation_id)
+    .order("timestamp", { ascending: false })
+    .limit(REACH_ROWS)
+    .throwOnError();
+
+  // Notes and reactions are no word in the conversation.
+  const rows = ((data ?? []) as ReachRow[]).filter((r) =>
+    !r.internal && r.kind !== "reaction"
+  );
+  const now = Date.now();
+
+  // A comment opens no window: only what the contact writes in private does.
+  const lastWord = rows.find((r) => r.sender_address && r.kind !== "comment");
+  const until = lastWord
+    ? Date.parse(lastWord.timestamp) + hours * 60 * 60 * 1000
+    : undefined;
+  if (until && until > now) return { open: true, until };
+
+  const comment = rows.find((r) => r.sender_address && r.kind === "comment");
+  if (!comment) return { open: false, until };
+
+  if (service === "instagram" && comment.external_id) {
+    const privateUntil = Date.parse(comment.timestamp) + PRIVATE_MESSAGE_MS;
+    // A failed one did not answer it.
+    const answered = rows.some((r) =>
+      !r.sender_address && r.type === "text" &&
+      r.re === comment.external_id && !r.failed
+    );
+    if (!answered && privateUntil > now) {
+      return {
+        open: false,
+        until,
+        privately: { external_id: comment.external_id, until: privateUntil },
+      };
+    }
+  }
+
+  return rows[0]?.kind === "comment"
+    ? { open: false, until, comment: comment.id }
+    : { open: false, until };
+}
+
+// What a reply writes: a text, or an answer under a comment.
+export type ReplyContent = {
+  version: "1";
+  type: "text" | "data";
+  kind: "text" | "comment";
+  text: string;
+  data?: unknown;
+  re_message_id?: string;
+};
+
+/**
+ * A reply as the services take it. Answering a comment (`reply_to` naming
+ * one) is a comment under it, in public. Anything else is a text naming what
+ * it answers, by the service's id for it (a local row, which has none, by its
+ * own id); Slack posts it in that message's thread. On Instagram, with the
+ * window closed, a text answering nothing is the one private message the
+ * contact's latest comment takes: it names that comment.
+ */
+export async function replyContent(
+  supabase: SupabaseClient,
+  organization_id: string,
+  conversation: { id: string; service: string },
+  text: string,
+  reply_to?: string,
+): Promise<ReplyContent> {
+  if (reply_to) {
+    const { data: answered } = await supabase
+      .from("messages")
+      .select("id, external_id, content")
+      .eq("organization_id", organization_id)
+      .eq("conversation_id", conversation.id)
+      .eq("id", reply_to)
+      .maybeSingle()
+      .throwOnError();
+
+    if (!answered) {
+      throw new Error(`Message ${reply_to} not found in this conversation`);
+    }
+
+    const re_message_id: string = answered.external_id ?? answered.id;
+    const content = answered.content as Content;
+
+    return content.kind === "comment"
+      ? {
+        version: "1",
+        type: "data",
+        kind: "comment",
+        data: content.data,
+        text,
+        re_message_id,
+      }
+      : { version: "1", type: "text", kind: "text", text, re_message_id };
+  }
+
+  const reach = conversation.service === "instagram"
+    ? await readReach(
+      supabase,
+      organization_id,
+      conversation.id,
+      conversation.service,
+    )
+    : undefined;
+
+  return {
+    version: "1",
+    type: "text",
+    kind: "text",
+    text,
+    ...(reach?.privately && { re_message_id: reach.privately.external_id }),
+  };
+}
+
 // ── Message content ─────────────────────────────────────────────────────
 
 const clip = (text: string, max: number) =>
@@ -243,6 +410,14 @@ function formatPart(content: Content): string {
           return `(shared ${data.type}: ${data.url})${
             data.title ? ` ${data.title}` : ""
           }`;
+        case "comment": {
+          // Said in public, under a post: what was said, then the post's link
+          // (a quote's clip keeps the words).
+          const post = data.post as { type?: string; url?: string } | undefined;
+          return `(comment${post?.type ? ` on ${post.type}` : ""}) ${
+            content.text ?? ""
+          }${post?.url ? `\n(post: ${post.url})` : ""}`;
+        }
         case "poll":
           return `(poll: ${data.question} — ${
             ((data.options ?? []) as string[]).join(" / ")
@@ -665,17 +840,26 @@ async function renderConversation(
     }>${esc(clipAt ? clip(text, clipAt) : text)}</msg>`;
   };
 
-  // WhatsApp takes free-form text for 24h after the contact's last message.
-  const lastIncoming = [...all].reverse().find((r) => r.sender_address);
-  const replyWindow = first.service !== "whatsapp"
+  // What can go out now, where the service gives a window.
+  const reach = await readReach(
+    supabase,
+    first.organization_id,
+    conversationId,
+    first.service,
+  );
+  const replyWindow = !reach
     ? undefined
-    : !lastIncoming
+    : reach.open
+    ? `open until ${stamp(reach.until!, reader.timeZone)}`
+    : first.service === "whatsapp"
     ? "closed: only a template goes out"
-    : Date.parse(lastIncoming.created_at) + WINDOW_MS > Date.now()
-    ? `open until ${
-      stamp(Date.parse(lastIncoming.created_at) + WINDOW_MS, reader.timeZone)
-    }`
-    : "closed: only a template goes out";
+    : reach.privately
+    ? `closed: a reply without reply_to is the one private message their latest comment takes, until ${
+      stamp(reach.privately.until, reader.timeZone)
+    }; with reply_to the comment, it is answered in public`
+    : reach.comment
+    ? `closed: only an answer to their comment goes out, in public (reply_to ${reach.comment})`
+    : "closed: nothing goes out until they write";
 
   const account = reader.accounts.get(first.organization_address)?.label ??
     first.organization_address;
