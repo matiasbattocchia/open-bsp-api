@@ -84,69 +84,31 @@ async function findComment(
 }
 
 /**
- * The comment a text answers in private, as a DM to its author. A text naming
- * a comment in re_message_id answers that one. A text naming nothing answers
- * the contact's last word when that is a comment no one answered yet, within
- * its 7 days: it is what the conversation shows last, and someone who only
- * commented can be written to no other way.
+ * The comment a text answers in private, as a DM to its author: the one its
+ * re_message_id names.
  */
 async function privateReplyTarget(
   client: SupabaseClient,
   message: MessageRow,
   content: OutgoingMessage,
 ): Promise<string | undefined> {
-  if (content.kind !== "text") return undefined;
+  if (content.kind !== "text" || !content.re_message_id) return undefined;
 
-  if (content.re_message_id) {
-    const comment = await findComment(
-      client,
-      message.organization_id,
-      content.re_message_id,
+  const comment = await findComment(
+    client,
+    message.organization_id,
+    content.re_message_id,
+  );
+
+  if (!comment) return undefined;
+
+  if (Date.now() - Date.parse(comment.timestamp) > PRIVATE_REPLY_WINDOW_MS) {
+    throw new InstagramError(
+      "Instagram answers a comment in private only within 7 days of it",
     );
-
-    if (!comment) return undefined;
-
-    if (Date.now() - Date.parse(comment.timestamp) > PRIVATE_REPLY_WINDOW_MS) {
-      throw new InstagramError(
-        "Instagram answers a comment in private only within 7 days of it",
-      );
-    }
-
-    return comment.external_id;
   }
 
-  const { data: last } = await client
-    .from("messages")
-    .select("external_id, timestamp, kind:content->>kind")
-    .eq("conversation_id", message.conversation_id)
-    .not("sender_address", "is", null)
-    .order("timestamp", { ascending: false })
-    .limit(1)
-    .maybeSingle()
-    .throwOnError();
-
-  if (
-    last?.kind !== "comment" || !last.external_id ||
-    Date.now() - Date.parse(last.timestamp) > PRIVATE_REPLY_WINDOW_MS
-  ) {
-    return undefined;
-  }
-
-  // Anything the account sent between them answered it already. Only before
-  // this one: a reply split in several rows is dispatched all at once, and
-  // its first row must not see the rest.
-  const { count } = await client
-    .from("messages")
-    .select("id", { count: "exact", head: true })
-    .eq("conversation_id", message.conversation_id)
-    .is("sender_address", null)
-    .is("content->>internal", null)
-    .is("status->>failed", null)
-    .gt("timestamp", last.timestamp)
-    .lt("timestamp", message.timestamp)
-    .throwOnError();
-
-  return count ? undefined : last.external_id;
+  return comment.external_id;
 }
 
 /**

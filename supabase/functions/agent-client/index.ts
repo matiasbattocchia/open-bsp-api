@@ -457,6 +457,31 @@ Deno.serve(async (req) => {
     return result;
   };
 
+  // AN INSTAGRAM COMMENT IS ANSWERED IN PRIVATE
+  //
+  // In a DM to its author, which Instagram takes once per comment: the first
+  // text said names the comment in re_message_id, and goes out as that reply.
+  // Someone who only commented can be written to no other way.
+
+  let commentToAnswer = incoming.service === "instagram" &&
+      incoming.content.kind === "comment"
+    ? incoming.external_id ?? undefined
+    : undefined;
+
+  const answeringComment = <T extends MessageInsert>(messages: T[]) =>
+    messages.map((message) => {
+      const content = message.content as OutgoingMessage;
+
+      if (!commentToAnswer || isInternal(message) || content.type !== "text") {
+        return message;
+      }
+
+      const re_message_id = commentToAnswer;
+      commentToAnswer = undefined;
+
+      return { ...message, content: { ...content, re_message_id } };
+    });
+
   // WELCOME MESSAGE
   //
   // The agent's, not the organization's — so it needs an agent; without
@@ -487,7 +512,7 @@ Deno.serve(async (req) => {
 
     log.info("Welcome message", (outgoing.content as TextPart).text);
 
-    const welcome = await withinLimits([outgoing]);
+    const welcome = answeringComment(await withinLimits([outgoing]));
 
     await client
       .from("messages")
@@ -1031,7 +1056,9 @@ Deno.serve(async (req) => {
     if (response.messages?.length) {
       log.info("Agent response", response.messages.at(-1)?.content);
 
-      const output_messages = (await withinLimits(response.messages)).map((
+      const output_messages = answeringComment(
+        await withinLimits(response.messages),
+      ).map((
         message,
         index,
       ) => ({
