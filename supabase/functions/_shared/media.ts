@@ -57,6 +57,89 @@ export async function uploadToStorage(
   return BASE_URI + key;
 }
 
+// A cover a browser can show; one in another format is left out.
+const THUMBNAIL_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "image/avif",
+]);
+
+const MAX_THUMBNAIL_SIZE = 5 * 1000 * 1000;
+
+/**
+ * A post's cover, as an internal uri: stored once per post. The services link
+ * it at a URL that expires, so the first comment on a post keeps a copy, named
+ * after the post, and the ones after it find that copy. Best effort: undefined
+ * when there is no cover to keep (no link, or not an image a browser shows)
+ * or it could not be stored, and the comment goes without one.
+ */
+export async function storePostThumbnail(
+  client: SupabaseClient,
+  organization_id: string,
+  service: "instagram" | "tiktok",
+  item_id: string,
+  url: string | undefined,
+): Promise<string | undefined> {
+  const key =
+    `organizations/${organization_id}/attachments/${service}-post-${item_id}`;
+  const details = { organization_id, service, item_id };
+
+  try {
+    const { data: stored } = await client
+      .schema("storage")
+      .from("objects")
+      .select("name")
+      .eq("bucket_id", "media")
+      .eq("name", key)
+      .maybeSingle()
+      .throwOnError();
+
+    if (stored) return `${BASE_URI}/${key}`;
+    if (!url) return;
+
+    // The headers decide before the body is read: a cover that is a video
+    // is not downloaded at all.
+    const response = await fetch(url);
+    const type = response.headers.get("content-type")?.split(";")[0].trim();
+    const length = Number(response.headers.get("content-length") ?? 0);
+
+    if (!response.ok) {
+      await response.body?.cancel();
+      log.warn("Could not download a post's cover", {
+        ...details,
+        status: response.status,
+      });
+      return;
+    }
+
+    if (!type || !THUMBNAIL_TYPES.has(type) || length > MAX_THUMBNAIL_SIZE) {
+      await response.body?.cancel();
+      log.info("A post's cover is not an image to keep", {
+        ...details,
+        type,
+        length,
+      });
+      return;
+    }
+
+    const file = await response.blob();
+    if (file.size > MAX_THUMBNAIL_SIZE) return;
+
+    const { error } = await client.storage.from("media").upload(key, file, {
+      contentType: type,
+      upsert: true,
+    });
+
+    if (error) throw error;
+
+    return `${BASE_URI}/${key}`;
+  } catch (error) {
+    logUnstored("A post's cover was not stored", error, details);
+  }
+}
+
 /**
  * Logs why a medium's bytes were not stored. A full storage quota is the plan
  * at work, which the organization hears of by email, so it logs as info;

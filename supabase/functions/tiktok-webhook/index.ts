@@ -34,6 +34,7 @@ import {
   fetchMedia,
   logUnstored,
   MAX_STORAGE_UPLOAD_SIZE,
+  storePostThumbnail,
   uploadToStorage,
   withoutMedia,
 } from "../_shared/media.ts";
@@ -771,6 +772,14 @@ async function persistComment(client: Client, payload: TikTokWebhookPayload) {
     video_id,
   );
 
+  const thumbnail = await storePostThumbnail(
+    client,
+    account.organization_id,
+    "tiktok",
+    video_id,
+    video?.thumbnail_url,
+  );
+
   // A top-level comment says "0" for its parent.
   const parent_id = [event.parent_comment_id, comment?.parent_comment_id]
     .find((id) => id && id !== "0");
@@ -785,6 +794,7 @@ async function persistComment(client: Client, payload: TikTokWebhookPayload) {
         item_id: video_id,
         ...(video?.share_url && { url: video.share_url }),
         ...(video?.caption && { title: video.caption }),
+        ...(thumbnail && { thumbnail }),
       },
     },
     text: comment?.text ?? event.text ?? "",

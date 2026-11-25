@@ -530,6 +530,7 @@ export type TikTokVideo = {
   item_id?: string;
   share_url?: string;
   caption?: string;
+  thumbnail_url?: string; // expires
 };
 
 /** One of the account's posts, videos and photos alike. */
@@ -544,7 +545,7 @@ export async function getVideo(
       access_token,
       query: {
         business_id,
-        fields: ["item_id", "share_url", "caption"],
+        fields: ["item_id", "share_url", "caption", "thumbnail_url"],
         filters: { video_ids: [video_id] },
       },
     },

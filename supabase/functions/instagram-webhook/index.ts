@@ -28,6 +28,7 @@ import {
   fetchMedia,
   logUnstored,
   MAX_STORAGE_UPLOAD_SIZE,
+  storePostThumbnail,
   uploadToStorage,
   withoutMedia,
 } from "../_shared/media.ts";
@@ -584,13 +585,33 @@ type CommentPost = CommentPart["data"]["post"];
 
 /**
  * The post or reel a comment is on. The webhook names only its id and type;
- * the link and caption come from Graph, and without them the comment still
- * keeps the id.
+ * the link, caption and cover come from Graph, and without them the comment
+ * still keeps the id, and the cover an earlier comment stored.
  */
 async function fetchPost(
+  client: SupabaseClient,
+  organization_id: string,
   media: InstagramComment["media"],
   accessToken: string | undefined,
 ): Promise<CommentPost> {
+  const { cover, ...post } = await readPost(media, accessToken);
+
+  const thumbnail = await storePostThumbnail(
+    client,
+    organization_id,
+    "instagram",
+    media.id,
+    cover,
+  );
+
+  return { ...post, ...(thumbnail && { thumbnail }) };
+}
+
+/** The post as Graph has it, with the link to its cover. */
+async function readPost(
+  media: InstagramComment["media"],
+  accessToken: string | undefined,
+): Promise<CommentPost & { cover?: string }> {
   const post: CommentPost = {
     type: media.media_product_type === "REELS" ? "ig_reel" : "ig_post",
     item_id: media.id,
@@ -600,7 +621,7 @@ async function fetchPost(
 
   try {
     const response = await fetch(
-      `https://graph.instagram.com/${API_VERSION}/${media.id}?fields=permalink,caption,media_product_type&access_token=${accessToken}`,
+      `https://graph.instagram.com/${API_VERSION}/${media.id}?fields=permalink,caption,media_product_type,media_type,media_url,thumbnail_url&access_token=${accessToken}`,
     );
 
     if (!response.ok) {
@@ -610,18 +631,31 @@ async function fetchPost(
       return post;
     }
 
-    const { permalink, caption, media_product_type } = await response
-      .json() as {
-        permalink?: string;
-        caption?: string;
-        media_product_type?: string;
-      };
+    const {
+      permalink,
+      caption,
+      media_product_type,
+      media_type,
+      media_url,
+      thumbnail_url,
+    } = await response.json() as {
+      permalink?: string;
+      caption?: string;
+      media_product_type?: string;
+      media_type?: string;
+      media_url?: string;
+      thumbnail_url?: string;
+    };
+
+    // A video's cover is its thumbnail; anything else is an image already.
+    const cover = media_type === "VIDEO" ? thumbnail_url : media_url;
 
     return {
       ...post,
       ...(media_product_type === "REELS" && { type: "ig_reel" as const }),
       ...(permalink && { url: permalink }),
       ...(caption && { title: caption }),
+      ...(cover && { cover }),
     };
   } catch (error) {
     log.warn(`Error fetching IG media ${media.id}`, {
@@ -683,7 +717,12 @@ async function commentsToMessages(
     if (!posts.has(comment.media.id)) {
       posts.set(
         comment.media.id,
-        fetchPost(comment.media, account.extra?.access_token ?? undefined),
+        fetchPost(
+          client,
+          account.organization_id,
+          comment.media,
+          account.extra?.access_token ?? undefined,
+        ),
       );
     }
 

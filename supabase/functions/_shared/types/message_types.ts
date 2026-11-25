@@ -272,8 +272,8 @@ export type SharePart = DataPart<"share", {
  * A comment on one of the account's posts or reels, filed in the commenter's
  * conversation. `external_id` is the service's comment id, and a reply in the
  * comment's thread names its parent in `re_message_id`, as any reply does.
- * `post` is what was commented: always its id, and its link and caption when
- * the service gave them.
+ * `post` is what was commented: always its id, and its link, caption and
+ * cover (`thumbnail`, a stored image's uri) when the service gave them.
  *
  * Outgoing, it is the account answering in public, under the comment its
  * `re_message_id` names (TikTok, up to 1,200 characters). A text naming a
@@ -287,6 +287,7 @@ export type CommentPart =
       item_id: string;
       url?: string;
       title?: string;
+      thumbnail?: string;
     };
   }>
   & { text: string };
