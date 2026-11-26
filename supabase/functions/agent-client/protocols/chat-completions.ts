@@ -21,6 +21,7 @@ import {
   type AgentProtocolHandler,
   type AgentRowWithExtra,
   contextHeaders,
+  failedTurnNote,
   normalizeToolName,
   type RequestContext,
   type ResponseContext,
@@ -261,6 +262,10 @@ export class ChatCompletionsHandler
   ): ChatCompletionMessageParam {
     const part = row.content as Part & ToolInfo;
     const role = row.agent_id === this.context.agent.id ? "assistant" : "user";
+
+    const note = failedTurnNote(row, this.context.agent.id);
+
+    if (note) return { role: "user", content: note };
 
     if (part.tool?.provider === "local") {
       if (part.tool.event === "use") {

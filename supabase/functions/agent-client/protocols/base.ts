@@ -5,7 +5,9 @@ import type {
   MessageInsert,
   MessageRow,
   OrganizationRow,
+  Part,
 } from "../../_shared/supabase.ts";
+import { isInternal, isToolTrace } from "../../_shared/supabase.ts";
 
 // The peer as the protocol handlers care about it: a display name resolved
 // from the conversation's contacts_addresses row (or the author agent on a
@@ -45,6 +47,27 @@ export interface ResponseContext {
  */
 export function normalizeToolName(name: string): string {
   return name.split("<|")[0].trim().replace(/^functions\./, "");
+}
+
+/**
+ * A turn that failed leaves its error as an internal text row of the agent's
+ * own (tool traces are the agent's other internal rows). It goes back to the
+ * model as a note, not as the agent's words: the contact got nothing, so the
+ * message before it is still unanswered.
+ */
+export function failedTurnNote(
+  row: MessageRow,
+  agentId: string,
+): string | undefined {
+  if (row.agent_id !== agentId || !isInternal(row) || isToolTrace(row)) {
+    return;
+  }
+
+  const part = row.content as Part;
+
+  if (part.type !== "text") return;
+
+  return `<error>This reply failed and the contact did not get it: ${part.text}</error>`;
 }
 
 export function contextHeaders(

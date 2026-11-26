@@ -12,6 +12,7 @@ import {
   type AgentProtocolHandler,
   type AgentRowWithExtra,
   contextHeaders,
+  failedTurnNote,
   normalizeToolName,
   type RequestContext,
   type ResponseContext,
@@ -231,6 +232,10 @@ export class ResponsesHandler
   private toResponseInput(row: MessageRow): ResponseInputItem {
     const part = row.content as Part & ToolInfo;
     const role = row.agent_id === this.context.agent.id ? "assistant" : "user";
+
+    const note = failedTurnNote(row, this.context.agent.id);
+
+    if (note) return { role: "user", content: note };
 
     if (part.tool?.provider === "local") {
       const name = ["label" in part.tool && part.tool.label, part.tool.name]
