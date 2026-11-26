@@ -907,6 +907,10 @@ We request this permission to show the comments on a business's posts and reels
 in its inbox, and to answer them: in public, under the comment, or in private,
 with a direct message to the person who commented.
 
+#### Screen recording
+
+https://github.com/user-attachments/assets/b7232324-8769-4914-87c2-8b8db804147a
+
 </details>
 
 ## TikTok integration
