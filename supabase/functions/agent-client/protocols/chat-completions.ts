@@ -557,6 +557,11 @@ export class ChatCompletionsHandler
 
     let retries = 0;
     const maxRetries = 3;
+    // Groq can't make a model call a tool: it checks the answer afterwards
+    // and refuses the whole of it (tool_use_failed) when `respond` is required
+    // and the model wrote text, or botched the call. Asked once more with the
+    // tool optional, a text answer goes out as a plain reply.
+    let toolOptional = false;
 
     while (true) {
       try {
@@ -567,7 +572,9 @@ export class ChatCompletionsHandler
           messages: request.messages,
           // TOOLS
           tools: request.tools.length ? request.tools : undefined,
-          tool_choice: multiMessageResponse(agent) ? "required" : undefined,
+          tool_choice: multiMessageResponse(agent) && !toolOptional
+            ? "required"
+            : undefined,
           parallel_tool_calls: request.tools.length ? true : undefined,
           // THINKING
           // ts-expect-error
@@ -577,6 +584,18 @@ export class ChatCompletionsHandler
 
         break;
       } catch (error) {
+        if (
+          !toolOptional &&
+          multiMessageResponse(agent) &&
+          error instanceof OpenAI.APIError &&
+          error.status === 400 &&
+          error.code === "tool_use_failed"
+        ) {
+          log.warn(`Retrying with the tool optional... ${error.message}`);
+          toolOptional = true;
+          continue;
+        }
+
         if (
           retries < maxRetries &&
           error instanceof Error &&
