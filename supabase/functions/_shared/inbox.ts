@@ -33,8 +33,8 @@ const WINDOW_HOURS: Record<string, number> = {
   instagram: 24,
   tiktok: 48,
 };
-// An Instagram comment takes one private message, within 7 days of it.
-const PRIVATE_MESSAGE_MS = 7 * 24 * 60 * 60 * 1000;
+// On Instagram a comment opens a window of its own: one DM, for 7 days.
+const COMMENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 // How far back a conversation is read to tell how it can be written to.
 const REACH_ROWS = 50;
 
@@ -196,8 +196,9 @@ type Lookup = ReturnType<typeof createLookup>;
 /**
  * How a conversation on a service with a window can be written to now: freely
  * `until` the window closes. Past it, on Instagram, the contact's latest
- * comment may take its one private message (`privately`, until 7 days after
- * it); with a comment the last word, an answer under the contact's latest
+ * comment opens it for one DM (`privately`, until 7 days after the comment),
+ * which Instagram addresses by the comment, `external_id`; the DM answers
+ * nothing. With a comment the last word, an answer under the contact's latest
  * (`comment`, a messages.id) is all that goes out.
  */
 export type Reach = {
@@ -245,7 +246,8 @@ export async function readReach(
   );
   const now = Date.now();
 
-  // A comment opens no window: only what the contact writes in private does.
+  // What the contact writes in private opens the window; a comment, no more
+  // than the one DM below.
   const lastWord = rows.find((r) => r.sender_address && r.kind !== "comment");
   const until = lastWord
     ? Date.parse(lastWord.timestamp) + hours * 60 * 60 * 1000
@@ -256,13 +258,13 @@ export async function readReach(
   if (!comment) return { open: false, until };
 
   if (service === "instagram" && comment.external_id) {
-    const privateUntil = Date.parse(comment.timestamp) + PRIVATE_MESSAGE_MS;
-    // A failed one did not answer it.
-    const answered = rows.some((r) =>
+    const privateUntil = Date.parse(comment.timestamp) + COMMENT_WINDOW_MS;
+    // The DM that went out through it; a failed one did not.
+    const spent = rows.some((r) =>
       !r.sender_address && r.type === "text" &&
       r.re === comment.external_id && !r.failed
     );
-    if (!answered && privateUntil > now) {
+    if (!spent && privateUntil > now) {
       return {
         open: false,
         until,
@@ -291,8 +293,9 @@ export type ReplyContent = {
  * one) is a comment under it, in public. Anything else is a text naming what
  * it answers, by the service's id for it (a local row, which has none, by its
  * own id); Slack posts it in that message's thread. On Instagram, with the
- * window closed, a text answering nothing is the one private message the
- * contact's latest comment takes: it names that comment.
+ * window closed, a text answering nothing is the one DM the contact's latest
+ * comment opens it for: it names that comment, which is how Instagram
+ * addresses it, not what it answers.
  */
 export async function replyContent(
   supabase: SupabaseClient,
@@ -802,9 +805,15 @@ async function renderConversation(
       .eq("conversation_id", conversationId)
       .in("external_id", missing)).data ?? []) as Row[]
     : [];
-  const quote = (id?: string) => {
+  const quote = (m: Row) => {
+    const id = m.content?.re_message_id;
     if (!id) return undefined;
     const r = [...shown, ...quoted].find((x) => x.external_id === id);
+    // A text naming a comment is the DM it opened the window for: Instagram
+    // addresses it by the comment, and it answers nothing.
+    if (r?.content?.kind === "comment" && m.content?.type === "text") {
+      return undefined;
+    }
     return r ? `«${clip(formatMessageContent(r.content), 80)}»` : "?";
   };
 
@@ -834,7 +843,7 @@ async function renderConversation(
         ...(clipAt ? {} : { id: r.id }),
         ...author,
         at: stamp(r.created_at, reader.timeZone),
-        re: quote(r.content?.re_message_id),
+        re: quote(r),
         forwarded: r.content?.forwarded ? "yes" : undefined,
       })
     }>${esc(clipAt ? clip(text, clipAt) : text)}</msg>`;
@@ -854,9 +863,9 @@ async function renderConversation(
     : first.service === "whatsapp"
     ? "closed: only a template goes out"
     : reach.privately
-    ? `closed: a reply without reply_to is the one private message their latest comment takes, until ${
+    ? `closed, but their latest comment opens it for one message, until ${
       stamp(reach.privately.until, reader.timeZone)
-    }; with reply_to the comment, it is answered in public`
+    }: a reply without reply_to. A reply_to the comment answers it in public`
     : reach.comment
     ? `closed: only an answer to their comment goes out, in public (reply_to ${reach.comment})`
     : "closed: nothing goes out until they write";

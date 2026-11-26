@@ -149,8 +149,8 @@ Deno.serve(async (req) => {
 
   // NO AI ANSWER TO A TIKTOK COMMENT
   //
-  // TikTok answers a commenter only in public, under the comment (an
-  // Instagram comment, by contrast, is answered in a private DM). What a
+  // TikTok lets a commenter be answered only in public, under the comment (an
+  // Instagram comment, by contrast, opens a window for one DM). What a
   // business says in public is left to its members.
 
   if (incoming.service === "tiktok" && incoming.content.kind === "comment") {
@@ -457,11 +457,12 @@ Deno.serve(async (req) => {
     return result;
   };
 
-  // AN INSTAGRAM COMMENT IS ANSWERED IN PRIVATE
+  // AN INSTAGRAM COMMENT GETS A DM
   //
-  // In a DM to its author, which Instagram takes once per comment: the first
-  // text said names the comment in re_message_id, and goes out as that reply.
-  // Someone who only commented can be written to no other way.
+  // A comment opens a window for one DM to its author, which Instagram
+  // addresses by the comment: the first text said names it in re_message_id,
+  // and goes out through it. Someone who only commented can be written to no
+  // other way.
 
   let commentToAnswer = incoming.service === "instagram" &&
       incoming.content.kind === "comment"

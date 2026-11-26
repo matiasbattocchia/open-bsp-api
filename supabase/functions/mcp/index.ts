@@ -333,7 +333,7 @@ function createMcpServer(caller: Caller) {
         ),
         text: z.string().describe("Message text to send"),
         reply_to: z.string().optional().describe(
-          "The message this answers (an inbox line's id): on Slack the reply goes into its thread, elsewhere it quotes it. A comment is answered in public, under it, only this way. Omit to write in the main timeline (on Instagram, with the window closed, that is the one private message the contact's latest comment takes)",
+          "The message this answers (an inbox line's id): on Slack the reply goes into its thread, elsewhere it quotes it. A comment is answered in public, under it, only this way. Omit to write in the main timeline (on Instagram, with the window closed, that is the one message the contact's latest comment opens it for)",
         ),
       },
       annotations: SENDS,

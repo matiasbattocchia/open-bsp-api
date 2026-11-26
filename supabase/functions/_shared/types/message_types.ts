@@ -276,10 +276,11 @@ export type SharePart = DataPart<"share", {
  * cover (`thumbnail`, a stored image's uri) when the service gave them.
  *
  * Outgoing, it is the account answering in public, under the comment its
- * `re_message_id` names (TikTok, up to 1,200 characters). A text naming a
- * comment answers in private instead: on Instagram, one DM per comment,
- * within 7 days of it; TikTok answers a commenter only in public, and refuses
- * it.
+ * `re_message_id` names (TikTok, up to 1,200 characters). On Instagram a
+ * comment also opens a window for one DM to its author, within 7 days of it,
+ * which Instagram addresses by the comment: that DM is a text naming it, and
+ * answers nothing. TikTok has no such window, and refuses a text naming a
+ * comment.
  */
 export type CommentPart =
   & DataPart<"comment", {

@@ -55,7 +55,7 @@ class InstagramError extends Error {
  */
 const RETRYABLE_META_CODES = new Set([1, 2, 4, 613, 80007]);
 
-// Instagram takes one private reply per comment, within 7 days of it.
+// A comment opens a window for one DM to its author, within 7 days of it.
 const PRIVATE_REPLY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 type CommentRow = {
@@ -84,8 +84,9 @@ async function findComment(
 }
 
 /**
- * The comment a text answers in private, as a DM to its author: the one its
- * re_message_id names.
+ * The comment whose window a text goes out through, as the one DM to its
+ * author: the one its re_message_id names. Instagram addresses that DM by the
+ * comment (its "private reply"); it answers nothing.
  */
 async function privateReplyTarget(
   client: SupabaseClient,
@@ -104,7 +105,7 @@ async function privateReplyTarget(
 
   if (Date.now() - Date.parse(comment.timestamp) > PRIVATE_REPLY_WINDOW_MS) {
     throw new InstagramError(
-      "Instagram answers a comment in private only within 7 days of it",
+      "A comment opens Instagram's window for a DM only within 7 days of it",
     );
   }
 
@@ -223,7 +224,7 @@ async function outgoingMessageToPayloads({
 }: {
   content: OutgoingMessage;
   to: string;
-  // A text answering this comment in private.
+  // The comment whose window a text goes out through.
   comment_id?: string;
   client: SupabaseClient;
 }): Promise<Array<IgEndpointMessage | IgReactionAction>> {
