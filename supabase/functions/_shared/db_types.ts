@@ -1128,6 +1128,7 @@ export type Database = {
       organizations: {
         Row: {
           created_at: string
+          domain: string | null
           extra: Json | null
           id: string
           name: string
@@ -1136,6 +1137,7 @@ export type Database = {
         ComputedFields: never
         Insert: {
           created_at?: string
+          domain?: string | null
           extra?: Json | null
           id?: string
           name: string
@@ -1143,6 +1145,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          domain?: string | null
           extra?: Json | null
           id?: string
           name?: string
